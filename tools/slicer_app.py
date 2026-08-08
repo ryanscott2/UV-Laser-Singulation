@@ -71,7 +71,7 @@ FACE = "Segoe UI Variable Text"
 # Every field the UI remembers per dataset.
 DATASET_FIELDS = ("input", "output", "layer", "cutWidth", "widthMode", "clipMode",
                   "globalX", "globalY", "anchors", "headerExtents", "allowOutside",
-                  "extension", "stationOffsets")
+                  "extension", "stationOffsets", "stitchUm")
 
 
 # --------------------------------------------------------------------- models
@@ -556,6 +556,19 @@ class Bridge(QObject):
 
     geometrySummary = Property(str, _get_geometry_summary, constant=True)
 
+    def _get_default_stitch(self) -> float:
+        return float(slicer_preview.splitter_namespace()["STITCH_OVERLAP_UM"])
+
+    defaultStitchUm = Property(float, _get_default_stitch, constant=True)
+
+    def _get_max_stitch(self) -> float:
+        """Past this a window would reach outside the declared field, and the
+        splitter refuses. Derived, not hardcoded."""
+        ns = slicer_preview.splitter_namespace()
+        return float(ns["QUALIFIED_FIELD_SIZE_UM"] - 2.0 * ns["WINDOW_CENTER_X_UM"])
+
+    maxStitchUm = Property(float, _get_max_stitch, constant=True)
+
     def _get_layers(self) -> QObject:
         return self._layers
 
@@ -620,9 +633,20 @@ class Bridge(QObject):
             "global_y_um": float(params.get("globalY", 0.0)),
             "anchors": bool(params.get("anchors", True)),
             "window_offsets": self._offsets_from(params),
+            "stitch_um": self._stitch_from(params),
         })
         self._worker.done.connect(self._preview_done)
         self._worker.start()
+
+    def _stitch_from(self, params) -> float:
+        """Blank or unset means the splitter's own default."""
+        raw = str(params.get("stitchUm", "")).strip()
+        if not raw:
+            return self._get_default_stitch()
+        try:
+            return float(raw)
+        except ValueError:
+            return self._get_default_stitch()
 
     @staticmethod
     def _offsets_from(params) -> dict:
@@ -677,6 +701,7 @@ class Bridge(QObject):
             arguments.append("--no-header-extents")
         if bool(params.get("allowOutside", False)):
             arguments.append("--allow-outside")
+        arguments += ["--stitch", f"{self._stitch_from(params):g}"]
         for label, (x, y) in self._offsets_from(params).items():
             if x or y:
                 arguments += ["--offset", f"{label}={x:g},{y:g}"]

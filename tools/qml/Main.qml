@@ -69,7 +69,8 @@ ApplicationWindow {
             "headerExtents": extentsBox.checked,
             "allowOutside": allowOutsideBox.checked,
             "extension": formatCombo.currentText,
-            "stationOffsets": root.stationOffsets
+            "stationOffsets": root.stationOffsets,
+            "stitchUm": stitchField.text
         }
     }
 
@@ -504,6 +505,7 @@ ApplicationWindow {
                             flat: true
                             onClicked: {
                                 offsetX.text = "0"; offsetY.text = "0"
+                                stitchField.text = String(bridge.defaultStitchUm)
                                 root.stationOffsets = {
                                     "DXF11": { "x": 0, "y": 0 }, "DXF12": { "x": 0, "y": 0 },
                                     "DXF21": { "x": 0, "y": 0 }, "DXF22": { "x": 0, "y": 0 }
@@ -514,7 +516,33 @@ ApplicationWindow {
                     }
 
                     Label {
-                        text: "All four jobs"; color: theme.textSecond
+                        text: "Cut overlap at the seams"; color: theme.textSecond
+                        font.family: theme.face; font.pixelSize: 13
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        TextField {
+                            id: stitchField
+                            text: String(bridge.defaultStitchUm)
+                            Layout.preferredWidth: 74
+                            validator: DoubleValidator { bottom: 0; decimals: 3 }
+                            font.family: theme.face
+                            onEditingFinished: root.refresh()
+                        }
+                        Label {
+                            text: "µm total, max " + bridge.maxStitchUm
+                            color: theme.textTertiary
+                            font.family: theme.face; font.pixelSize: 11
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: theme.cardStroke
+                                Layout.topMargin: 2; Layout.bottomMargin: 2 }
+
+                    Label {
+                        text: "Offset, all four jobs"; color: theme.textSecond
                         font.family: theme.face; font.pixelSize: 13
                     }
                     RowLayout {
