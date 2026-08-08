@@ -64,6 +64,16 @@ STITCH_OVERLAP_UM = 1_200.0
 # Source and output layer. DXF layer "0" normally imports as layer 0/datatype 0.
 SOURCE_LAYER = 0
 SOURCE_DATATYPE = 0
+
+# Which layer holds the cutlines. Blank keeps the historical behaviour: numeric
+# layer 0/0, or a layer literally named "0". Otherwise accepts "7", "7/2", or a
+# layer name such as "CUT". Override with -rd source_layer=...
+SOURCE_LAYER_SPEC = ""
+
+# `cap` reduces paths wider than the width below and leaves narrower ones alone.
+# `force` sets every path to exactly that width, widening as well as narrowing.
+# Neither touches filled polygons, which carry their drawn size as geometry.
+CUT_WIDTH_MODE = "cap"  # `cap` or `force`
 OUTPUT_LAYER = 0
 OUTPUT_DATATYPE = 0
 OUTPUT_LAYER_NAME = "0"
@@ -144,21 +154,63 @@ def as_bool(name: str, default: bool) -> bool:
     raise ValueError(f"{name} must be true/false or 1/0, got {value!r}")
 
 
-def layer_matches(info) -> bool:
-    numeric_match = info.layer == SOURCE_LAYER and info.datatype == SOURCE_DATATYPE
-    name = str(getattr(info, "name", "") or "")
-    return numeric_match or name == str(SOURCE_LAYER) or name == OUTPUT_LAYER_NAME
+def parse_layer_spec(spec) -> tuple[int | None, int | None, str | None]:
+    """Read a layer selector: blank, `7`, `7/2`, or a layer name like `CUT`."""
+    text = str(spec).strip()
+    if not text:
+        return None, None, None
+    if "/" in text:
+        layer_part, datatype_part = text.split("/", 1)
+        try:
+            return int(layer_part), int(datatype_part), None
+        except ValueError:
+            return None, None, text
+    try:
+        return int(text), 0, None
+    except ValueError:
+        return None, None, text
 
 
-def cap_source_path_widths(layout, layer_indices, max_width_um: float) -> dict[str, float | int]:
-    """Cap path widths in-place while preserving each path's centerline."""
-    cap_dbu = um_to_dbu(layout, max_width_um)
-    if cap_dbu < 1:
+def describe_layer_spec(spec) -> str:
+    layer, datatype, name = spec
+    if name is not None:
+        return f"name {name!r}"
+    if layer is None:
+        return f"default ({SOURCE_LAYER}/{SOURCE_DATATYPE} or a layer named '{SOURCE_LAYER}')"
+    return f"{layer}/{datatype}"
+
+
+def layer_matches(info, spec) -> bool:
+    layer, datatype, name = spec
+    info_name = str(getattr(info, "name", "") or "")
+    if name is not None:
+        return info_name == name
+    if layer is None:
+        # Historical default: numeric 0/0, or a layer literally named "0".
+        numeric = info.layer == SOURCE_LAYER and info.datatype == SOURCE_DATATYPE
+        return numeric or info_name in {str(SOURCE_LAYER), OUTPUT_LAYER_NAME}
+    return (info.layer == layer and info.datatype == datatype) or info_name == str(layer)
+
+
+def apply_source_path_widths(
+    layout, layer_indices, width_um: float, mode: str
+) -> dict[str, float | int | str]:
+    """Set native path widths in-place, preserving each path's centerline.
+
+    `cap` only narrows paths wider than `width_um`. `force` sets every path to
+    exactly that width. Filled polygons are geometry rather than paths and carry
+    their drawn size, so neither mode can change them; `paths_seen` is reported so
+    a caller can tell the width control had nothing to act on.
+    """
+    if mode not in {"cap", "force"}:
+        raise ValueError("CUT_WIDTH_MODE must be 'cap' or 'force'")
+    target_dbu = um_to_dbu(layout, width_um)
+    if target_dbu < 1:
         raise ValueError(
-            f"MAX_CUT_WIDTH_UM={max_width_um} is smaller than the {layout.dbu} um layout grid"
+            f"cut width {width_um} um is smaller than the {layout.dbu} um layout grid"
         )
 
-    paths_to_cap = []
+    to_change = []
     paths_seen = 0
     widest_original_dbu = 0
     for cell in layout.each_cell():
@@ -169,38 +221,41 @@ def cap_source_path_widths(layout, layer_indices, max_width_um: float) -> dict[s
                 width_dbu = abs(int(shape.path_width))
                 paths_seen += 1
                 widest_original_dbu = max(widest_original_dbu, width_dbu)
-                if width_dbu > cap_dbu:
-                    paths_to_cap.append(shape)
+                if width_dbu > target_dbu or (mode == "force" and width_dbu != target_dbu):
+                    to_change.append(shape)
 
     # Changing a shape can invalidate its container iterator, so widths are
     # updated only after all iterators have finished.
-    for shape in paths_to_cap:
-        shape.path_width = cap_dbu
+    for shape in to_change:
+        shape.path_width = target_dbu
 
     return {
         "paths_seen": paths_seen,
-        "paths_capped": len(paths_to_cap),
+        "paths_capped": len(to_change),
+        "width_mode": mode,
         "widest_original_um": dbu_to_um(layout, widest_original_dbu),
     }
 
 
-def region_from_source(layout, max_width_um: float) -> tuple[object, list[str], dict[str, float | int]]:
+def region_from_source(
+    layout, max_width_um: float, spec, width_mode: str
+) -> tuple[object, list[str], dict[str, float | int | str]]:
     matching_indices = []
     matching_names = []
     for layer_index in layout.layer_indices():
         info = layout.get_info(layer_index)
-        if layer_matches(info):
+        if layer_matches(info, spec):
             matching_indices.append(layer_index)
             matching_names.append(str(info))
 
     if not matching_indices:
         available = ", ".join(str(layout.get_info(i)) for i in layout.layer_indices())
         raise RuntimeError(
-            f"No source layer {SOURCE_LAYER}/{SOURCE_DATATYPE} or named layer 0 found. "
+            f"No source layer matching {describe_layer_spec(spec)} found. "
             f"Available layers: {available or '<none>'}"
         )
 
-    width_stats = cap_source_path_widths(layout, matching_indices, max_width_um)
+    width_stats = apply_source_path_widths(layout, matching_indices, max_width_um, width_mode)
 
     result = pya.Region()
     for top_cell in layout.top_cells():
@@ -460,6 +515,8 @@ def main() -> None:
     add_registration_envelope = as_bool(
         "add_registration_envelope", ADD_IMPORT_REGISTRATION_ENVELOPE
     )
+    source_spec = parse_layer_spec(runtime_value("source_layer", SOURCE_LAYER_SPEC))
+    width_mode = str(runtime_value("cut_width_mode", CUT_WIDTH_MODE)).strip().lower()
     write_header_extents = as_bool("write_dxf_header_extents", WRITE_DXF_HEADER_EXTENTS)
     allow_outside = as_bool("allow_geometry_outside_fields", ALLOW_GEOMETRY_OUTSIDE_FIELDS)
     extension = str(runtime_value("output_extension", OUTPUT_EXTENSION)).strip().lower()
@@ -477,7 +534,9 @@ def main() -> None:
     else:
         layout.read(str(input_file))
 
-    source_region, source_layers, width_stats = region_from_source(layout, max_cut_width_um)
+    source_region, source_layers, width_stats = region_from_source(
+        layout, max_cut_width_um, source_spec, width_mode
+    )
     source_bbox = region_bbox_um(layout, source_region)
     manifest_rows = []
 
@@ -559,6 +618,8 @@ def main() -> None:
                 "output_translate_x_um": translate_x_um,
                 "output_translate_y_um": translate_y_um,
                 "max_cut_width_um": max_cut_width_um,
+                "cut_width_mode": width_stats["width_mode"],
+                "source_layer_selector": describe_layer_spec(source_spec),
                 "source_paths_capped": width_stats["paths_capped"],
                 "output_bbox_um": "" if bbox is None else ";".join(f"{v:.3f}" for v in bbox),
                 "polygon_count": clipped.count(),
@@ -582,10 +643,13 @@ def main() -> None:
         stream.write(f"Source bbox (um): {source_bbox}\n")
         stream.write(f"Mode: {mode}\n")
         stream.write(f"Global offset (um): X={global_x_um}, Y={global_y_um}\n")
-        stream.write(f"Maximum native path width (um): {max_cut_width_um}\n")
+        stream.write(f"Source layer selector: {describe_layer_spec(source_spec)}\n")
+        stream.write(
+            f"Cut width (um): {max_cut_width_um}, mode={width_stats['width_mode']}\n"
+        )
         stream.write(
             "Source native paths: "
-            f"seen={width_stats['paths_seen']}, capped={width_stats['paths_capped']}, "
+            f"seen={width_stats['paths_seen']}, changed={width_stats['paths_capped']}, "
             f"widest_original_um={width_stats['widest_original_um']}\n"
         )
         stream.write(f"Stitch overlap (um): {stitch_um}\n")

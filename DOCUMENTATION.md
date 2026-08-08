@@ -11,6 +11,8 @@ ended up this way, see
 - [Requirements](#requirements)
 - [The labeling convention](#the-labeling-convention)
 - [Pipeline](#pipeline)
+- [Slicing an arbitrary pattern](#slicing-an-arbitrary-pattern)
+- [Double exposure](#double-exposure)
 - [Laser import settings](#laser-import-settings)
 - [Jigs and printing](#jigs-and-printing)
 - [Running the KLayout macros directly](#running-the-klayout-macros-directly)
@@ -295,6 +297,74 @@ platform upward; the downward pins need support blockers everywhere except benea
 the pins. Verify pin fit on a coupon first: nominal radial clearance is `0.085 mm`
 against a measured `4.870 mm` thread minor diameter, and PLA shrinkage and thread
 crests both matter at that scale.
+
+## Slicing an arbitrary pattern
+
+The production path (`tools/build_pin_grid_set.py`) is wired to the 100 mm masters.
+To slice something else, pick which layer holds the cutlines and what width they
+should be.
+
+### Desktop window
+
+```bash
+python tools/slicer_gui.py
+```
+
+Choose a file and it reads the layers out of it, showing shape counts, drawn area,
+and the existing path widths for each. It preselects the layer with the most drawn
+area, which is the cutline layer in every file this toolchain has seen, but any
+layer can be chosen by name or by number.
+
+Width has two modes. **Cap** narrows only paths wider than your value and leaves
+thinner ones alone; **force** sets every path to exactly your value, widening as
+well as narrowing.
+
+One thing the window tells you that is easy to miss: **width only applies to native
+paths.** A filled polygon carries its size as geometry, so if the chosen layer is
+polygons the width control cannot change anything, and the window says so rather
+than letting you believe a new width took effect. The generated 100 mm masters are
+polygons for exactly this reason.
+
+The field size, window centers, and stitch overlap are shown read-only, because the
+relation the splitter enforces locks them together.
+
+### Command line
+
+The same options without the window:
+
+```bash
+python tools/run_splitter.py --input wafer.dxf --list-layers
+```
+
+```bash
+python tools/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40 --width-mode force --output jobs/
+```
+
+Add `--no-anchors`, `--no-header-extents`, `--allow-outside`, `--global-x/--global-y`,
+`--clip-mode`, `--stitch`, or `--extension` as needed. This is also the supported way
+to drive the splitter from plain Python, since the macro itself reads overrides from
+`globals()` and parses no arguments of its own.
+
+## Double exposure
+
+Two places in the current recipe expose the same area twice. Measured on the
+production set:
+
+| source | area at 2x dose | share of exposed area |
+| --- | ---: | ---: |
+| grid crossings, where `Horizontal.dxf` meets `Vertical.dxf` | `0.0700 mm2` in 28 spots of `50 x 50 um` | `0.14%` |
+| seam overlap, where two neighbouring jobs both reach past `X=0` / `Y=0` | `1.3225 mm2` | `2.69%` |
+| total | `1.3925 mm2` of `49.1333 mm2` | `2.83%` |
+
+The **seam overlap is deliberate** — it is the `1.2 mm` stitch that stops a gap
+appearing at the seam — and it is by far the larger contributor. The **crossings are
+incidental**: they land exactly on the corners of every die, which is where chipping
+starts, so if corner quality matters they are worth removing.
+
+Removing them needs no change to what gets cut. Emitting `Vertical - Horizontal`
+instead of `Vertical` leaves the union bit-identical (verified: XOR area zero) while
+dropping crossing overlap to zero, at the cost of `0.0700 mm2` less vertical
+geometry. Not implemented; raise it if you want it.
 
 ## Running the KLayout macros directly
 

@@ -40,7 +40,17 @@ python tools/validate_pin_grid_set.py
 
 The build writes four labeled folders of exposure files. The validator
 reconstructs each master from those tiles and requires zero XOR area against it,
-then checks every registration bounding box. It exits non-zero on failure.
+then checks every registration bounding box and declared window. It exits non-zero
+on failure.
+
+To slice a pattern of your own, pick the cutline layer and width in a window:
+
+```bash
+python tools/slicer_gui.py
+```
+
+or on the command line with `python tools/run_splitter.py --input wafer.dxf
+--list-layers` to see the layers first.
 
 ## Layout
 
