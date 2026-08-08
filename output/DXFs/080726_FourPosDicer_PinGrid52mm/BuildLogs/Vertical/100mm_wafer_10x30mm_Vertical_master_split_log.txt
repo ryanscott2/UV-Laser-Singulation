@@ -4,6 +4,7 @@ Layout DBU: 0.001 um
 Source bbox (um): (-45025.0, -45285.701, 45025.0, 47741.455)
 Mode: partition
 Global offset (um): X=0.0, Y=0.0
+Per-station offsets (um): DXF11=(0,0), DXF12=(0,0), DXF21=(0,0), DXF22=(0,0)
 Source layer selector: default (0/0 or a layer named '0')
 Cut width (um): 50.0, mode=cap
 Source native paths: seen=0, changed=0, widest_original_um=0.0

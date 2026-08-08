@@ -43,11 +43,15 @@ reconstructs each master from those tiles and requires zero XOR area against it,
 then checks every registration bounding box and declared window. It exits non-zero
 on failure.
 
-To slice a pattern of your own, pick the cutline layer and width in a window:
+To slice a pattern of your own, pick the cutline layer and width in a window and
+watch the four jobs update over the wafer:
 
 ```bash
-python tools/slicer_gui.py
+python tools/slicer_app.py
 ```
+
+The window needs PySide6 in a venv at a short path; see
+[DOCUMENTATION.md](DOCUMENTATION.md#desktop-window) for why.
 
 or on the command line with `python tools/run_splitter.py --input wafer.dxf
 --list-layers` to see the layers first.

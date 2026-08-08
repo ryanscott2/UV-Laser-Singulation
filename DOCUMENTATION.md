@@ -307,26 +307,51 @@ should be.
 ### Desktop window
 
 ```bash
-python tools/slicer_gui.py
+python tools/slicer_app.py
 ```
 
+PySide6 + QML, using Qt's own `FluentWinUI3` style pinned to dark.
+
+**This needs its own interpreter.** PySide6 will not install into the Windows Store
+Python: that interpreter's user `site-packages` path is 136 characters and the
+PySide6 wheel's deepest file needs 142 more, which exceeds Windows' 260 character
+limit while `LongPathsEnabled` is `0`. A failed attempt leaves a partial extraction
+that looks installed but has no QML modules at all. Use a venv at a short path:
+
+```bash
+python -m venv C:/Users/<you>/venvs/uvlaser
+```
+
+```bash
+C:/Users/<you>/venvs/uvlaser/Scripts/python -m pip install PySide6 klayout
+```
+
+Run the app with that interpreter. Everything else here runs on the plain
+interpreter with only the `klayout` wheel.
+
 Choose a file and it reads the layers out of it, showing shape counts, drawn area,
-and the existing path widths for each. It preselects the layer with the most drawn
-area, which is the cutline layer in every file this toolchain has seen, but any
-layer can be chosen by name or by number.
+and existing path widths for each. It preselects the layer with the most drawn area,
+which is the cutline layer in every file this toolchain has seen, but any layer can
+be chosen by name or by number.
 
 Width has two modes. **Cap** narrows only paths wider than your value and leaves
 thinner ones alone; **force** sets every path to exactly your value, widening as
-well as narrowing.
+well as narrowing. The window says so explicitly when the chosen layer holds filled
+polygons, because those carry their size as geometry and no width setting can change
+them — the generated 100 mm masters are polygons for exactly that reason.
 
-One thing the window tells you that is easy to miss: **width only applies to native
-paths.** A filled polygon carries its size as geometry, so if the chosen layer is
-polygons the width control cannot change anything, and the window says so rather
-than letting you believe a new width took effect. The generated 100 mm masters are
-polygons for exactly this reason.
+The preview has two views. **Wafer** draws the source with the four windows over it,
+the seam cross, and the wafer outline and edge bead as a guide. **Sliced jobs** draws
+the four outputs as the laser will see them, each centred on its own origin with its
+registration anchors. Both are computed by calling the splitter's own clip, layer and
+anchor functions, so the preview cannot drift from what a run writes.
 
-The field size, window centers, and stitch overlap are shown read-only, because the
-relation the splitter enforces locks them together.
+**Alignment**, pinned at the bottom left, tunes placement without editing code: one
+offset for all four jobs, and a per-station nudge on top of it. Only cut geometry
+moves; the registration frame stays put.
+
+**Datasets** are named settings, kept in `tools/.ui_datasets.json` as
+`{name: {settings}}`. Save, reload and delete them from the header.
 
 ### Command line
 

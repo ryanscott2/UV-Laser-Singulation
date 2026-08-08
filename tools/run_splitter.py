@@ -120,6 +120,10 @@ def splitter_globals(args: argparse.Namespace) -> dict[str, object]:
         values["source_layer"] = args.layer
     if args.stitch is not None:
         values["stitch_overlap_um"] = str(args.stitch)
+    if args.offset:
+        values["window_offsets"] = ";".join(
+            spec.replace("=", ":") for spec in args.offset
+        )
     return values
 
 
@@ -149,6 +153,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--global-x", type=float, default=0.0,
                         help="calibration shift applied to every output, microns")
     parser.add_argument("--global-y", type=float, default=0.0)
+    parser.add_argument("--offset", action="append", metavar="LABEL=X,Y", default=[],
+                        help="per-station nudge in microns on top of the global offset, "
+                             "e.g. --offset DXF21=0,-18.5 . Repeatable")
     parser.add_argument("--extension", default=".dxf", help=".dxf, .gds, or .oas")
     parser.add_argument("--no-anchors", action="store_true",
                         help="omit the REGISTRATION_DO_NOT_EXPOSE anchors")

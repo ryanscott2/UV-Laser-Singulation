@@ -38,6 +38,20 @@ OUTPUT_DIR = r""
 GLOBAL_X_OFFSET_UM = 0.0
 GLOBAL_Y_OFFSET_UM = 0.0
 
+# Per-station nudge in microns, added on top of the global offset, keyed by folder
+# label. This is for correcting one station measured off from its neighbours
+# without disturbing the other three - the seam measurements in
+# CALIBRATION_AND_SLIDING_NEST_NOTES.md are exactly that case. Only the cut
+# geometry moves; the registration anchors stay put, since they define the canvas
+# the laser places the job on.
+# Override with -rd window_offsets="DXF11:0,-15;DXF21:2.5,-18"
+WINDOW_OFFSETS_UM = {
+    "DXF11": (0.0, 0.0),
+    "DXF12": (0.0, 0.0),
+    "DXF21": (0.0, 0.0),
+    "DXF22": (0.0, 0.0),
+}
+
 # Native KLayout/DXF path widths larger than this are reduced about their
 # existing centerlines before clipping. Filled polygons are geometry rather
 # than paths and are intentionally left unchanged.
@@ -152,6 +166,44 @@ def as_bool(name: str, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     raise ValueError(f"{name} must be true/false or 1/0, got {value!r}")
+
+
+def window_folder(name: str) -> str:
+    """`DXF11_jig_top_left` -> `DXF11`, the folder the operator sees."""
+    return name.split("_", 1)[0]
+
+
+def parse_window_offsets(spec) -> dict[str, tuple[float, float]]:
+    """Read `DXF11:0,-15;DXF21:2.5,-18` into per-folder micron offsets.
+
+    A mapping is accepted unchanged, so the module default passes straight
+    through. Unknown labels are rejected rather than silently ignored, because a
+    typo would otherwise leave a station un-nudged with no symptom.
+    """
+    known = {window_folder(name) for name, _, _ in WINDOWS}
+    if isinstance(spec, dict):
+        pairs = {str(k): tuple(v) for k, v in spec.items()}
+    else:
+        pairs = {}
+        for chunk in str(spec).replace(",", ",").split(";"):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            label, _, values = chunk.partition(":")
+            parts = [p for p in values.split(",") if p.strip() != ""]
+            if len(parts) != 2:
+                raise ValueError(
+                    f"window_offsets entry {chunk!r} must look like DXF11:<x_um>,<y_um>"
+                )
+            pairs[label.strip()] = (float(parts[0]), float(parts[1]))
+
+    unknown = sorted(set(pairs) - known)
+    if unknown:
+        raise ValueError(
+            f"window_offsets names unknown station(s) {unknown}; expected any of {sorted(known)}"
+        )
+    return {folder: tuple(float(v) for v in pairs.get(folder, (0.0, 0.0)))
+            for folder in sorted(known)}
 
 
 def parse_layer_spec(spec) -> tuple[int | None, int | None, str | None]:
@@ -516,6 +568,7 @@ def main() -> None:
         "add_registration_envelope", ADD_IMPORT_REGISTRATION_ENVELOPE
     )
     source_spec = parse_layer_spec(runtime_value("source_layer", SOURCE_LAYER_SPEC))
+    window_offsets = parse_window_offsets(runtime_value("window_offsets", WINDOW_OFFSETS_UM))
     width_mode = str(runtime_value("cut_width_mode", CUT_WIDTH_MODE)).strip().lower()
     write_header_extents = as_bool("write_dxf_header_extents", WRITE_DXF_HEADER_EXTENTS)
     allow_outside = as_bool("allow_geometry_outside_fields", ALLOW_GEOMETRY_OUTSIDE_FIELDS)
@@ -578,8 +631,9 @@ def main() -> None:
         )
         clipped = source_region & pya.Region(clip_box)
 
-        translate_x_um = -field_center_x + global_x_um
-        translate_y_um = -field_center_y + global_y_um
+        nudge_x, nudge_y = window_offsets[window_folder(name)]
+        translate_x_um = -field_center_x + global_x_um + nudge_x
+        translate_y_um = -field_center_y + global_y_um + nudge_y
         clipped.transform(
             pya.Trans(
                 um_to_dbu(layout, translate_x_um),
@@ -619,6 +673,8 @@ def main() -> None:
                 "output_translate_y_um": translate_y_um,
                 "max_cut_width_um": max_cut_width_um,
                 "cut_width_mode": width_stats["width_mode"],
+                "station_offset_x_um": nudge_x,
+                "station_offset_y_um": nudge_y,
                 "source_layer_selector": describe_layer_spec(source_spec),
                 "source_paths_capped": width_stats["paths_capped"],
                 "output_bbox_um": "" if bbox is None else ";".join(f"{v:.3f}" for v in bbox),
@@ -643,6 +699,12 @@ def main() -> None:
         stream.write(f"Source bbox (um): {source_bbox}\n")
         stream.write(f"Mode: {mode}\n")
         stream.write(f"Global offset (um): X={global_x_um}, Y={global_y_um}\n")
+        stream.write(
+            "Per-station offsets (um): "
+            + ", ".join(f"{label}=({x:g},{y:g})"
+                        for label, (x, y) in sorted(window_offsets.items()))
+            + "\n"
+        )
         stream.write(f"Source layer selector: {describe_layer_spec(source_spec)}\n")
         stream.write(
             f"Cut width (um): {max_cut_width_um}, mode={width_stats['width_mode']}\n"
