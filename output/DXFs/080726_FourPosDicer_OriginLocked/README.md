@@ -8,7 +8,7 @@
 > from this set with a current one, and do not run it on the pin-grid jig.
 
 This output was generated with `generate_100mm_10x30mm_masters.py` and split
-twice with `split_klayout_four_windows_old_jig_test.py`: once for the vertical
+twice with the since-removed `split_klayout_four_windows_old_jig_test.py`: once for the vertical
 master and once for the horizontal master. The same splitter accepts DXF, GDS,
 and OAS input through KLayout.
 

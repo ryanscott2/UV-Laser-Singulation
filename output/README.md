@@ -48,8 +48,10 @@ python tools/build_pin_grid_set.py
 python tools/validate_pin_grid_set.py
 ```
 
-The two old-jig sets came from `python/split_klayout_four_windows_old_jig_test.py`
-with window-pattern offsets that apply to a jig that no longer exists.
+The two old-jig sets came from a `split_klayout_four_windows_old_jig_test.py`
+profile carrying window-pattern offsets for a jig that no longer exists. That file
+was removed on 2026-08-08; recover it from git history if these ever need
+rebuilding.
 
 There are no rendered previews here. The earlier set was removed on 2026-08-08: it
 showed the superseded 60 mm field and named its panels by the pre-relabel scheme,

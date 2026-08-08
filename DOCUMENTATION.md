@@ -64,10 +64,10 @@ records one calibration that was already wrong once: an edge-derived field cente
 of `(100.172, 107.672)` was superseded by a directly measured `(96.190, 109.350)`,
 a `1.678 mm` correction in Y.
 
-A superseded splitter profile, `python/split_klayout_four_windows_old_jig_test.py`,
-still ships beside the production one. It targets a jig that no longer exists and
-will place geometry wrong on the current one. Its docstring says so; check which
-profile you are running before you expose anything.
+There is now only one splitter. The old-jig profile that carried a hardcoded
+`(-3.982, +1.678) mm` compensation for the original printed jig was removed on
+2026-08-08 along with the jig itself; it would have placed geometry wrong on the
+current one. It remains in git history if the archived sets ever need rebuilding.
 
 ## Requirements
 

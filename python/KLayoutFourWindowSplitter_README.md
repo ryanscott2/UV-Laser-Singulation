@@ -146,22 +146,22 @@ centred, leaving `1.5 mm` of clear field on every side. A centred 54 mm job reta
 If the laser importer reliably preserves the drawing origin, the anchors can
 be disabled with `-rd add_registration_envelope=0`.
 
-## Original-jig calibration test
+## The removed original-jig profile
 
-Use `split_klayout_four_windows_old_jig_test.py` only with the original printed
-four-position jig. The directly measured `(0, 0)` cross showed that its four
-physical laser-window centers are the nominal `+/-25 mm` grid shifted in wafer
-coordinates by:
+For the record, since the archived sets under `output/` were built with it.
 
-- X: `-3.982 mm` (`-3982 um`)
-- Y: `+1.678 mm` (`+1678 um`)
+The original printed four-position jig needed its own profile, because the directly
+measured `(0, 0)` cross showed its four physical laser-window centers were the
+nominal `+/-25 mm` grid shifted in wafer coordinates by `X = -3.982 mm` and
+`Y = +1.678 mm`. That profile moved both the clipping windows and their output
+translations by those amounts, on a 60 mm field.
 
-The test profile moves both the clipping windows and their output translations.
-Each output therefore remains within `-30 to +30 mm` about galvo zero, retaining
-the full `(78.485 - 60) / 2 = 9.2425 mm` margin to every usable-field edge.
-Do not use this profile with the corrected jig.
+It was deleted on 2026-08-08 along with the jig it compensated: with the pin-grid
+jig those offsets are simply wrong, and a splitter that silently misplaces geometry
+by 4 mm is not worth keeping on disk. Recover it from git history if the archived
+sets ever need rebuilding.
 
-That legacy profile still emits the superseded `P1_right_top` .. `P4_left_bottom`
-names, which are keyed to the exposed wafer quadrant rather than the jig station.
-Those names appear in the archived old-jig build logs under `output/`, whose
-delivered folders were renamed to `DXF11` .. `DXF22` by hand at the time.
+It emitted the superseded `P1_right_top` .. `P4_left_bottom` names, keyed to the
+exposed wafer quadrant rather than the jig station. Those names appear in the
+archived old-jig build logs, whose delivered folders were renamed to `DXF11` ..
+`DXF22` by hand at the time.
