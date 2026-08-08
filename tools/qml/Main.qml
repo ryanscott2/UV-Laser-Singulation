@@ -158,7 +158,7 @@ ApplicationWindow {
                     font.weight: Font.DemiBold
                 }
                 Label {
-                    text: "52 mm field  ·  centers ±25.4 mm  ·  stitch 1.2 mm"
+                    text: bridge.geometrySummary
                     color: theme.textTertiary
                     font.family: theme.face
                     font.pixelSize: 12

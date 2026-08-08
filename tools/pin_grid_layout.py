@@ -3,6 +3,9 @@
 Imported by `build_pin_grid_set.py` and `validate_pin_grid_set.py` so the two
 cannot disagree about which folder holds which quadrant.
 
+Four locating pins per station, on the corners of a 4 x 4 grid-space square; the
+inner 2 x 2 set was removed.
+
 Position labels name the JIG STATION, read like a matrix: the first digit is the
 row from the table rear ("top") and the second is the column from the table
 left. Indexing the jig moves the wafer, not the laser, so both axes invert and
@@ -22,14 +25,13 @@ from dataclasses import dataclass
 GRID_PITCH = 25.400
 FIRST_HOLE_INSET = 12.700
 OUTER_SPAN_SPACES = 4
-INNER_SPAN_SPACES = 2
 LASER_ZERO = (96.190, 109.350)
 NEST_OFFSET_FROM_PIN_CENTER = (+7.290, -4.950)
 
 # Exposure field, matching split_klayout_four_windows.py.
-QUALIFIED_FIELD_SIZE_MM = 52.000
+QUALIFIED_FIELD_SIZE_MM = 54.000
 REGISTRATION_HALF_SIZE_MM = QUALIFIED_FIELD_SIZE_MM / 2.0
-STITCH_OVERLAP_MM = 1.200
+STITCH_OVERLAP_MM = 0.200
 
 
 @dataclass(frozen=True)
@@ -43,8 +45,6 @@ class Station:
     field_center_mm: tuple[float, float]  # exposed field center in wafer coords
     outer_columns: tuple[int, int]
     outer_rows: tuple[int, int]
-    inner_columns: tuple[int, int]
-    inner_rows: tuple[int, int]
 
     @property
     def exposed_wafer_area(self) -> str:
@@ -77,10 +77,10 @@ class Station:
 
 
 STATIONS: tuple[Station, ...] = (
-    Station("DXF11", 1, 1, "top_left", (+25.400, -25.400), (0, 4), (3, 7), (1, 3), (4, 6)),
-    Station("DXF12", 1, 2, "top_right", (-25.400, -25.400), (2, 6), (3, 7), (3, 5), (4, 6)),
-    Station("DXF21", 2, 1, "bottom_left", (+25.400, +25.400), (0, 4), (1, 5), (1, 3), (2, 4)),
-    Station("DXF22", 2, 2, "bottom_right", (-25.400, +25.400), (2, 6), (1, 5), (3, 5), (2, 4)),
+    Station("DXF11", 1, 1, "top_left", (+25.400, -25.400), (0, 4), (3, 7)),
+    Station("DXF12", 1, 2, "top_right", (-25.400, -25.400), (2, 6), (3, 7)),
+    Station("DXF21", 2, 1, "bottom_left", (+25.400, +25.400), (0, 4), (1, 5)),
+    Station("DXF22", 2, 2, "bottom_right", (-25.400, +25.400), (2, 6), (1, 5)),
 )
 
 # The center-field station, for the single centered pass. Same physical plate.
@@ -108,15 +108,12 @@ def check() -> list[str]:
                 f"table says {station.field_center_mm}"
             )
 
-        # Every inner pin square is concentric with its outer square.
-        for outer, inner in ((station.outer_columns, station.inner_columns),
-                             (station.outer_rows, station.inner_rows)):
-            if sum(outer) != sum(inner):
-                failures.append(f"{station.label}: inner pins {inner} not concentric with {outer}")
-            if abs(inner[1] - inner[0]) != INNER_SPAN_SPACES:
-                failures.append(f"{station.label}: inner span {inner} is not {INNER_SPAN_SPACES}")
+        # Both pin squares must span the documented four grid spaces.
+        for axis, outer in (("columns", station.outer_columns), ("rows", station.outer_rows)):
             if abs(outer[1] - outer[0]) != OUTER_SPAN_SPACES:
-                failures.append(f"{station.label}: outer span {outer} is not {OUTER_SPAN_SPACES}")
+                failures.append(
+                    f"{station.label}: outer {axis} {outer} do not span {OUTER_SPAN_SPACES}"
+                )
 
         # The engraved hole must sit half a span right of and forward of center.
         col, row = station.outer_front_right_pin

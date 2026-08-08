@@ -544,6 +544,18 @@ class Bridge(QObject):
             self._busy = value
             self.busyChanged.emit()
 
+    def _get_geometry_summary(self) -> str:
+        """Read the field geometry off the splitter so the header cannot drift."""
+        ns = slicer_preview.splitter_namespace()
+        return (
+            f"{ns['QUALIFIED_FIELD_SIZE_UM'] / 1000.0:g} mm field"
+            f"  ·  centers ±{ns['WINDOW_CENTER_X_UM'] / 1000.0:g} mm"
+            f"  ·  stitch {ns['STITCH_OVERLAP_UM'] / 1000.0:g} mm"
+            f"  ·  window {ns['partition_window_size_um'](ns['STITCH_OVERLAP_UM']) / 1000.0:g} mm"
+        )
+
+    geometrySummary = Property(str, _get_geometry_summary, constant=True)
+
     def _get_layers(self) -> QObject:
         return self._layers
 

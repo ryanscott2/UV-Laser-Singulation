@@ -117,8 +117,8 @@ red circle is the one hole the plate engraves for this station.
 
 Grid columns count from the table left and rows from the table front, both from
 zero. The engraved hole is the outer front-right pin, the one to the right of the
-wafer's primary flat. The eight-pin pattern is rigid, so seating that single pin
-fixes the other seven; it always sits two grid spaces right of and two spaces
+wafer's primary flat. The four-pin pattern is rigid, so seating that single pin
+fixes the other three; it always sits two grid spaces right of and two spaces
 forward of the pin-pattern center.
 
 Verify all of it from the table geometry rather than trusting this table:
@@ -148,9 +148,9 @@ dxf/100mm_10x30mm_Masters/          python/generate_100mm_10x30mm_masters.py
         |  python/split_klayout_four_windows.py
         |  driven by tools/build_pin_grid_set.py
         v
-output/DXFs/<set>/DXF11..DXF22/     four 52 mm jobs, each centered on (0,0)
-  Horizontal.dxf  Vertical.dxf       1.2 mm total stitch overlap at each seam
-                                     registration anchors at +/-26.000 mm
+output/DXFs/<set>/DXF11..DXF22/     four 51 mm windows in a 54 mm declared field,
+  Horizontal.dxf  Vertical.dxf       each centered on (0,0), 0.2 mm stitch overlap,
+                                     registration anchors at +/-27.000 mm
 ```
 
 Horizontal and vertical cuts are separate files for the same jig position. Run
@@ -174,24 +174,24 @@ cut once rather than twice, then extends each job `0.600 mm` past `X=0` and `Y=0
 so neighbours meet instead of leaving a gap. The zoom shows the only region where
 two jobs deliberately overlap.
 
-At the production settings `CLIP_MODE` makes no difference: because the field is
-exactly `2 x 25.4 + 1.2 mm`, the fields overlap by precisely the stitch, so
-`full_window` yields the same box as `partition` for all four stations. The
-setting only begins to matter if the field is enlarged beyond that relation.
+`CLIP_MODE` matters at the production settings. `partition` gives each quadrant
+one owner and adds the stitch, so a window is `51 mm`. `full_window` takes the whole
+`54 mm` declared field instead, overlapping neighbours by `3.2 mm` and exposing that
+entire band twice.
 
 ### Guarantees the splitter enforces
 
 Three checks run on every build, so a square origin-centred window does not
 depend on anyone remembering the relationship between the settings:
 
-1. **The field relation.** `QUALIFIED_FIELD_SIZE_UM` must equal
-   `2 x WINDOW_CENTER + STITCH_OVERLAP_UM`, and the two window centers must
-   match. This is what makes each window both square and concentric with its
-   field. Changing the stitch alone used to break it silently: at `0` the window
-   lands `0.3 mm` off-centre, and at `4000` it becomes `53.4 mm` and reaches
-   `1.4 mm` *outside* the qualified field. Both now stop the run.
-2. **Every window is square.** Each clip box is checked to be square, equal to
-   the qualified field, and symmetric about the origin after translation.
+1. **The window fits the field.** A partition window spans
+   `2 x WINDOW_CENTER + STITCH_OVERLAP_UM`, set by the jig's two-grid-space move
+   and the stitch. The declared field must be at least that wide or geometry would
+   fall outside the window the laser is told to expose; at `54 mm` the stitch may go
+   up to `3.2 mm`. Both window centers must also match.
+2. **Every window is square.** Each clip box is checked to be square, of the
+   expected size, symmetric about its own field center after translation, and
+   inside the declared field.
 3. **Nothing is silently discarded.** Geometry outside all four windows is
    measured before clipping and stops the run, reporting the lost area and its
    bounds. A pattern reaching `+/-70 mm` loses `148.8 mm2`, `26.8%` of the cut
@@ -203,13 +203,17 @@ The split log records all three, including the source and dropped areas.
 
 ### Field and stitch geometry
 
-- Exposure/file bounds: `52.000 x 52.000 mm`.
+- Declared exposure/file bounds: `54.000 x 54.000 mm`, which is where the header
+  extents and the registration anchors sit.
+- Window occupied per job: `51.000 mm`, its own half of the pitch plus the stitch,
+  centred in the field with `1.500 mm` clear on every side.
 - Field centers on the wafer: `X,Y = +/-25.400 mm`.
 - Physical move between neighboring stations: `50.800 mm`, two 1 inch grid spaces.
-- Total field overlap: `1.200 mm`, so each job extends `0.600 mm` across the
-  nominal `X=0` and `Y=0` seams.
-- Margin from the 52 mm exposure to every edge of the `78.485 mm` maximum usable
-  optical field: `13.2425 mm`.
+- Total stitch overlap: `0.200 mm`, so each job extends `0.100 mm` across the
+  nominal `X=0` and `Y=0` seams. That covers the `75-100 um` seam mismatch the
+  calibration notes measured.
+- Margin from the 54 mm window to every edge of the `78.485 mm` maximum usable
+  optical field: `12.2425 mm`.
 - Dice pitch `10.000 mm` in X, `30.000 mm` in Y. Cut width `50 um`.
 - Edge bead / exclusion `2.000 mm`, applied inward from the circular edge and
   both flats, from the single `EDGE_BEAD_MM` variable in the master generator.
@@ -233,20 +237,20 @@ Layer `0` is the only cutting layer.
 The window is declared **twice**, on purpose, because the two mechanisms fail in
 different situations:
 
-- **`$EXTMIN` / `$EXTMAX` in the DXF header**, at exactly `+/-26.000 mm`, along
+- **`$EXTMIN` / `$EXTMAX` in the DXF header**, at exactly `+/-27.000 mm`, along
   with `$INSBASE` at the origin and `$LIMMIN` / `$LIMMAX`. KLayout writes a header
   containing only `$ACADVER`, which leaves every importer to infer the extent from
   whatever entities it finds. A declared extent needs no inference and does not
   depend on layer visibility.
 - **Four `50 um` anchors on `REGISTRATION_DO_NOT_EXPOSE`**, whose combined bounds
-  are the same `+/-26.000 mm`.
+  are the same `+/-27.000 mm`.
 
 The anchors alone are not sufficient in principle: you are told to set that layer
 to no marking, and an importer that computes extents from marking layers only
 would ignore them. Measured on a deliberately sparse pattern, layer 0 by itself
 gives boxes of `3.000 x 3.000 mm` at four unrelated centres, and two files with no
-layer-0 geometry at all — while all four report `52.000 x 52.000 mm` centred on
-the origin once the anchors are counted. That gap is why the header extents exist.
+layer-0 geometry at all — while all four report the full `54.000 x 54.000 mm`
+window centred on the origin once the anchors are counted. That gap is why the header extents exist.
 
 `tools/validate_pin_grid_set.py` checks both, and fails if either is missing or
 wrong.
@@ -275,13 +279,16 @@ disabled with `-rd add_registration_envelope=0`.
 
 | Script | Jig |
 | --- | --- |
-| [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position eight-pin grid jig. Current. |
+| [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig. Current. |
 | [`fusion/FusionPinGridCenterJig`](fusion/FusionPinGridCenterJig) | Same plate, positioned for a single centered field. |
 | [`fusion/FusionCenterPassJig`](fusion/FusionCenterPassJig) | Earlier single centered-pass jig, table-edge datums. |
 | [`fusion/FusionSingleJig`](fusion/FusionSingleJig) | Earlier single-position indexer. |
 
 The two pin-grid jigs are the same physical plate; only the engraving and which
-table holes the pins engage differ. Each plate carries three engravings,
+table holes the pins engage differ. Each has **four** locating pins on the corners of
+a `101.600 mm` square, and a pickup tab centered on the left and right edges:
+`10 mm` out by `24 mm` long, spanning z `2` to `6 mm` so there is a `2 mm` undercut
+to hook under when lifting the plate off its pins. Each plate carries three engravings,
 `0.500 mm` deep: the station map at top-left, giving one hole per station;
 `C0=LEFT R0=FRONT` at front-left, so the counting convention survives at the
 machine; and `ALIGNMENT PIN` at front-right, naming the outer pin nearest that
@@ -378,13 +385,16 @@ production set:
 | source | area at 2x dose | share of exposed area |
 | --- | ---: | ---: |
 | grid crossings, where `Horizontal.dxf` meets `Vertical.dxf` | `0.0700 mm2` in 28 spots of `50 x 50 um` | `0.14%` |
-| seam overlap, where two neighbouring jobs both reach past `X=0` / `Y=0` | `1.3225 mm2` | `2.69%` |
-| total | `1.3925 mm2` of `49.1333 mm2` | `2.83%` |
+| seam overlap, where two neighbouring jobs both reach past `X=0` / `Y=0` | `0.4225 mm2` | `0.86%` |
+| total | `0.4925 mm2` of `49.1333 mm2` | `1.00%` |
 
-The **seam overlap is deliberate** — it is the `1.2 mm` stitch that stops a gap
-appearing at the seam — and it is by far the larger contributor. The **crossings are
+The **seam overlap is deliberate** — it is the `0.2 mm` stitch that stops a gap
+appearing at the seam — and it is still the larger contributor. The **crossings are
 incidental**: they land exactly on the corners of every die, which is where chipping
 starts, so if corner quality matters they are worth removing.
+
+Scoring partway through rather than cutting is what makes a small double-dosed band
+acceptable. At the previous `1.2 mm` stitch the total was `1.3925 mm2`, `2.83%`.
 
 Removing them needs no change to what gets cut. Emitting `Vertical - Horizontal`
 instead of `Vertical` leaves the union bit-identical (verified: XOR area zero) while

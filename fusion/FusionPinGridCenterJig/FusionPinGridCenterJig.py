@@ -1,4 +1,4 @@
-"""Build and export an eight-pin center-field 100 mm wafer jig in Fusion."""
+"""Build and export a four-pin center-field 100 mm wafer jig in Fusion."""
 
 from __future__ import annotations
 
@@ -18,8 +18,6 @@ import adsk.fusion
 GRID_PITCH = 25.400
 INDEX_MOVE_SPACES = 2
 INDEX_MOVE = GRID_PITCH * INDEX_MOVE_SPACES
-INNER_PIN_PATTERN_SPACES = 2
-INNER_PIN_PATTERN_SPAN = GRID_PITCH * INNER_PIN_PATTERN_SPACES
 OUTER_PIN_PATTERN_SPACES = 4
 OUTER_PIN_PATTERN_SPAN = GRID_PITCH * OUTER_PIN_PATTERN_SPACES
 FIRST_HOLE_EDGE_OFFSET = 12.700
@@ -43,8 +41,9 @@ CENTER_PATTERN_Y = FIRST_HOLE_EDGE_OFFSET + CENTER_GRID_ROW * GRID_PITCH
 CENTER_WAFER_X = CENTER_PATTERN_X + NEST_CENTER_X
 CENTER_WAFER_Y = CENTER_PATTERN_Y + NEST_CENTER_Y
 
-# Eight downward locating pins: four on an inner 2 x 2 grid square and four on
-# an outer 4 x 4 grid square. Both patterns share the same center.
+# Four downward locating pins on the corners of a 4 x 4 grid-space square. The
+# inner 2 x 2 set was removed: the outer square alone fixes position and rotation,
+# and fewer pins means fewer holes to line up when seating the plate.
 PIN_DIAMETER = 4.700
 PIN_ENGAGEMENT = 5.000
 PIN_TIP_DIAMETER = 4.000
@@ -59,6 +58,12 @@ OUTER_BAR_HEIGHT = 4.000
 SIDEWALL_HEIGHT = 1.500
 SIDEWALL_THICKNESS = 3.000
 
+# Small pickup tabs centered on the left and right edges, so the plate can be
+# lifted straight off the pins without prying at the wafer or the nest wall. They
+# start at the top of the 2 mm platform, leaving a 2 mm undercut to hook under.
+SIDE_TAB_PROTRUSION = 10.000
+SIDE_TAB_LENGTH = 24.000
+
 WAFER_DIAMETER = 100.000
 PRIMARY_FLAT_LENGTH = 32.500
 SECONDARY_FLAT_LENGTH = 18.000
@@ -72,8 +77,8 @@ PICKUP_GAP_WIDTH = 20.000
 # margins.
 #
 # Top-left gives the single hole for this station: the alignment pin, which is the
-# outer front-right pin of the pattern. The eight-pin pattern is rigid, so that
-# one hole fixes the other seven; it sits two grid spaces right of and two forward
+# outer front-right pin of the pattern. The four-pin pattern is rigid, so that
+# one hole fixes the other three; it sits two grid spaces right of and two forward
 # of the pin-pattern center.
 #
 # Text height drops from 2.5 mm to match the four-position plate, because the
@@ -389,7 +394,6 @@ def build_model(design):
     for name, value, comment in (
         ("gridPitch", GRID_PITCH, "Table hole-grid pitch"),
         ("indexMove", INDEX_MOVE, "Two-grid-space indexing move"),
-        ("innerPinPatternSpan", INNER_PIN_PATTERN_SPAN, "Two-space inner pin span"),
         ("outerPinPatternSpan", OUTER_PIN_PATTERN_SPAN, "Four-space outer pin span"),
         ("pinDiameter", PIN_DIAMETER, "Printed locating pin diameter"),
         ("pinEngagement", PIN_ENGAGEMENT, "Pin length below platform"),
@@ -443,6 +447,31 @@ def build_model(design):
         adsk.fusion.FeatureOperations.JoinFeatureOperation,
         "4 x 4 mm Perimeter Reinforcement Bar",
     )
+
+    # Pickup tabs, one per side, centered on the platform's Y center. Extruded
+    # from the top of the 2 mm platform rather than from the table, so each tab
+    # is cantilevered with a 2 mm gap underneath: that undercut is what a
+    # fingernail or tweezer tip hooks into to lift the plate straight off its
+    # pins, instead of prying against the wafer or the nest wall.
+    platform_left_x = NEST_CENTER_X - PLATFORM_SIZE_X / 2.0
+    platform_right_x = NEST_CENTER_X + PLATFORM_SIZE_X / 2.0
+    for tab_name, tab_x in (
+        ("Left Pickup Tab", platform_left_x - SIDE_TAB_PROTRUSION),
+        ("Right Pickup Tab", platform_right_x),
+    ):
+        extrude_polygon(
+            component,
+            wall_plane,
+            rectangle_points(
+                tab_x,
+                NEST_CENTER_Y - SIDE_TAB_LENGTH / 2.0,
+                SIDE_TAB_PROTRUSION,
+                SIDE_TAB_LENGTH,
+            ),
+            OUTER_BAR_HEIGHT,
+            adsk.fusion.FeatureOperations.JoinFeatureOperation,
+            tab_name,
+        )
 
     # Match the old design's centered tweezer notch: 20 mm at the platform and
     # a 45 degree flare through the full 4 mm perimeter bar. The 2 mm platform
@@ -532,20 +561,14 @@ def build_model(design):
         "20 mm Pickup Opening with 45 Degree Bevel",
     )
 
-    # Eight 4.7 mm pins: a 2 x 2 grid-space square nested concentrically inside
-    # a 4 x 4 grid-space square. The full diameter continues through the 2 mm
-    # platform for maximum root strength.
-    inner_half_span = INNER_PIN_PATTERN_SPAN / 2.0
+    # Four 4.7 mm pins on the corners of the 4 x 4 grid-space square. The full
+    # diameter continues through the 2 mm platform for maximum root strength.
     outer_half_span = OUTER_PIN_PATTERN_SPAN / 2.0
     pin_locations = (
         ("Outer Front Left", -outer_half_span, -outer_half_span),
         ("Outer Front Right", +outer_half_span, -outer_half_span),
         ("Outer Rear Left", -outer_half_span, +outer_half_span),
         ("Outer Rear Right", +outer_half_span, +outer_half_span),
-        ("Inner Front Left", -inner_half_span, -inner_half_span),
-        ("Inner Front Right", +inner_half_span, -inner_half_span),
-        ("Inner Rear Left", -inner_half_span, +inner_half_span),
-        ("Inner Rear Right", +inner_half_span, +inner_half_span),
     )
     cylinder_height = PIN_ENGAGEMENT - PIN_TIP_TAPER + BASE_THICKNESS
     for pin_name, x, y in pin_locations:

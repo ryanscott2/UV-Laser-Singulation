@@ -1,5 +1,11 @@
 # 100 mm wafer, 10 x 30 mm dice - 52 mm pin-grid production set
 
+> **Superseded on 2026-08-08** by
+> [080826_FourPosDicer_PinGrid54mm](../080826_FourPosDicer_PinGrid54mm), which
+> uses a 54 mm declared field and a 0.200 mm stitch instead of 52 mm and
+> 1.200 mm. It also predates the removal of the inner four jig pins. Kept for
+> traceability; do not mix its files with the current set.
+
 This set uses the eight-pin grid jig and the production
 `split_klayout_four_windows.py` profile.
 

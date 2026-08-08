@@ -1,7 +1,7 @@
 """Split wafer-centered layer-0 cut geometry into four laser-window jobs.
 
-This is the pin-grid production profile: a 52 mm field at the four
-`+/-25.4 mm` centers reached by the eight-pin grid jig.
+This is the pin-grid production profile: a 54 mm declared field at the four
+`+/-25.4 mm` centers reached by the four-pin grid jig.
 
 Run inside KLayout or from its command line. DXF input is assumed to use
 millimeter drawing units; GDS/OAS input uses the units stored in the file.
@@ -58,22 +58,25 @@ WINDOW_OFFSETS_UM = {
 MAX_CUT_WIDTH_UM = 50.0
 
 # Pin-grid production geometry. The jig moves exactly two 1 inch grid spaces
-# (50.8 mm) between positions. A 52 mm field leaves 1.2 mm total seam overlap
-# while retaining 13.2425 mm margin to every edge of the 78.485 mm optical field.
-QUALIFIED_FIELD_SIZE_UM = 52_000.0
+# (50.8 mm) between positions, which fixes the window centers. The field is the
+# declared exposure window: 54 mm keeps 12.2425 mm margin to every edge of the
+# 78.485 mm optical field and leaves headroom above the 51 mm a partition window
+# actually needs, so the stitch can be changed without resizing the field.
+QUALIFIED_FIELD_SIZE_UM = 54_000.0
 WINDOW_CENTER_X_UM = 25_400.0
 WINDOW_CENTER_Y_UM = 25_400.0
 
 # `partition` gives each quadrant one owner and adds the stitch overlap at the
-# seams. `full_window` takes the whole field instead. Note that while the field
-# equals 2 * WINDOW_CENTER + STITCH_OVERLAP the two are the SAME box, because the
-# fields overlap by exactly the stitch and nothing more; the setting only starts
-# to matter if the field is made larger than that.
+# seams, so a window is only as large as its own half of the pitch plus the
+# overlap. `full_window` takes the whole declared field instead, which at a 54 mm
+# field means neighbours overlap by 3.2 mm and that whole band is exposed twice.
 CLIP_MODE = "partition"  # `partition` or `full_window`
 
-# Total overlap across the X=0 and Y=0 stitch lines in partition mode. The
-# default 1200 um extends each neighboring job 600 um across the nominal seam.
-STITCH_OVERLAP_UM = 1_200.0
+# Total overlap across the X=0 and Y=0 stitch lines in partition mode. 200 um
+# extends each neighbouring job 100 um past the nominal seam, which covers the
+# 75-100 um seam mismatch recorded in CALIBRATION_AND_SLIDING_NEST_NOTES.md.
+# Scoring partway through the wafer makes a small double-exposed band harmless.
+STITCH_OVERLAP_UM = 200.0
 
 # Source and output layer. DXF layer "0" normally imports as layer 0/datatype 0.
 SOURCE_LAYER = 0
@@ -92,7 +95,7 @@ OUTPUT_LAYER = 0
 OUTPUT_DATATYPE = 0
 OUTPUT_LAYER_NAME = "0"
 
-# Keep every exported job registered to the same 52 x 52 mm canvas even when
+# Keep every exported job registered to the same declared canvas even when
 # the downstream laser software centers drawings from their content bounds.
 # The four small corner anchors are deliberately placed on a separate layer:
 # configure the laser to NEVER expose this layer. Cutting geometry remains on
@@ -351,74 +354,80 @@ def registration_envelope_region(layout):
     return result
 
 
+def partition_window_size_um(stitch_um: float) -> float:
+    """How wide a partition window is: its own half of the pitch, plus the overlap.
+
+    A window reaches from `stitch/2` across the seam out to the same distance on
+    the far side of its center, so its span is `2 * WINDOW_CENTER + stitch`. This
+    is deliberately independent of the declared field: the field only has to be
+    large enough to contain it, which lets the stitch be retuned without resizing
+    the exposure window or moving anything off center.
+    """
+    return 2.0 * WINDOW_CENTER_X_UM + stitch_um
+
+
 def clip_bounds_um(x_sign: int, y_sign: int, mode: str, stitch_um: float):
     half_field = QUALIFIED_FIELD_SIZE_UM / 2.0
     center_x = x_sign * WINDOW_CENTER_X_UM
     center_y = y_sign * WINDOW_CENTER_Y_UM
-    field_left = center_x - half_field
-    field_right = center_x + half_field
-    field_bottom = center_y - half_field
-    field_top = center_y + half_field
 
     if mode == "full_window":
-        return field_left, field_bottom, field_right, field_top
+        return (center_x - half_field, center_y - half_field,
+                center_x + half_field, center_y + half_field)
     if mode != "partition":
         raise ValueError("CLIP_MODE must be 'partition' or 'full_window'")
 
-    seam_half = stitch_um / 2.0
-    left = -seam_half if x_sign > 0 else field_left
-    right = field_right if x_sign > 0 else seam_half
-    bottom = -seam_half if y_sign > 0 else field_bottom
-    top = field_top if y_sign > 0 else seam_half
-    return left, bottom, right, top
+    # Symmetric about the window center by construction, so the geometry always
+    # lands centered in the field no matter what the stitch is set to.
+    half_window = partition_window_size_um(stitch_um) / 2.0
+    return (center_x - half_window, center_y - half_window,
+            center_x + half_window, center_y + half_window)
 
 
 def validate_field_geometry(mode: str, stitch_um: float) -> None:
-    """Check the relation that makes every clip box square and concentric.
+    """Check the window fits the declared field, and that the tiling is symmetric.
 
-    In partition mode a window runs from the seam to the far field edge, so its
-    span is `WINDOW_CENTER + half_field + stitch/2`. That equals the field size
-    only when
-
-        QUALIFIED_FIELD_SIZE_UM == 2 * WINDOW_CENTER_UM + STITCH_OVERLAP_UM
-
-    Change the stitch on its own and the windows silently stop being concentric
-    with their fields, and can extend beyond the qualified field: at 4000 um of
-    stitch each window becomes 53.4 mm and reaches 1.4 mm outside the 52 mm
-    field. That is a placement error no downstream check would catch, so it is
-    verified here rather than assumed.
-
-    Note that under this relation `partition` and `full_window` produce
-    identical boxes, because the fields overlap by exactly the stitch.
+    The window centers are set by the jig's two-grid-space move, so a partition
+    window spans `2 * WINDOW_CENTER + stitch`. The declared field has to be at
+    least that wide or the geometry would reach outside the window the laser is
+    told to expose - at 54 mm of field the stitch can go up to 3200 um before that
+    happens. Both axes must share a center, otherwise the four windows are not a
+    symmetric 2 x 2 tiling of one square field.
     """
     if WINDOW_CENTER_X_UM != WINDOW_CENTER_Y_UM:
         raise ValueError(
             "WINDOW_CENTER_X_UM and WINDOW_CENTER_Y_UM differ, so the four windows "
             "cannot be a symmetric 2 x 2 tiling of one square field"
         )
+    if stitch_um < 0:
+        raise ValueError("STITCH_OVERLAP_UM cannot be negative")
     if mode != "partition":
         return
-    for axis, center in (("X", WINDOW_CENTER_X_UM), ("Y", WINDOW_CENTER_Y_UM)):
-        expected = 2.0 * center + stitch_um
-        if abs(QUALIFIED_FIELD_SIZE_UM - expected) > GEOMETRY_TOLERANCE_UM:
-            raise ValueError(
-                f"{axis} axis: QUALIFIED_FIELD_SIZE_UM={QUALIFIED_FIELD_SIZE_UM} must "
-                f"equal 2 * WINDOW_CENTER_{axis}_UM + STITCH_OVERLAP_UM = {expected}. "
-                f"Set the field to {expected}, or the stitch to "
-                f"{QUALIFIED_FIELD_SIZE_UM - 2.0 * center}, so every window stays "
-                "square and concentric with its field."
-            )
+    needed = partition_window_size_um(stitch_um)
+    if needed > QUALIFIED_FIELD_SIZE_UM + GEOMETRY_TOLERANCE_UM:
+        raise ValueError(
+            f"a partition window is {needed} um wide "
+            f"(2 * {WINDOW_CENTER_X_UM} + {stitch_um}) but QUALIFIED_FIELD_SIZE_UM is "
+            f"{QUALIFIED_FIELD_SIZE_UM}, so geometry would fall outside the declared "
+            f"exposure window. Raise the field to at least {needed}, or drop the "
+            f"stitch to at most {QUALIFIED_FIELD_SIZE_UM - 2.0 * WINDOW_CENTER_X_UM}."
+        )
 
 
-def assert_window_is_square(name: str, bounds, center_x: float, center_y: float) -> None:
-    """Every emitted window must be a square field centered on its own origin."""
+def assert_window_is_square(name: str, bounds, center_x: float, center_y: float,
+                            expected_size_um: float) -> None:
+    """Every emitted window must be square and centered on its own field center."""
     left, bottom, right, top = bounds
     width, height = right - left, top - bottom
     if abs(width - height) > GEOMETRY_TOLERANCE_UM:
         raise RuntimeError(f"{name}: window {width} x {height} um is not square")
-    if abs(width - QUALIFIED_FIELD_SIZE_UM) > GEOMETRY_TOLERANCE_UM:
+    if abs(width - expected_size_um) > GEOMETRY_TOLERANCE_UM:
         raise RuntimeError(
-            f"{name}: window is {width} um wide, expected the qualified field "
+            f"{name}: window is {width} um wide, expected {expected_size_um} um"
+        )
+    if width > QUALIFIED_FIELD_SIZE_UM + GEOMETRY_TOLERANCE_UM:
+        raise RuntimeError(
+            f"{name}: window {width} um exceeds the declared field "
             f"{QUALIFIED_FIELD_SIZE_UM} um"
         )
     # After translation the window must straddle the laser origin symmetrically.
@@ -621,7 +630,11 @@ def main() -> None:
         field_center_x = x_sign * WINDOW_CENTER_X_UM
         field_center_y = y_sign * WINDOW_CENTER_Y_UM
         bounds = clip_bounds_um(x_sign, y_sign, mode, stitch_um)
-        assert_window_is_square(name, bounds, field_center_x, field_center_y)
+        assert_window_is_square(
+            name, bounds, field_center_x, field_center_y,
+            QUALIFIED_FIELD_SIZE_UM if mode == "full_window"
+            else partition_window_size_um(stitch_um),
+        )
         left, bottom, right, top = bounds
         clip_box = pya.Box(
             um_to_dbu(layout, left),
@@ -726,9 +739,12 @@ def main() -> None:
             f"enabled={write_header_extents}, "
             f"$EXTMIN/$EXTMAX=+/-{REGISTRATION_HALF_SIZE_UM / 1000.0:.3f} mm\n"
         )
+        window_size_um = (QUALIFIED_FIELD_SIZE_UM if mode == "full_window"
+                          else partition_window_size_um(stitch_um))
         stream.write(
-            "Window geometry: every window verified square, "
-            f"{QUALIFIED_FIELD_SIZE_UM / 1000.0:.3f} mm, and concentric with its field\n"
+            f"Declared field (mm): {QUALIFIED_FIELD_SIZE_UM / 1000.0:.3f}; "
+            f"window per job (mm): {window_size_um / 1000.0:.3f}; "
+            "verified square and concentric with its field\n"
         )
         stream.write(
             f"Jobs with no cut geometry: {', '.join(empty_jobs) if empty_jobs else 'none'}\n"

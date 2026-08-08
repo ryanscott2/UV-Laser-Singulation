@@ -31,31 +31,32 @@ their existing centerlines before the four jobs are clipped. The default cap is
 paths, so their dimensions are preserved. The split log and manifest record how
 many native paths were capped.
 
-The default pin-grid `partition` mode uses `1,200 um` total stitch overlap:
-each neighboring job extends `600 um` across X=0 and Y=0.
+The default pin-grid `partition` mode uses `200 um` total stitch overlap: each
+neighboring job extends `100 um` across X=0 and Y=0, which covers the 75-100 um
+seam mismatch in the calibration notes.
 
-At these settings `CLIP_MODE` changes nothing. The field is exactly
-`2 x 25,400 + 1,200 um`, so neighboring fields overlap by precisely the stitch
-and `full_window` produces the same box as `partition` for all four stations.
-The setting only starts to matter if the field is enlarged beyond that.
+`CLIP_MODE` matters at the production settings. `partition` gives each quadrant one
+owner and adds the stitch, so a window is `2 x 25,400 + 200 = 51,000 um`.
+`full_window` takes the whole `54,000 um` declared field instead, which overlaps
+neighbours by `3,200 um` and exposes that entire band twice.
 
 ## Enforced window geometry
 
-Every run checks three things, so a square origin-centered window does not rely
-on anyone remembering how the settings interact:
+The window size is derived from the pitch and the stitch, not from the field, so
+the declared field is free to be larger than the window. Every run checks:
 
-1. `QUALIFIED_FIELD_SIZE_UM == 2 * WINDOW_CENTER_UM + STITCH_OVERLAP_UM`, and the
-   two window centers must match. This relation is what makes every window both
-   square and concentric with its field. Editing the stitch on its own used to
-   break it quietly: `0` puts the window `300 um` off-center, and `4,000` makes it
-   `53.4 mm`, reaching `1.4 mm` outside the qualified field. Both now raise.
-2. Each emitted window is asserted square, equal to the qualified field, and
-   symmetric about the origin once translated.
+1. The declared field must be at least as wide as a partition window,
+   `2 * WINDOW_CENTER_UM + STITCH_OVERLAP_UM`, or geometry would fall outside the
+   window the laser is told to expose. At a 54,000 um field the stitch may go up to
+   `3,200 um`. Both window centers must also match, or the four windows are not a
+   symmetric 2 x 2 tiling.
+2. Each emitted window is asserted square, of the expected size, symmetric about
+   its own field center once translated, and within the declared field.
 3. Geometry outside all four windows is measured before clipping and stops the
    run, reporting the lost area and its bounds. Override with
    `-rd allow_geometry_outside_fields=1` when clipping it away is intended.
 
-The split log and manifest record all three.
+The split log and manifest record all three, plus any job that came out empty.
 
 ## Window mapping
 
@@ -67,7 +68,7 @@ bottom/front) and the second is the column from the table left (`1` = left,
 Indexing the jig moves the wafer, not the laser, so both axes invert and each
 station exposes the diagonally opposite wafer quadrant:
 
-| Job | Jig station | Laser-field center in wafer coordinates | Owned quadrant |
+| Job | Jig station | Window center in wafer coordinates | Owned quadrant |
 | --- | --- | ---: | --- |
 | `DXF11_jig_top_left` | top-left | +25,400 um X; -25,400 um Y | right / bottom |
 | `DXF12_jig_top_right` | top-right | -25,400 um X; -25,400 um Y | left / bottom |
@@ -121,26 +122,26 @@ retain the source convention of 1 drawing unit = 1 mm.
 
 Every DXF output declares its window twice.
 
-The header carries `$EXTMIN` and `$EXTMAX` at exactly `+/-26.000 mm`, plus
+The header carries `$EXTMIN` and `$EXTMAX` at exactly `+/-27.000 mm`, plus
 `$INSBASE` at the origin and `$LIMMIN`/`$LIMMAX`. KLayout writes a header holding
 only `$ACADVER`, leaving importers to infer the extent from entities; a declared
 extent removes that inference and does not depend on layer visibility. Disable
 with `-rd write_dxf_header_extents=0`.
 
 Every output also contains four 50 um import-registration anchors on
-`REGISTRATION_DO_NOT_EXPOSE` with the same `(-26,-26) to (+26,+26) mm` bounds, so
+`REGISTRATION_DO_NOT_EXPOSE` with the same `(-27,-27) to (+27,+27) mm` bounds, so
 automatic drawing centering cannot shift jobs differently. The laser must be
 configured to ignore this layer. Never expose the registration anchors.
 
 The anchors are not sufficient on their own: an importer that computes extents
 from marking layers only would skip a layer set to no marking. On a sparse
 pattern, layer 0 alone yields `3 x 3 mm` boxes at four unrelated centers and two
-files with no layer-0 geometry at all, while all four report `52 x 52 mm` about
-the origin once the anchors count. Hence both mechanisms.
+files with no layer-0 geometry at all, while all four report the full declared
+window about the origin once the anchors count. Hence both mechanisms.
 
-The production field is `52 x 52 mm`. With the two-inch (`50.8 mm`) pin-grid
-move, neighboring fields overlap by `1.2 mm`. A centered 52 mm job retains
-`13.2425 mm` margin to every edge of the `78.485 mm` maximum usable field.
+The production field is `54 x 54 mm` and each job occupies `51 x 51 mm` of it,
+centred, leaving `1.5 mm` of clear field on every side. A centred 54 mm job retains
+`12.2425 mm` margin to every edge of the `78.485 mm` maximum usable field.
 
 If the laser importer reliably preserves the drawing origin, the anchors can
 be disabled with `-rd add_registration_envelope=0`.

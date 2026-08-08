@@ -1,16 +1,19 @@
-# Fusion eight-pin grid wafer jig
+# Fusion four-pin grid wafer jig
 
 This Fusion script creates one compact 100 mm wafer nest that indexes directly
-into the table's 1 inch hole grid. Eight downward pins are underneath the
+into the table's 1 inch hole grid. Four downward pins are underneath the
 platform, so neither table width nor a front-edge alignment bar is used.
 
 ## Fixed geometry
 
 - Grid pitch: `25.400 mm`
 - Indexing move: two grid spaces = `50.800 mm`
-- Inner pin pattern: four corners of a `50.800 x 50.800 mm` square
-- Outer pin pattern: four corners of a `101.600 x 101.600 mm` square
-- Total pins: `8`
+- Pin pattern: four corners of a `101.600 x 101.600 mm` square (`4 x 4` spaces)
+- Total pins: `4`
+- Side pickup tabs: one centered on the left and right edges, `10.000 mm` out
+  by `24.000 mm` long, spanning z `2.000` to `6.000 mm`. The `2.000 mm` undercut
+  beneath each is what a fingernail or tweezer tip hooks into to lift the plate
+  off its pins. Overall width including both tabs: `148.000 mm`
 - Pin diameter: `4.700 mm`
 - Pin engagement below platform: `5.000 mm`
 - Tapered pin tip: `4.000 mm` diameter over the final `1.000 mm`
@@ -40,18 +43,18 @@ Folder labels name the **jig station**, read like a matrix: the first digit is
 the row from the table rear (`1` = top/rear, `2` = bottom/front) and the second
 is the column from the table left (`1` = left, `2` = right).
 
-| Folder | Jig station | Engraved outer front-right pin | Outer pin columns/rows | Inner pin columns/rows | Exposed area |
-| --- | --- | --- | --- | --- | --- |
-| `DXF11` | top-left (rear-left) | `C4 R3` | columns `0,4`; rows `3,7` | columns `1,3`; rows `4,6` | bottom-right |
-| `DXF12` | top-right (rear-right) | `C6 R3` | columns `2,6`; rows `3,7` | columns `3,5`; rows `4,6` | bottom-left |
-| `DXF21` | bottom-left (front-left) | `C4 R1` | columns `0,4`; rows `1,5` | columns `1,3`; rows `2,4` | top-right |
-| `DXF22` | bottom-right (front-right) | `C6 R1` | columns `2,6`; rows `1,5` | columns `3,5`; rows `2,4` | top-left |
+| Folder | Jig station | Engraved front-right pin | Pin columns/rows | Exposed area |
+| --- | --- | --- | --- | --- |
+| `DXF11` | top-left (rear-left) | `C4 R3` | columns `0,4`; rows `3,7` | bottom-right |
+| `DXF12` | top-right (rear-right) | `C6 R3` | columns `2,6`; rows `3,7` | bottom-left |
+| `DXF21` | bottom-left (front-left) | `C4 R1` | columns `0,4`; rows `1,5` | top-right |
+| `DXF22` | bottom-right (front-right) | `C6 R1` | columns `2,6`; rows `1,5` | top-left |
 
 ### Reading the plate
 
 The engraving gives **one hole per station**: the outer front-right pin, the one
-to the right of the wafer's primary flat. The eight-pin pattern is rigid, so
-seating that single pin fixes the other seven. It always lands two grid spaces
+to the right of the wafer's primary flat. The four-pin pattern is rigid, so
+seating that single pin fixes the other three. It always lands two grid spaces
 right and two spaces forward of the pin-pattern center.
 
 Coordinates are abbreviated `C` (column) and `R` (row), so `21 C4 R1` seats the
@@ -67,10 +70,8 @@ wafer pocket and outboard of the pickup notch, keeping about `5 mm` to the
 pocket wall.
 
 The `ALIGNMENT PIN` label is engraved at the front-right of the plate, next to the
-pin it names, so the reference is the **outer** front-right pin and not the inner
-one. The outer four sit out near the platform corners; the inner four are on the
-much smaller `50.800 mm` square near the center. Seating an inner front-right pin
-in the engraved hole would misplace the jig by one grid space in each axis.
+pin it names. With the inner 2 x 2 set removed there is only one front-right pin,
+out near the platform corner, so the reference is unambiguous.
 
 The outer square is not centered on the platform, because the nest is offset
 from the pin-pattern center by `X=+7.290 mm`, `Y=-4.950 mm`. Measured from the
@@ -105,5 +106,5 @@ The script creates an editable design and exports `pin_grid_wafer_jig.f3d` and
 `pin_grid_wafer_jig.stl` to the shared `fusion/print-files` folder.
 
 Print with the 2 mm wafer platform upward. The downward pins will require local
-support; use support blockers everywhere except beneath the eight pins. Verify
+support; use support blockers everywhere except beneath the four pins. Verify
 pin fit and flatness on the table before placing a real wafer in the nest.

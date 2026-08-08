@@ -135,7 +135,11 @@ def build_preview(
         center_x = x_sign * ns["WINDOW_CENTER_X_UM"]
         center_y = y_sign * ns["WINDOW_CENTER_Y_UM"]
         bounds = ns["clip_bounds_um"](x_sign, y_sign, clip_mode, stitch)
-        ns["assert_window_is_square"](label, bounds, center_x, center_y)
+        ns["assert_window_is_square"](
+            label, bounds, center_x, center_y,
+            ns["QUALIFIED_FIELD_SIZE_UM"] if clip_mode == "full_window"
+            else ns["partition_window_size_um"](stitch),
+        )
         left, bottom, right, top = bounds
 
         clipped = source & pya.Region(

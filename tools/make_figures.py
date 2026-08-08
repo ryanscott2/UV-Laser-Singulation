@@ -265,7 +265,8 @@ def fig_wafer_and_fields():
         fig.text(lx, ly - 3.8, f"jig {station.jig_station.replace('_', '-')}", "muted", 2.5)
         fig.text(cx, cy + 2.4, f"({cx:+.1f}, {cy:+.1f})", "muted", 2.3)
 
-    fig.text(0, 64, "One 100 mm wafer, four 52 mm exposures", size=4.6, weight="600")
+    fig.text(0, 64, f"One 100 mm wafer, four {QUALIFIED_FIELD_SIZE_MM:g} mm exposures",
+             size=4.6, weight="600")
     fig.text(0, 59.5,
              "field centers at X,Y = +/-25.4 mm   .   1.2 mm total overlap at every seam",
              "muted", 2.9)
@@ -409,12 +410,11 @@ def fig_jig_inversion():
     # can be checked against the viewBox directly.
     fig.poly([(x + wx, y + wy) for x, y in wafer_outline(WAFER_RADIUS)], "wafer",
              'stroke-width="0.55"')
-    for columns, rows in ((station.outer_columns, station.outer_rows),
-                          (station.inner_columns, station.inner_rows)):
-        for column in columns:
-            for row in rows:
-                hx, hy = hole_coordinate_mm(column, row)
-                fig.circle(hx, hy, 2.4, "", f'fill="{color}"')
+    # Four pins, on the corners of the outer square.
+    for column in station.outer_columns:
+        for row in station.outer_rows:
+            hx, hy = hole_coordinate_mm(column, row)
+            fig.circle(hx, hy, 2.4, "", f'fill="{color}"')
 
     column, row = station.outer_front_right_pin
     hx, hy = hole_coordinate_mm(column, row)
@@ -429,7 +429,9 @@ def fig_jig_inversion():
              size=5.0, weight="600")
     fig.text(100, 208, "the laser field never moves; the wafer moves under it", "muted", 3.0)
     fig.text(hx + 8, hy - 1, f"engraved hole  C{column} R{row}", "warn", 3.0, anchor="start")
-    fig.text(lx, ly + HALF_FIELD + 2.6, "52 mm field at laser zero (96.19, 109.35)", "warn", 3.0)
+    fig.text(lx, ly + HALF_FIELD + 2.6,
+             f"{QUALIFIED_FIELD_SIZE_MM:g} mm field at laser zero (96.19, 109.35)",
+             "warn", 3.0)
     fig.text(wx, wy + 67, f"plate at station {station.jig_station.replace('_', '-')} "
                           f"({station.label})", "muted", 3.0, fill=color)
     fig.text(2, 2, "C0 = table left,  R0 = table front", "muted", 2.9, anchor="start")

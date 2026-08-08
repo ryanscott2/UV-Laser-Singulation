@@ -140,18 +140,18 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
 
 ### Pin dimensions and tolerance
 
-- Total pins: `8`, printed downward as an integral part of the platform.
-- Nominal pin diameter: `4.700 mm` for all eight pins.
+- Total pins: `4`, printed downward as an integral part of the platform. The
+  inner 2 x 2 set was removed on 2026-08-08: the outer square alone fixes position
+  and rotation, and four pins are far easier to line up when seating the plate.
+- Nominal pin diameter: `4.700 mm` for all four pins.
 - Nominal diametral clearance against the measured 4.870 mm thread minor:
   `0.170 mm`; nominal radial clearance: `0.085 mm`.
 - Total pin length below the platform: `5.000 mm`, of which the last
   `1.000 mm` is the entry taper, leaving `4.000 mm` straight.
 - Entry taper height: `1.000 mm`, included in the 5.000 mm above.
 - Tip diameter: `4.000 mm`, increasing to `4.700 mm` over the taper.
-- Inner four pins: corners of a `50.800 x 50.800 mm` square (`2 x 2` spaces).
-- Outer four pins: corners of a `101.600 x 101.600 mm` square (`4 x 4` spaces).
-- Both pin squares are concentric. The outer set provides rotational leverage;
-  the inner set supports the center and adds redundancy.
+- The four pins are the corners of a `101.600 x 101.600 mm` square
+  (`4 x 4` spaces), which gives the most rotational leverage available on the grid.
 - PLA prototype dimensions are nominal. Verify a pin coupon before printing the
   full jig because extrusion width, shrinkage, and thread crests affect fit.
 
@@ -171,6 +171,12 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
 - Primary-flat clearance: `0.500 mm`.
 - Secondary-flat rotational-datum clearance: `0.100 mm`.
 - Primary-flat pickup opening: `20.000 mm` wide with a 45 degree bevel.
+- Side pickup tabs: one centered on the left and right edges,
+  `10.000 mm` out by `24.000 mm` long, spanning z `2.000` to `6.000 mm`. Starting
+  them at the top of the 2 mm platform leaves a `2.000 mm` undercut to hook a
+  fingernail or tweezer tip under, so the plate lifts straight off its pins
+  instead of being pried against the wafer or the nest wall. Overall plate width
+  including both tabs is `148.000 mm`.
 - The outside reinforcement bar has a centered tweezer notch aligned to the
   primary-flat opening: `20.000 mm` wide at platform level and `28.400 mm` at
   the top, producing 45 degree side slopes through the 4 mm bar height.
@@ -185,8 +191,8 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
   `CENTER FIELD ALIGNER` then `C5 R2`.
 - Front-left reads `C0=LEFT R0=FRONT`, preserving the counting convention.
 - Front-right reads `ALIGNMENT PIN`, naming the outer pin nearest that corner.
-  That pin is the one every engraved coordinate refers to. The eight-pin
-  pattern is rigid, so seating it fixes the other seven; it always sits two grid
+  That pin is the one every engraved coordinate refers to. The four-pin
+  pattern is rigid, so seating it fixes the other three; it always sits two grid
   spaces right of and two forward of the pin-pattern center.
 - The two long lines used to sit at the bottom of the top-left block, where the
   wafer-pocket wall curves in and clipped them. Splitting them to the front edge
@@ -197,20 +203,19 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
 Grid columns are numbered from the left and rows from the front, starting at
 zero. Labels are jig stations per the coordinate convention above.
 
-| Folder | Jig station | Outer pin columns/rows | Inner pin columns/rows | Exposed area |
+| Folder | Jig station | Pin columns/rows | Engraved hole | Exposed area |
 | --- | --- | --- | --- | --- |
-| `DXF11` | top-left | columns `0,4`; rows `3,7` | columns `1,3`; rows `4,6` | bottom-right |
-| `DXF12` | top-right | columns `2,6`; rows `3,7` | columns `3,5`; rows `4,6` | bottom-left |
-| `DXF21` | bottom-left | columns `0,4`; rows `1,5` | columns `1,3`; rows `2,4` | top-right |
-| `DXF22` | bottom-right | columns `2,6`; rows `1,5` | columns `3,5`; rows `2,4` | top-left |
+| `DXF11` | top-left | columns `0,4`; rows `3,7` | `C4 R3` | bottom-right |
+| `DXF12` | top-right | columns `2,6`; rows `3,7` | `C6 R3` | bottom-left |
+| `DXF21` | bottom-left | columns `0,4`; rows `1,5` | `C4 R1` | top-right |
+| `DXF22` | bottom-right | columns `2,6`; rows `1,5` | `C6 R1` | top-left |
 
 ### Center-field pin map
 
 The same physical geometry centers the wafer at laser zero when the common pin
 pattern center is at grid column `3`, row `4`:
 
-- Outer pins: columns `1,5`; rows `2,6`. Engraved front-right pin: `C5 R2`.
-- Inner pins: columns `2,4`; rows `3,5`.
+- Pins: columns `1,5`; rows `2,6`. Engraved front-right pin: `C5 R2`.
 - Pin-pattern center: `(88.900,114.300) mm` from the table left/front.
 - Wafer center after the `(+7.290,-4.950) mm` nest offset:
   `(96.190,109.350) mm`, exactly the directly measured laser-zero center.
@@ -222,22 +227,38 @@ pattern center is at grid column `3`, row `4`:
 
 ## Pin-grid DXF/GDS production profile
 
-- Qualified exposure/file bounds: `52.000 x 52.000 mm`.
+Revised 2026-08-08. The window a job occupies is now derived from the pitch and the
+stitch alone, so the declared field is free to be larger than the window.
+
+- Declared exposure/file bounds: `54.000 x 54.000 mm`.
+- Window occupied per job: `51.000 mm`, its own half of the `50.800 mm` pitch plus
+  the stitch, centred in the 54 mm field with `1.500 mm` clear on every side.
 - Four field centers on the wafer: `X,Y=+/-25.400 mm`.
 - Neighboring-center spacing: `50.800 mm`, matching the two-hole grid move.
-- Total stitch overlap: `1.200 mm`; each job extends `0.600 mm` across the
-  nominal X=0 and Y=0 seam.
-- Margin from the exposure boundary to each edge of the maximum usable
-  `78.485 mm` optical field: `13.2425 mm`.
+- Total stitch overlap: `0.200 mm`; each job extends `0.100 mm` across the nominal
+  X=0 and Y=0 seam, which covers the 75-100 um mismatch measured above. Raising it
+  past `3.200 mm` would push a window outside the declared field, and the splitter
+  refuses that.
+- Margin from the declared window to each edge of the maximum usable `78.485 mm`
+  optical field: `12.2425 mm`.
 - Registration anchors: four 50 um corner polygons on
   `REGISTRATION_DO_NOT_EXPOSE`, fixing all content bounds at
-  `(-26,-26) to (+26,+26) mm`. Never expose this layer.
+  `(-27,-27) to (+27,+27) mm`. Every DXF also declares `$EXTMIN`/`$EXTMAX` at the
+  same bounds. Never expose the anchor layer.
+- Double-exposed area per wafer: `0.4925 mm2` of `49.1333 mm2`, about `1.00%`. Of
+  that, `0.0700 mm2` is the 28 grid crossings where the horizontal and vertical
+  files meet and `0.4225 mm2` is the deliberate seam stitch. Acceptable because the
+  wafer is scored partway through rather than cut.
+- `CLIP_MODE` now matters: at the old 52 mm field `partition` and `full_window`
+  produced identical boxes, but with a 54 mm field `full_window` overlaps
+  neighbours by `3.200 mm` and exposes that whole band twice.
 - Cutting geometry remains on layer `0`, with a maximum width of `50 um`.
 - Master-generator edge bead is controlled by the single top-level
   `EDGE_BEAD_MM` variable in `generate_100mm_10x30mm_masters.py`; units are
   millimeters. Current production value: `2.000 mm`.
 - Validated production output:
-  `output/DXFs/080726_FourPosDicer_PinGrid52mm`. Relabeled to jig-station names
+  `output/DXFs/080826_FourPosDicer_PinGrid54mm`. The 52 mm set
+  `080726_FourPosDicer_PinGrid52mm` is superseded and kept only for traceability. Relabeled to jig-station names
   on 2026-08-08 and revalidated: layer-0 reconstruction XOR area is zero against
   both masters, every registration bounding box is exactly `+/-26.000 mm`, and
   all eight DXFs are byte-identical to the files they replaced.

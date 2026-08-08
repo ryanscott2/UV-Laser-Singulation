@@ -7,8 +7,8 @@ Two independent checks, both of which must pass before a set is exposed:
    which proves no cut geometry was lost, duplicated, or shifted by the split.
 2. Registration. Every file must carry four anchors on
    `REGISTRATION_DO_NOT_EXPOSE` whose combined bounding box is exactly
-   +/-26.000 mm, so a laser importer that centers on content bounds cannot
-   displace one job relative to another.
+   the declared field half size, so a laser importer that centers on content
+   bounds cannot displace one job relative to another.
 
 Writes `validation_report.txt` into the set and exits non-zero on any failure.
 Needs the standalone `klayout` Python wheel.
@@ -28,7 +28,7 @@ from pin_grid_layout import REGISTRATION_HALF_SIZE_MM, STATIONS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
-DEFAULT_SET = Path("output/DXFs/080726_FourPosDicer_PinGrid52mm")
+DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")
 MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 

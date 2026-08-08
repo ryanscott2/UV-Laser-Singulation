@@ -33,7 +33,7 @@ from pin_grid_layout import STATIONS
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPLITTER = Path("python/split_klayout_four_windows.py")
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
-DEFAULT_SET = Path("output/DXFs/080726_FourPosDicer_PinGrid52mm")
+DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")
 MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 
@@ -87,7 +87,6 @@ def write_position_manifest(set_dir: Path) -> Path:
                 "field_center_x_wafer_mm", "field_center_y_wafer_mm",
                 "engraved_outer_front_right_pin",
                 "outer_pin_columns", "outer_pin_rows",
-                "inner_pin_columns", "inner_pin_rows",
                 "horizontal_file", "vertical_file",
             ]
         )
@@ -102,8 +101,6 @@ def write_position_manifest(set_dir: Path) -> Path:
                     f"C{column} R{row}",
                     ",".join(str(v) for v in station.outer_columns),
                     ",".join(str(v) for v in station.outer_rows),
-                    ",".join(str(v) for v in station.inner_columns),
-                    ",".join(str(v) for v in station.inner_rows),
                     f"{station.label}/Horizontal.dxf",
                     f"{station.label}/Vertical.dxf",
                 ]

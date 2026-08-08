@@ -1,7 +1,7 @@
-# Fusion eight-pin center-field wafer jig
+# Fusion four-pin center-field wafer jig
 
 This Fusion script creates a 100 mm wafer nest that centers the wafer at the
-directly measured laser-zero location using eight pins in the table's 1 inch
+directly measured laser-zero location using four pins in the table's 1 inch
 hole grid. Its mechanical geometry matches `FusionPinGridJig`; the separate
 package provides center-field filenames and an unambiguous center placement
 map.
@@ -11,8 +11,11 @@ map.
 Number grid columns from the left and rows from the front, starting at zero.
 Place the pins as follows:
 
-- Outer four pins: columns `1 and 5`, rows `2 and 6`.
-- Inner four pins: columns `2 and 4`, rows `3 and 5`.
+- Four pins: columns `1 and 5`, rows `2 and 6`.
+- Side pickup tabs: one centered on the left and right edges, `10.000 mm` out
+  by `24.000 mm` long, spanning z `2.000` to `6.000 mm`. The `2.000 mm` undercut
+  beneath each is what a fingernail or tweezer tip hooks into to lift the plate
+  off its pins. Overall width including both tabs: `148.000 mm`
 - Common pin-pattern center: grid column `3`, row `4`.
 - Pattern-center table coordinate: `(88.900,114.300) mm`.
 - Nest offset from pattern center: `X=+7.290 mm`, `Y=-4.950 mm`.
@@ -25,17 +28,14 @@ Place the pins as follows:
 ### Reading the plate
 
 The engraving gives **one hole**: the outer front-right pin, the one to the right
-of the wafer's primary flat. The eight-pin pattern is rigid, so seating that
-single pin fixes the other seven. It sits two grid spaces right and two spaces
+of the wafer's primary flat. The four-pin pattern is rigid, so seating that
+single pin fixes the other three. It sits two grid spaces right and two spaces
 forward of the pin-pattern center, the same convention the four-position plate
 uses.
 
 The `ALIGNMENT PIN` label is engraved at the front-right of the plate, next to the
-pin it names, so the reference is the **outer** front-right pin and not the inner
-one. The outer four sit near the platform corners; the inner four are on the much
-smaller `50.800 mm` square near the center, whose front-right pin is `C4 R3`.
-Seating that one in the engraved hole would misplace the jig by one grid space in
-each axis.
+pin it names. With the inner 2 x 2 set removed there is only one front-right pin,
+out near the platform corner, so the reference is unambiguous.
 
 ## Dimensions and tolerances
 
@@ -44,7 +44,6 @@ each axis.
 - Eight pins, each `4.700 mm` diameter.
 - Nominal thread-minor clearance: `0.170 mm` diametral, `0.085 mm` radial.
 - Pin engagement: `5.000 mm`; final `1.000 mm` tapers from 4.0 to 4.7 mm.
-- Inner pin square: `50.800 x 50.800 mm` (`2 x 2` grid spaces).
 - Outer pin square: `101.600 x 101.600 mm` (`4 x 4` grid spaces).
 - Platform: `128.000 x 128.000 x 2.000 mm`.
 - Perimeter reinforcement: `4.000 mm` wide x `4.000 mm` high above the
