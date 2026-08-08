@@ -319,22 +319,28 @@ python tools/slicer_app.py
 
 PySide6 + QML, using Qt's own `FluentWinUI3` style pinned to dark.
 
-**This needs its own interpreter.** PySide6 will not install into the Windows Store
-Python: that interpreter's user `site-packages` path is 136 characters and the
-PySide6 wheel's deepest file needs 142 more, which exceeds Windows' 260 character
-limit while `LongPathsEnabled` is `0`. A failed attempt leaves a partial extraction
-that looks installed but has no QML modules at all. Use a venv at a short path:
-
 ```bash
-python -m venv C:/Users/<you>/venvs/uvlaser
+pip install PySide6
 ```
 
+**On Windows, enable long paths first.** The PySide6 wheel's deepest file sits about
+142 characters below `site-packages`, which overruns the legacy 260 character limit
+on any interpreter whose `site-packages` path is already long — the Windows Store
+Python's is 138. The install then fails partway and leaves a tree that looks
+installed but has **no QML modules at all**, so every `import QtQuick.Controls`
+fails with `plugin "qtquickcontrols2plugin" not found`. Fix it once, from an
+administrator shell:
+
 ```bash
-C:/Users/<you>/venvs/uvlaser/Scripts/python -m pip install PySide6 klayout
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
 ```
 
-Run the app with that interpreter. Everything else here runs on the plain
-interpreter with only the `klayout` wheel.
+New processes pick it up; reinstall PySide6 afterwards with `--force-reinstall` if a
+partial tree was already left behind.
+
+If you would rather not touch the registry, a venv at a short path such as
+`C:/Users/<you>/venvs/uvlaser` keeps every path inside the limit and works without
+admin rights.
 
 Choose a file and it reads the layers out of it, showing shape counts, drawn area,
 and existing path widths for each. It preselects the layer with the most drawn area,

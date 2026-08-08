@@ -50,11 +50,11 @@ watch the four jobs update over the wafer:
 python tools/slicer_app.py
 ```
 
-The window needs PySide6 in a venv at a short path; see
-[DOCUMENTATION.md](DOCUMENTATION.md#desktop-window) for why.
+or from the command line, starting with `python tools/run_splitter.py --input
+wafer.dxf --list-layers` to see which layers the file has.
 
-or on the command line with `python tools/run_splitter.py --input wafer.dxf
---list-layers` to see the layers first.
+The window needs `pip install PySide6`. On Windows, enable long paths first or the
+wheel half-extracts; see [DOCUMENTATION.md](DOCUMENTATION.md#desktop-window).
 
 ## Layout
 
