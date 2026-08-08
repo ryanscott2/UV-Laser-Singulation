@@ -1,0 +1,9 @@
+Input: dxf\080526_VertDicev2.dxf
+Output: python\examples\center_pass_examples\Vertical\080526_VertDicev2_center_pass.dxf
+Score shape: circle
+Score diameter (um): 75000.0
+Full field (um): 78484.0
+Global offset (um): X=0.0, Y=0.0
+Source polygons: 8
+Output polygons: 8
+Output bbox (um): (-35025.0, -37165.748, 35025.0, 37165.748)

@@ -1,0 +1,2 @@
+Horizontal.dxf: master_polygons=5, reconstructed_polygons=9, xor_area_dbu2=0
+Vertical.dxf: master_polygons=10, reconstructed_polygons=20, xor_area_dbu2=0

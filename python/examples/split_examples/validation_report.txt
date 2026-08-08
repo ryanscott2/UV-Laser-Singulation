@@ -1,0 +1,2 @@
+080526_VertDicev2.dxf: source_polygons=8, reconstructed_polygons=16, xor_area_dbu2=0
+080526_HorizDicev2.dxf: source_polygons=7, reconstructed_polygons=16, xor_area_dbu2=0

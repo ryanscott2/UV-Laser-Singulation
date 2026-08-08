@@ -1,0 +1,12 @@
+Input: dxf\080526_VertDicev2.dxf
+Input layers: '0' (0/0)
+Layout DBU: 0.001 um
+Source bbox (um): (-35025.0, -38992.5, 35025.0, 38992.5)
+Mode: partition
+Global offset (um): X=0.0, Y=0.0
+Stitch overlap (um): 0.0
+Output directory: python\examples\split_examples\Vertical
+P1_right_top: polygons=4, bbox_um=-20025.000;-25000.000;10025.000;13992.500
+P2_left_top: polygons=4, bbox_um=-10025.000;-25000.000;20025.000;13992.500
+P3_right_bottom: polygons=4, bbox_um=-20025.000;-13992.500;10025.000;25000.000
+P4_left_bottom: polygons=4, bbox_um=-10025.000;-13992.500;20025.000;25000.000

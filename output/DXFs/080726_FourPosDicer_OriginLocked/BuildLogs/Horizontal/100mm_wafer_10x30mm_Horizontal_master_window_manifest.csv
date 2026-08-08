@@ -1,0 +1,5 @@
+job,output_file,field_center_x_wafer_um,field_center_y_wafer_um,old_jig_pattern_x_offset_um,old_jig_pattern_y_offset_um,clip_left_um,clip_bottom_um,clip_right_um,clip_top_um,output_translate_x_um,output_translate_y_um,max_cut_width_um,source_paths_capped,output_bbox_um,polygon_count,import_registration_envelope
+P1_right_top,100mm_wafer_10x30mm_Horizontal_master_P1_right_top.dxf,21018.0,26678.0,-3982.0,1678.0,-3982.0,1678.0,51018.0,56678.0,-21018.0,-26678.0,50.0,0,-25000.000;-11703.000;24586.212;18347.000,2,True
+P2_left_top,100mm_wafer_10x30mm_Horizontal_master_P2_left_top.dxf,-28982.0,26678.0,-3982.0,1678.0,-58982.0,1678.0,-3982.0,56678.0,28982.0,-26678.0,50.0,0,-16622.212;-11703.000;25000.000;18347.000,2,True
+P3_right_bottom,100mm_wafer_10x30mm_Horizontal_master_P3_right_bottom.dxf,21018.0,-23322.0,-3982.0,1678.0,-3982.0,-53322.0,51018.0,1678.0,-21018.0,23322.0,50.0,0,-25000.000;-21703.000;24586.212;24572.000,3,True
+P4_left_bottom,100mm_wafer_10x30mm_Horizontal_master_P4_left_bottom.dxf,-28982.0,-23322.0,-3982.0,1678.0,-58982.0,-53322.0,-3982.0,1678.0,28982.0,23322.0,50.0,0,-16622.212;-21703.000;25000.000;8347.000,2,True

@@ -1,0 +1,12 @@
+Input: dxf\080526_HorizDicev2.dxf
+Input layers: '0' (0/0)
+Layout DBU: 0.001 um
+Source bbox (um): (-38992.5, -31250.0, 38992.5, 31250.0)
+Mode: partition
+Global offset (um): X=0.0, Y=0.0
+Stitch overlap (um): 0.0
+Output directory: python\examples\split_examples\Horizontal
+P1_right_top: polygons=4, bbox_um=-25000.000;-25000.000;13992.500;6250.000
+P2_left_top: polygons=4, bbox_um=-13992.500;-25000.000;25000.000;6250.000
+P3_right_bottom: polygons=4, bbox_um=-25000.000;-6250.000;13992.500;25000.000
+P4_left_bottom: polygons=4, bbox_um=-13992.500;-6250.000;25000.000;25000.000

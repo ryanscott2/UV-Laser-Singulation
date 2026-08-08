@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# OneDrive / Windows / macOS sync and shell cruft
+desktop.ini
+Thumbs.db
+ehthumbs.db
+.DS_Store
+$RECYCLE.BIN/
+*~
+
+# Editors. Note: fusion/*/.vscode/launch.json is NOT ignored -- Fusion
+# generates it as part of each script package and it contains no local paths.
+.idea/
+*.code-workspace
+*.swp
+
+# Fusion and CAD scratch files
+*.bak
+*.f3d.lock
+*.step.bak
+
+# Local experiment output. Generated sets that are meant to be published live
+# under output/ and are committed deliberately; anything staged elsewhere is not.
+scratch/
+tmp/
+*_four_windows/
+*_center_pass/

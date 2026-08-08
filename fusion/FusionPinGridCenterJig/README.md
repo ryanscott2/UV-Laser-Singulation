@@ -1,0 +1,73 @@
+# Fusion eight-pin center-field wafer jig
+
+This Fusion script creates a 100 mm wafer nest that centers the wafer at the
+directly measured laser-zero location using eight pins in the table's 1 inch
+hole grid. Its mechanical geometry matches `FusionPinGridJig`; the separate
+package provides center-field filenames and an unambiguous center placement
+map.
+
+## Center placement
+
+Number grid columns from the left and rows from the front, starting at zero.
+Place the pins as follows:
+
+- Outer four pins: columns `1 and 5`, rows `2 and 6`.
+- Inner four pins: columns `2 and 4`, rows `3 and 5`.
+- Common pin-pattern center: grid column `3`, row `4`.
+- Pattern-center table coordinate: `(88.900,114.300) mm`.
+- Nest offset from pattern center: `X=+7.290 mm`, `Y=-4.950 mm`.
+- Resulting wafer center: `(96.190,109.350) mm`, matching measured laser zero.
+- Engraved outer front-right pin: `C5 R2`, at table `(139.700,63.500) mm`.
+- Three floor engravings, each cut `0.500 mm` into the baseplate:
+  `CENTER FIELD ALIGNER` and `C5 R2` at top-left, `C0=LEFT R0=FRONT` at
+  front-left, and `ALIGNMENT PIN` at front-right.
+
+### Reading the plate
+
+The engraving gives **one hole**: the outer front-right pin, the one to the right
+of the wafer's primary flat. The eight-pin pattern is rigid, so seating that
+single pin fixes the other seven. It sits two grid spaces right and two spaces
+forward of the pin-pattern center, the same convention the four-position plate
+uses.
+
+The `ALIGNMENT PIN` label is engraved at the front-right of the plate, next to the
+pin it names, so the reference is the **outer** front-right pin and not the inner
+one. The outer four sit near the platform corners; the inner four are on the much
+smaller `50.800 mm` square near the center, whose front-right pin is `C4 R3`.
+Seating that one in the engraved hole would misplace the jig by one grid space in
+each axis.
+
+## Dimensions and tolerances
+
+- Grid pitch: `25.400 mm`; first hole inset: `12.700 mm`.
+- Measured hole opening: `6.000 mm`; threaded minor diameter: `4.870 mm`.
+- Eight pins, each `4.700 mm` diameter.
+- Nominal thread-minor clearance: `0.170 mm` diametral, `0.085 mm` radial.
+- Pin engagement: `5.000 mm`; final `1.000 mm` tapers from 4.0 to 4.7 mm.
+- Inner pin square: `50.800 x 50.800 mm` (`2 x 2` grid spaces).
+- Outer pin square: `101.600 x 101.600 mm` (`4 x 4` grid spaces).
+- Platform: `128.000 x 128.000 x 2.000 mm`.
+- Perimeter reinforcement: `4.000 mm` wide x `4.000 mm` high above the
+  platform.
+- Wafer: `100.000 mm`; primary flat `32.500 mm`; secondary flat `18.000 mm`.
+- Sidewall: `3.000 mm` thick and `1.500 mm` above the platform.
+- Radial clearance: `0.500 mm` per side.
+- Primary-flat clearance: `0.500 mm`.
+- Secondary-flat datum clearance: `0.100 mm`.
+- Pickup opening: `20.000 mm` with a 45 degree bevel; the 2 mm base remains
+  continuous.
+- Perimeter-bar tweezer notch: `20.000 mm` at the base and `28.400 mm` at the
+  top, with 45 degree sides aligned to the wafer pickup opening.
+
+## Run
+
+1. In Fusion, press **Shift+S**.
+2. On the Scripts tab, click **+** and select this folder.
+3. Select `FusionPinGridCenterJig` and click **Run**.
+
+The script exports `pin_grid_center_wafer_jig.f3d` and
+`pin_grid_center_wafer_jig.step` beside itself, plus a high-quality binary
+`pin_grid_center_wafer_jig.stl` in the shared `fusion/print-files` folder.
+
+Print with the platform upward and apply local support only beneath the eight
+downward pins. Verify a pin-fit coupon and table seating before using a wafer.

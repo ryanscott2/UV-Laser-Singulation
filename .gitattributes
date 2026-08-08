@@ -1,0 +1,18 @@
+# Keep the generated laser and CAD files byte-stable on every platform.
+#
+# These DXFs are validated by byte comparison and by XOR against their masters,
+# and the documentation states they are byte-identical to what the tools emit.
+# Letting git rewrite line endings on checkout would silently break that, so the
+# text formats are pinned to LF rather than left to core.autocrlf.
+
+* text=auto eol=lf
+
+*.dxf  text eol=lf
+*.svg  text eol=lf
+*.step text eol=lf
+*.scad text eol=lf
+*.csv  text eol=lf
+
+*.stl binary
+*.f3d binary
+*.zip binary

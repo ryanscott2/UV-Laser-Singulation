@@ -1,0 +1,5 @@
+folder,x_index,y_index,wafer_area,field_center_x_wafer_mm,field_center_y_wafer_mm,horizontal_file,vertical_file
+DXF11,1,1,left_rear_top,-28.982,26.678,DXF11/Horizontal.dxf,DXF11/Vertical.dxf
+DXF12,1,2,left_front_bottom,-28.982,-23.322,DXF12/Horizontal.dxf,DXF12/Vertical.dxf
+DXF21,2,1,right_rear_top,21.018,26.678,DXF21/Horizontal.dxf,DXF21/Vertical.dxf
+DXF22,2,2,right_front_bottom,21.018,-23.322,DXF22/Horizontal.dxf,DXF22/Vertical.dxf

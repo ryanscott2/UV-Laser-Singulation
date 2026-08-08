@@ -1,0 +1,9 @@
+Input: dxf\080526_HorizDicev2.dxf
+Output: python\examples\center_pass_examples\Horizontal\080526_HorizDicev2_center_pass.dxf
+Score shape: circle
+Score diameter (um): 75000.0
+Full field (um): 78484.0
+Global offset (um): X=0.0, Y=0.0
+Source polygons: 7
+Output polygons: 7
+Output bbox (um): (-34377.836, -31250.0, 34377.836, 31250.0)

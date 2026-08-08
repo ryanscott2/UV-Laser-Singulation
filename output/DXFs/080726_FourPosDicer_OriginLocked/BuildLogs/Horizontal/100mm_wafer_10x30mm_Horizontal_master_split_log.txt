@@ -1,0 +1,16 @@
+Input: dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf
+Input layers: '0' (0/0)
+Layout DBU: 0.001 um
+Source bbox (um): (-45604.212, -45025.0, 45604.212, 45025.0)
+Mode: partition
+OLD JIG window-pattern offset (um): X=-3982.0, Y=1678.0
+Global offset (um): X=0.0, Y=0.0
+Maximum native path width (um): 50.0
+Source native paths: seen=0, capped=0, widest_original_um=0.0
+Stitch overlap (um): 0.0
+Import registration envelope: enabled=True, layer=REGISTRATION_DO_NOT_EXPOSE, bbox_um=+/-30000.0
+Output directory: output\DXFs\080726_FourPosDicer_OriginLocked\BuildLogs\Horizontal
+P1_right_top: polygons=2, bbox_um=-25000.000;-11703.000;24586.212;18347.000
+P2_left_top: polygons=2, bbox_um=-16622.212;-11703.000;25000.000;18347.000
+P3_right_bottom: polygons=3, bbox_um=-25000.000;-21703.000;24586.212;24572.000
+P4_left_bottom: polygons=2, bbox_um=-16622.212;-21703.000;25000.000;8347.000

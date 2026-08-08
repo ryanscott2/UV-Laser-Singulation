@@ -1,0 +1,2 @@
+080526_VertDicev2.dxf: expected_polygons=8, actual_polygons=8, xor_area_dbu2=0, bbox_um=(-35025.000, -37165.748, 35025.000, 37165.748), max_vertex_radius_um=37500.000
+080526_HorizDicev2.dxf: expected_polygons=7, actual_polygons=7, xor_area_dbu2=0, bbox_um=(-34377.836, -31250.000, 34377.836, 31250.000), max_vertex_radius_um=37498.174

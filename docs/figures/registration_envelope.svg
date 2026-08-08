@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1050" height="551" viewBox="-8.500 -64.000 215.000 112.795" role="img">
+  <style>
+    .bg { fill: #ffffff; }
+    text { font-family: ui-sans-serif, -apple-system, "Segoe UI", Helvetica, sans-serif; }
+    .ink { fill: #1f2328; }
+    .muted { fill: #59636e; }
+    .warn { fill: #cf222e; }
+    .s-ink { stroke: #1f2328; fill: none; }
+    .s-muted { stroke: #59636e; fill: none; }
+    .s-warn { stroke: #cf222e; fill: none; }
+    .wafer { fill: #f6f8fa; stroke: #59636e; }
+    .safe { fill: none; stroke: #59636e; stroke-dasharray: 1.6 1.6; }
+    .cut { fill: #1f2328; stroke: #1f2328; }
+    .overlap { fill: #cf222e; opacity: 0.18; stroke: none; }
+    .anchor { fill: #cf222e; }
+    .hole { fill: #ffffff; stroke: #8c959f; }
+    .plate { fill: #1f6feb; opacity: 0.09; stroke: #1f6feb; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .ink { fill: #e6edf3; }
+      .muted { fill: #9198a1; }
+      .warn { fill: #ff7b72; }
+      .s-ink { stroke: #e6edf3; }
+      .s-muted { stroke: #9198a1; }
+      .s-warn { stroke: #ff7b72; }
+      .wafer { fill: #161b22; stroke: #9198a1; }
+      .safe { stroke: #9198a1; }
+      .cut { fill: #e6edf3; stroke: #e6edf3; }
+      .hole { fill: #0d1117; stroke: #6e7681; }
+      .anchor { fill: #ff7b72; }
+    }
+  </style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="ink"/></marker></defs>
+<rect class="bg" x="-8.500" y="-64.000" width="215.000" height="112.795"/>
+<g transform="scale(1,-1)"><rect class="" x="0.0000" y="-21.7030" width="16.0000" height="30.0500" fill="#bf8700" opacity="0.16" stroke="#bf8700" stroke-width="0.5"/><line class="s-warn" x1="-2.5000" y1="-6.6780" x2="18.5000" y2="-6.6780" stroke-width="0.45" stroke-dasharray="2 1.4"/><rect class="" x="26.0000" y="-21.7030" width="16.0000" height="46.2750" fill="#8250df" opacity="0.16" stroke="#8250df" stroke-width="0.5"/><line class="s-warn" x1="23.5000" y1="1.4345" x2="44.5000" y2="1.4345" stroke-width="0.45" stroke-dasharray="2 1.4"/><line class="s-warn" x1="64.0000" y1="-6.6780" x2="64.0000" y2="1.4345" stroke-width="0.7" marker-start="url(#arrow)" marker-end="url(#arrow)"/><rect class="" x="118.0000" y="-30.0000" width="16.0000" height="60.0000" fill="#bf8700" opacity="0.16" stroke="#bf8700" stroke-width="0.5"/><line class="s-muted" x1="115.5000" y1="0.0000" x2="136.5000" y2="0.0000" stroke-width="0.45" stroke-dasharray="2 1.4"/><rect class="" x="144.0000" y="-30.0000" width="16.0000" height="60.0000" fill="#8250df" opacity="0.16" stroke="#8250df" stroke-width="0.5"/><line class="s-muted" x1="141.5000" y1="0.0000" x2="162.5000" y2="0.0000" stroke-width="0.45" stroke-dasharray="2 1.4"/></g>
+<text class="ink" x="8.000" y="-9.947" font-size="3.2" text-anchor="middle" font-weight="600" fill="#bf8700">DXF12</text>
+<text class="muted" x="8.000" y="25.903" font-size="2.4" text-anchor="middle">Y -21.703</text>
+<text class="muted" x="8.000" y="29.103" font-size="2.4" text-anchor="middle">to 8.347</text>
+<text class="warn" x="19.500" y="7.578" font-size="2.5" text-anchor="start">center -6.6780</text>
+<text class="ink" x="34.000" y="-26.172" font-size="3.2" text-anchor="middle" font-weight="600" fill="#8250df">DXF22</text>
+<text class="muted" x="34.000" y="25.903" font-size="2.4" text-anchor="middle">Y -21.703</text>
+<text class="muted" x="34.000" y="29.103" font-size="2.4" text-anchor="middle">to 24.572</text>
+<text class="warn" x="45.500" y="-0.534" font-size="2.5" text-anchor="start">center +1.4345</text>
+<text class="ink" x="21.000" y="-44.000" font-size="3.8" text-anchor="middle" font-weight="600" fill="#cf222e">layer 0 only</text>
+<text class="muted" x="21.000" y="-39.600" font-size="2.7" text-anchor="middle">content bounds differ per file</text>
+<text class="warn" x="66.000" y="3.622" font-size="3.0" text-anchor="start" font-weight="600">8.1125 mm</text>
+<text class="warn" x="66.000" y="7.222" font-size="2.5" text-anchor="start">relative Y error</text>
+<text class="ink" x="126.000" y="-31.600" font-size="3.2" text-anchor="middle" font-weight="600" fill="#bf8700">DXF12</text>
+<text class="muted" x="126.000" y="34.200" font-size="2.4" text-anchor="middle">Y -30.000</text>
+<text class="muted" x="126.000" y="37.400" font-size="2.4" text-anchor="middle">to 30.000</text>
+<text class="muted" x="137.500" y="0.900" font-size="2.5" text-anchor="start">center +0.0000</text>
+<text class="ink" x="152.000" y="-31.600" font-size="3.2" text-anchor="middle" font-weight="600" fill="#8250df">DXF22</text>
+<text class="muted" x="152.000" y="34.200" font-size="2.4" text-anchor="middle">Y -30.000</text>
+<text class="muted" x="152.000" y="37.400" font-size="2.4" text-anchor="middle">to 30.000</text>
+<text class="muted" x="163.500" y="0.900" font-size="2.5" text-anchor="start">center +0.0000</text>
+<text class="ink" x="139.000" y="-44.000" font-size="3.8" text-anchor="middle" font-weight="600">with registration anchors</text>
+<text class="muted" x="139.000" y="-39.600" font-size="2.7" text-anchor="middle">bounds identical in every file</text>
+<text class="muted" x="184.000" y="1.000" font-size="3.0" text-anchor="start" font-weight="600">0 mm error</text>
+<text class="ink" x="88.000" y="-56.000" font-size="5.0" text-anchor="middle" font-weight="600">why the anchors exist</text>
+<text class="muted" x="88.000" y="-50.500" font-size="2.9" text-anchor="middle">measured from the two sets in this repository, horizontal pass</text>
+<text class="muted" x="88.000" y="36.000" font-size="2.7" text-anchor="middle">dashed line is the bounding-box center an auto-centering importer would align to</text>
+<text class="muted" x="88.000" y="40.500" font-size="2.7" text-anchor="middle">bars show each file's content bounds in Y, the axis the failure appeared on</text>
+</svg>
