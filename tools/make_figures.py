@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIGURE_DIR = Path("docs/figures")
 MASTERS = Path("dxf/100mm_10x30mm_Masters")
 TEST_MASTERS = Path("dxf/AlignmentTest_5mm_Marks")
-TEST_SET = Path("output/DXFs/080826_AlignmentTest_5mm")
+TEST_SET = Path("output/DXFs/081026_AlignmentTest")
 FAILED_SET = Path("output/DXFs/080726_FourPosDicer")
 LOCKED_SET = Path("output/DXFs/080726_FourPosDicer_OriginLocked")
 

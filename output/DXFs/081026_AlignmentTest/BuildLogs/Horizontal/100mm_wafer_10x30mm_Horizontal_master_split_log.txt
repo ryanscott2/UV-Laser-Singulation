@@ -14,7 +14,7 @@ Declared DXF header extents: enabled=True, $EXTMIN/$EXTMAX=+/-27.000 mm
 Declared field (mm): 54.000; window per job (mm): 51.000; verified square and concentric with its field
 Jobs with no cut geometry: none
 Coverage: source 0.747500 mm^2, dropped outside all windows 0.000000 mm^2
-Output directory: output\DXFs\080826_AlignmentTest_5mm\BuildLogs\Horizontal
+Output directory: output\DXFs\081026_AlignmentTest\BuildLogs\Horizontal
 Labels name the jig station; each exposes the opposite quadrant
 DXF11_jig_top_left: jig=top_left, exposes=bottom_right, polygons=2, bbox_um=-25500.000;-4625.000;-22900.000;25500.000
 DXF12_jig_top_right: jig=top_right, exposes=bottom_left, polygons=2, bbox_um=22900.000;-4625.000;25500.000;25500.000

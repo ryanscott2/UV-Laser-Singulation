@@ -33,9 +33,9 @@ and validate tools work against this directory unchanged:
 
     python python/generate_alignment_test_masters.py
     python tools/build_pin_grid_set.py --masters dxf/AlignmentTest_5mm_Marks \\
-        --set output/DXFs/<date>_AlignmentTest
+        --set output/DXFs/081026_AlignmentTest
     python tools/validate_pin_grid_set.py --masters dxf/AlignmentTest_5mm_Marks \\
-        --set output/DXFs/<date>_AlignmentTest
+        --set output/DXFs/081026_AlignmentTest
 """
 
 from __future__ import annotations
