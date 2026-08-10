@@ -1,0 +1,6 @@
+Grid alignment: window centers at +/-25.400 mm are one 25.400 mm grid space from wafer center, so adjacent stations are 50.800 mm apart, and all 4 splitter windows match the station table
+Horizontal.dxf: master_polygons=8, reconstructed_polygons=8, xor_area_dbu2=0
+Vertical.dxf: master_polygons=8, reconstructed_polygons=8, xor_area_dbu2=0
+Registration envelope: all 8 files have four anchors on REGISTRATION_DO_NOT_EXPOSE with bbox exactly +/-27.000 mm
+Declared header extents: all 8 files declare $EXTMIN/$EXTMAX at exactly +/-27.000 mm, so an importer need not infer the window from entities
+Station labels name the jig position; each exposes the opposite quadrant: DXF11=top_left->bottom_right, DXF12=top_right->bottom_left, DXF21=bottom_left->top_right, DXF22=bottom_right->top_left

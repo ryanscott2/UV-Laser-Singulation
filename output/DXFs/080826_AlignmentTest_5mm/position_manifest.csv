@@ -1,0 +1,5 @@
+folder,jig_row,jig_col,jig_station,exposed_wafer_area,field_center_x_wafer_mm,field_center_y_wafer_mm,engraved_outer_front_right_pin,outer_pin_columns,outer_pin_rows,horizontal_file,vertical_file
+DXF11,1,1,top_left,bottom_right,+25.400,-25.400,C4 R3,"0,4","3,7",DXF11/Horizontal.dxf,DXF11/Vertical.dxf
+DXF12,1,2,top_right,bottom_left,-25.400,-25.400,C6 R3,"2,6","3,7",DXF12/Horizontal.dxf,DXF12/Vertical.dxf
+DXF21,2,1,bottom_left,top_right,+25.400,+25.400,C4 R1,"0,4","1,5",DXF21/Horizontal.dxf,DXF21/Vertical.dxf
+DXF22,2,2,bottom_right,top_left,-25.400,+25.400,C6 R1,"2,6","1,5",DXF22/Horizontal.dxf,DXF22/Vertical.dxf

@@ -32,6 +32,7 @@ from pin_grid_layout import (
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIGURE_DIR = Path("docs/figures")
 MASTERS = Path("dxf/100mm_10x30mm_Masters")
+TEST_MASTERS = Path("dxf/AlignmentTest_5mm_Marks")
 FAILED_SET = Path("output/DXFs/080726_FourPosDicer")
 LOCKED_SET = Path("output/DXFs/080726_FourPosDicer_OriginLocked")
 
@@ -268,7 +269,8 @@ def fig_wafer_and_fields():
     fig.text(0, 64, f"One 100 mm wafer, four {QUALIFIED_FIELD_SIZE_MM:g} mm exposures",
              size=4.6, weight="600")
     fig.text(0, 59.5,
-             "field centers at X,Y = +/-25.4 mm   .   1.2 mm total overlap at every seam",
+             f"field centers at X,Y = +/-25.4 mm   .   {STITCH_OVERLAP_MM:g} mm total "
+             "overlap at every seam",
              "muted", 2.9)
     fig.text(0, -59, "primary flat faces the operator (-Y);  dashed ring is the 2 mm edge bead",
              "muted", 2.6)
@@ -495,11 +497,63 @@ def fig_registration():
     return "registration_envelope.svg", fig.render(1050)
 
 
+def fig_test_overlay():
+    """The preliminary witness run drawn over the full dice it is checking."""
+    fig = Fig(margin=5)
+    fig.poly(wafer_outline(WAFER_RADIUS), "wafer", 'stroke-width="0.4"')
+    fig.poly(wafer_outline(WAFER_RADIUS - EDGE_BEAD, EDGE_BEAD, EDGE_BEAD), "safe",
+             'stroke-width="0.32"')
+
+    # Run 2, the full dice, sits underneath at low contrast: it is the reference
+    # the witness marks are measured against, not the subject of this figure.
+    for poly in master_cuts():
+        fig.poly(poly, "cut", 'stroke-width="0.12" opacity="0.20"')
+
+    for station in STATIONS:
+        cx, cy = station.field_center_mm
+        colour = STATION_COLORS[station.label]
+        fig.rect(cx - HALF_FIELD, cy - HALF_FIELD, cx + HALF_FIELD, cy + HALF_FIELD,
+                 "", f'fill="none" stroke="{colour}" stroke-width="0.4" rx="0.8" '
+                     f'stroke-dasharray="2 1.6" opacity="0.75"')
+
+    # Run 1, the witness marks, one 10 x 30 cell per station.
+    for poly in polygons_mm(TEST_MASTERS / "100mm_wafer_10x30mm_Horizontal_master.dxf") +             polygons_mm(TEST_MASTERS / "100mm_wafer_10x30mm_Vertical_master.dxf"):
+        cx = sum(x for x, _ in poly) / len(poly)
+        cy = sum(y for _, y in poly) / len(poly)
+        station = next(s for s in STATIONS
+                       if (s.field_center_mm[0] > 0) == (cx > 0)
+                       and (s.field_center_mm[1] > 0) == (cy > 0))
+        colour = STATION_COLORS[station.label]
+        fig.poly(poly, "", f'fill="{colour}" stroke="{colour}" stroke-width="0.55"')
+
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            cx, cy = sx * 10.0, sy * 30.0
+            station = next(s for s in STATIONS if (s.field_center_mm[0] > 0) == (cx > 0)
+                           and (s.field_center_mm[1] > 0) == (cy > 0))
+            colour = STATION_COLORS[station.label]
+            fig.rect(cx - 5, cy - 15, cx + 5, cy + 15, "",
+                     f'fill="none" stroke="{colour}" stroke-width="0.25" '
+                     f'stroke-dasharray="1.2 1.2" opacity="0.85"')
+            fig.text(cx, cy - 0.9, station.label, size=2.7, weight="600", fill=colour)
+            fig.text(cx, cy - 4.2, f"({cx:+.0f}, {cy:+.0f})", "muted", 2.1)
+
+    fig.text(0, 64, "Preliminary witness run over the full dice pattern",
+             size=4.6, weight="600")
+    fig.text(0, 59.5,
+             "16 marks, 5 mm long, on the boundaries of the outermost cell in each quadrant",
+             "muted", 2.9)
+    fig.text(0, -59,
+             "faint lines are the full dice; each station exposes exactly one cell's four marks",
+             "muted", 2.6)
+    return "test_overlay.svg", fig.render(900)
+
+
 def main() -> int:
     os.chdir(REPO_ROOT)
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     for builder in (fig_wafer_and_fields, fig_partition, fig_translation,
-                    fig_jig_inversion, fig_registration):
+                    fig_jig_inversion, fig_registration, fig_test_overlay):
         name, svg = builder()
         path = FIGURE_DIR / name
         path.write_text(svg + "\n", encoding="utf-8")
