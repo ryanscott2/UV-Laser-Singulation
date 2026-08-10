@@ -33,6 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIGURE_DIR = Path("docs/figures")
 MASTERS = Path("dxf/100mm_10x30mm_Masters")
 TEST_MASTERS = Path("dxf/AlignmentTest_5mm_Marks")
+TEST_SET = Path("output/DXFs/080826_AlignmentTest_5mm")
 FAILED_SET = Path("output/DXFs/080726_FourPosDicer")
 LOCKED_SET = Path("output/DXFs/080726_FourPosDicer_OriginLocked")
 
@@ -498,7 +499,7 @@ def fig_registration():
 
 
 def fig_test_overlay():
-    """The preliminary witness run drawn over the full dice it is checking."""
+    """The seam witness run drawn over the full dice it is checking."""
     fig = Fig(margin=5)
     fig.poly(wafer_outline(WAFER_RADIUS), "wafer", 'stroke-width="0.4"')
     fig.poly(wafer_outline(WAFER_RADIUS - EDGE_BEAD, EDGE_BEAD, EDGE_BEAD), "safe",
@@ -507,44 +508,48 @@ def fig_test_overlay():
     # Run 2, the full dice, sits underneath at low contrast: it is the reference
     # the witness marks are measured against, not the subject of this figure.
     for poly in master_cuts():
-        fig.poly(poly, "cut", 'stroke-width="0.12" opacity="0.20"')
+        fig.poly(poly, "cut", 'stroke-width="0.12" opacity="0.18"')
+
+    reach = 25.4 + HALF_FIELD
+    fig.rect(-SEAM_HALF, -reach, SEAM_HALF, reach, "overlap")
+    fig.rect(-reach, -SEAM_HALF, reach, SEAM_HALF, "overlap")
 
     for station in STATIONS:
         cx, cy = station.field_center_mm
         colour = STATION_COLORS[station.label]
         fig.rect(cx - HALF_FIELD, cy - HALF_FIELD, cx + HALF_FIELD, cy + HALF_FIELD,
                  "", f'fill="none" stroke="{colour}" stroke-width="0.4" rx="0.8" '
-                     f'stroke-dasharray="2 1.6" opacity="0.75"')
+                     f'stroke-dasharray="2 1.6" opacity="0.7"')
 
-    # Run 1, the witness marks, one 10 x 30 cell per station.
-    for poly in polygons_mm(TEST_MASTERS / "100mm_wafer_10x30mm_Horizontal_master.dxf") +             polygons_mm(TEST_MASTERS / "100mm_wafer_10x30mm_Vertical_master.dxf"):
-        cx = sum(x for x, _ in poly) / len(poly)
-        cy = sum(y for _, y in poly) / len(poly)
-        station = next(s for s in STATIONS
-                       if (s.field_center_mm[0] > 0) == (cx > 0)
-                       and (s.field_center_mm[1] > 0) == (cy > 0))
+    # Run 1. Each half is drawn from the station file that owns it, translated
+    # back onto the wafer, so the colour shows which exposure draws which half.
+    for station in STATIONS:
+        ox, oy = station.field_center_mm
         colour = STATION_COLORS[station.label]
-        fig.poly(poly, "", f'fill="{colour}" stroke="{colour}" stroke-width="0.55"')
+        for orientation in ("Horizontal", "Vertical"):
+            path = TEST_SET / station.label / f"{orientation}.dxf"
+            if not path.is_file():
+                continue
+            for poly in polygons_mm(path):
+                fig.poly([(x + ox, y + oy) for x, y in poly], "",
+                         f'fill="{colour}" stroke="{colour}" stroke-width="0.7"')
 
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            cx, cy = sx * 10.0, sy * 30.0
-            station = next(s for s in STATIONS if (s.field_center_mm[0] > 0) == (cx > 0)
-                           and (s.field_center_mm[1] > 0) == (cy > 0))
-            colour = STATION_COLORS[station.label]
-            fig.rect(cx - 5, cy - 15, cx + 5, cy + 15, "",
-                     f'fill="none" stroke="{colour}" stroke-width="0.25" '
-                     f'stroke-dasharray="1.2 1.2" opacity="0.85"')
-            fig.text(cx, cy - 0.9, station.label, size=2.7, weight="600", fill=colour)
-            fig.text(cx, cy - 4.2, f"({cx:+.0f}, {cy:+.0f})", "muted", 2.1)
+    for x, y in ((40.0, 0.0), (-40.0, 0.0), (0.0, 30.0), (0.0, -30.0)):
+        pair = sorted(s.label for s in STATIONS
+                      if abs(s.field_center_mm[0] - x) < 40
+                      and abs(s.field_center_mm[1] - y) < 40)
+        lx, ly = (x, y + 6.0) if y == 0 else (x + 13.0, y)
+        fig.text(lx, ly, " + ".join(pair), size=2.6, weight="600")
+        fig.text(lx, ly - 3.2, "5 mm across the seam", "muted", 2.1)
 
-    fig.text(0, 64, "Preliminary witness run over the full dice pattern",
+    fig.text(0, 64, "Preliminary seam check over the full dice pattern",
              size=4.6, weight="600")
     fig.text(0, 59.5,
-             "16 marks, 5 mm long, on the boundaries of the outermost cell in each quadrant",
+             "four 5 mm marks straddling the seams, at the outermost cell centre on each",
              "muted", 2.9)
     fig.text(0, -59,
-             "faint lines are the full dice; each station exposes exactly one cell's four marks",
+             f"each mark is split between two stations with {STITCH_OVERLAP_MM:g} mm shared; "
+             "a step at the join is the placement error",
              "muted", 2.6)
     return "test_overlay.svg", fig.render(900)
 
