@@ -56,8 +56,9 @@ out near the platform corner, so the reference is unambiguous.
 - Pickup opening: `15.000 mm` with a 45 degree bevel; the 2 mm base remains
   continuous.
 - Rear tape gap: `15.000 mm`, same bevel, opposite the primary flat.
-- Perimeter-bar tweezer notch: `15.000 mm` at the base and `23.400 mm` at the
-  top, with 45 degree sides aligned to the wafer pickup opening.
+- Perimeter-bar notches: `15.000 mm` at the base and `23.400 mm` at the top,
+  with 45 degree sides. One aligned to the pickup opening, one to the rear
+  tape gap.
 
 ## Run
 

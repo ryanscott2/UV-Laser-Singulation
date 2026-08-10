@@ -24,8 +24,9 @@ platform, so neither table width nor a front-edge alignment bar is used.
 - Nest lip: `1.500 mm` above the platform
 - Pickup opening: `15.000 mm`, beveled at 45 degrees, without cutting the base
 - Rear tape gap: `15.000 mm`, same 45 degree bevel, opposite the primary flat
-- Perimeter-bar tweezer notch: `15.000 mm` at its base, flaring to
-  `23.400 mm` at the top with 45 degree sides; aligned with the nest opening
+- Perimeter-bar notches: `15.000 mm` at the base, flaring to `23.400 mm` at the
+  top with 45 degree sides. One aligned with the pickup opening, one with the
+  rear tape gap
 - Three floor engravings, each cut `0.500 mm` into the `2.000 mm` baseplate:
   `2x2 SINGULATION ALIGNER` plus the four single-hole station coordinates at
   top-left, `C0=LEFT R0=FRONT` at front-left, `ALIGNMENT PIN` at front-right

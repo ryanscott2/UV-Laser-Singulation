@@ -601,6 +601,32 @@ def build_model(design):
         f"{REAR_TAPE_GAP_WIDTH:g} mm Rear Tape Gap with 45 Degree Bevel",
     )
 
+    # The perimeter bar gets the same 45 degree notch behind the rear tape gap
+    # that it already has behind the pickup opening, so a finger and a tab can
+    # reach the wafer edge from outside the plate. The 2 mm platform is untouched.
+    platform_rear_y = NEST_CENTER_Y + PLATFORM_SIZE_Y / 2.0
+    rear_notch_bottom = rectangle_points(
+        NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0,
+        platform_rear_y - OUTER_BAR_WIDTH - 0.1,
+        REAR_TAPE_GAP_WIDTH,
+        OUTER_BAR_WIDTH + 0.2,
+    )
+    rear_notch_top = rectangle_points(
+        NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0 - outer_notch_expansion,
+        platform_rear_y - OUTER_BAR_WIDTH - 0.1 - outer_notch_expansion,
+        REAR_TAPE_GAP_WIDTH + 2.0 * outer_notch_expansion,
+        OUTER_BAR_WIDTH + 0.2 + 2.0 * outer_notch_expansion,
+    )
+    loft_polygons(
+        component,
+        wall_plane,
+        rear_notch_bottom,
+        outer_bar_notch_top_plane,
+        rear_notch_top,
+        adsk.fusion.FeatureOperations.CutFeatureOperation,
+        f"{REAR_TAPE_GAP_WIDTH:g} mm Rear Outer Bar Notch with 45 Degree Sides",
+    )
+
     # Four 4.65 mm pins on the corners of the 4 x 4 grid-space square. The full
     # diameter continues through the 2 mm platform for maximum root strength.
     outer_half_span = OUTER_PIN_PATTERN_SPAN / 2.0

@@ -196,8 +196,10 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
   fingernail or tweezer tip under, so the plate lifts straight off its pins
   instead of being pried against the wafer or the nest wall. Overall plate width
   including both tabs is `148.000 mm`.
-- The outside reinforcement bar has a centered tweezer notch aligned to the
-  primary-flat opening: `15.000 mm` wide at platform level and `23.400 mm` at
+- The outside reinforcement bar has two centered notches, one aligned to the
+  primary-flat opening and one to the rear tape gap, so a finger or tab can
+  reach the wafer edge from outside the plate at either end. Each is
+  `15.000 mm` wide at platform level and `23.400 mm` at
   the top, producing 45 degree side slopes through the 4 mm bar height.
 - Pickup opening removes only the raised wall; the 2 mm support platform remains
   continuous and uncut.
