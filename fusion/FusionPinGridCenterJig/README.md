@@ -41,9 +41,9 @@ out near the platform corner, so the reference is unambiguous.
 
 - Grid pitch: `25.400 mm`; first hole inset: `12.700 mm`.
 - Measured hole opening: `6.000 mm`; threaded minor diameter: `4.870 mm`.
-- Eight pins, each `4.700 mm` diameter.
-- Nominal thread-minor clearance: `0.170 mm` diametral, `0.085 mm` radial.
-- Pin engagement: `5.000 mm`; final `1.000 mm` tapers from 4.0 to 4.7 mm.
+- Four pins, each `4.650 mm` diameter.
+- Nominal thread-minor clearance: `0.220 mm` diametral, `0.110 mm` radial.
+- Pin engagement: `5.000 mm`; final `1.000 mm` tapers from 4.0 to 4.65 mm.
 - Outer pin square: `101.600 x 101.600 mm` (`4 x 4` grid spaces).
 - Platform: `128.000 x 128.000 x 2.000 mm`.
 - Perimeter reinforcement: `4.000 mm` wide x `4.000 mm` high above the
@@ -53,9 +53,10 @@ out near the platform corner, so the reference is unambiguous.
 - Radial clearance: `0.500 mm` per side.
 - Primary-flat clearance: `0.500 mm`.
 - Secondary-flat datum clearance: `0.100 mm`.
-- Pickup opening: `20.000 mm` with a 45 degree bevel; the 2 mm base remains
+- Pickup opening: `15.000 mm` with a 45 degree bevel; the 2 mm base remains
   continuous.
-- Perimeter-bar tweezer notch: `20.000 mm` at the base and `28.400 mm` at the
+- Rear tape gap: `15.000 mm`, same bevel, opposite the primary flat.
+- Perimeter-bar tweezer notch: `15.000 mm` at the base and `23.400 mm` at the
   top, with 45 degree sides aligned to the wafer pickup opening.
 
 ## Run

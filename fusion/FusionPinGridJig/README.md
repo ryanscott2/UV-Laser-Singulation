@@ -14,7 +14,7 @@ platform, so neither table width nor a front-edge alignment bar is used.
   by `24.000 mm` long, spanning z `2.000` to `6.000 mm`. The `2.000 mm` undercut
   beneath each is what a fingernail or tweezer tip hooks into to lift the plate
   off its pins. Overall width including both tabs: `148.000 mm`
-- Pin diameter: `4.700 mm`
+- Pin diameter: `4.650 mm`
 - Pin engagement below platform: `5.000 mm`
 - Tapered pin tip: `4.000 mm` diameter over the final `1.000 mm`
 - Platform: `128.000 x 128.000 x 2.000 mm`
@@ -22,15 +22,16 @@ platform, so neither table width nor a front-edge alignment bar is used.
   above the platform
 - Wafer: standard 100 mm, primary flat forward, secondary flat left
 - Nest lip: `1.500 mm` above the platform
-- Pickup opening: `20.000 mm`, beveled at 45 degrees, without cutting the base
-- Perimeter-bar tweezer notch: `20.000 mm` at its base, flaring to
-  `28.400 mm` at the top with 45 degree sides; aligned with the nest opening
+- Pickup opening: `15.000 mm`, beveled at 45 degrees, without cutting the base
+- Rear tape gap: `15.000 mm`, same 45 degree bevel, opposite the primary flat
+- Perimeter-bar tweezer notch: `15.000 mm` at its base, flaring to
+  `23.400 mm` at the top with 45 degree sides; aligned with the nest opening
 - Three floor engravings, each cut `0.500 mm` into the `2.000 mm` baseplate:
   `2x2 SINGULATION ALIGNER` plus the four single-hole station coordinates at
   top-left, `C0=LEFT R0=FRONT` at front-left, `ALIGNMENT PIN` at front-right
 
 The measured threaded-hole minor diameter was `4.870 mm`, giving a nominal
-`0.170 mm` diametral clearance around each 4.700 mm pin. Print a small pin-fit
+`0.220 mm` diametral clearance around each 4.650 mm pin. Print a small pin-fit
 coupon first because PLA extrusion and the thread crests can change the actual
 fit.
 
@@ -92,7 +93,7 @@ why `DXF11`, the top-left station, carries the wafer's bottom-right geometry.
 
 - Radial clearance: `0.500 mm` per side
 - Primary-flat clearance: `0.500 mm`
-- Secondary-flat rotational datum clearance: `0.100 mm`
+- Secondary-flat rotational datum clearance: `0.300 mm`
 - Sidewall thickness: `3.000 mm`
 
 ## Run

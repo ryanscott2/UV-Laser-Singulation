@@ -36,7 +36,7 @@ NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y
 # Four downward locating pins on the corners of a 4 x 4 grid-space square. The
 # inner 2 x 2 set was removed: the outer square alone fixes position and rotation,
 # and fewer pins means fewer holes to line up when seating the plate.
-PIN_DIAMETER = 4.700
+PIN_DIAMETER = 4.650
 PIN_ENGAGEMENT = 5.000
 PIN_TIP_DIAMETER = 4.000
 PIN_TIP_TAPER = 1.000
@@ -61,8 +61,19 @@ PRIMARY_FLAT_LENGTH = 32.500
 SECONDARY_FLAT_LENGTH = 18.000
 RADIAL_CLEARANCE = 0.500
 PRIMARY_FLAT_CLEARANCE = 0.500
-SECONDARY_DATUM_CLEARANCE = 0.100
-PICKUP_GAP_WIDTH = 20.000
+SECONDARY_DATUM_CLEARANCE = 0.300
+
+# Two gaps in the raised lip, 180 degrees apart, so a Kapton tab can run from the
+# platform onto the wafer without having to bridge the 1.5 mm wall. The wafer is
+# pushed against the secondary flat and taped down; the pocket only locates it,
+# it does not retain it. Both cut the raised wall only -- the 2 mm support
+# platform stays continuous under the wafer.
+#
+# Both are 15 mm. They stay separate constants so either can be tuned alone, but
+# PICKUP_GAP_WIDTH additionally drives the outer-bar tweezer notch, so changing
+# it moves that notch too.
+PICKUP_GAP_WIDTH = 15.000
+REAR_TAPE_GAP_WIDTH = 15.000
 
 # Three separate engravings cut into the platform floor.
 #
@@ -403,6 +414,7 @@ def build_model(design):
         ("nestOffsetX", NEST_OFFSET_FROM_PIN_CENTER_X, "Nest X from pin-square center"),
         ("nestOffsetY", NEST_OFFSET_FROM_PIN_CENTER_Y, "Nest Y from pin-square center"),
         ("pickupGapWidth", PICKUP_GAP_WIDTH, "Primary-flat pickup opening"),
+        ("rearTapeGapWidth", REAR_TAPE_GAP_WIDTH, "Rear tape-access gap in the lip"),
         ("annotationDepth", ANNOTATION_DEPTH, "Baseplate text engraving depth"),
         ("annotationTextHeight", ANNOTATION_TEXT_HEIGHT, "Baseplate text height"),
     ):
@@ -466,7 +478,7 @@ def build_model(design):
             tab_name,
         )
 
-    # Match the old design's centered tweezer notch: 20 mm at the platform and
+    # Centered tweezer notch aligned to the pickup opening, same width, with
     # a 45 degree flare through the full 4 mm perimeter bar. The 2 mm platform
     # remains continuous.
     platform_front_y = NEST_CENTER_Y - PLATFORM_SIZE_Y / 2.0
@@ -490,7 +502,7 @@ def build_model(design):
         outer_bar_notch_top_plane,
         outer_notch_top,
         adsk.fusion.FeatureOperations.CutFeatureOperation,
-        "20 mm Outer Bar Tweezer Notch with 45 Degree Sides",
+        f"{PICKUP_GAP_WIDTH:g} mm Outer Bar Tweezer Notch with 45 Degree Sides",
     )
 
     # Raised nest wall; the pocket cut below leaves only the 3 mm wall ring.
@@ -551,10 +563,38 @@ def build_model(design):
         pickup_top_plane,
         pickup_top,
         adsk.fusion.FeatureOperations.CutFeatureOperation,
-        "20 mm Pickup Opening with 45 Degree Bevel",
+        f"{PICKUP_GAP_WIDTH:g} mm Pickup Opening with 45 Degree Bevel",
     )
 
-    # Four 4.7 mm pins on the corners of the 4 x 4 grid-space square. The full
+    # The matching tape gap, directly opposite the primary flat on the plain arc.
+    # Spans the full wall thickness radially and bevels 45 degrees on both sides,
+    # the same way the pickup opening does. Starting inboard of the pocket wall
+    # guarantees the lip is cut through; there is no material inside that radius.
+    rear_gap_inner_y = NEST_CENTER_Y + wafer_radius
+    rear_gap_depth = SIDEWALL_THICKNESS + 0.2
+    rear_gap_bottom = rectangle_points(
+        NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0,
+        rear_gap_inner_y,
+        REAR_TAPE_GAP_WIDTH,
+        rear_gap_depth,
+    )
+    rear_gap_top = rectangle_points(
+        NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0 - bevel_expansion,
+        rear_gap_inner_y,
+        REAR_TAPE_GAP_WIDTH + 2.0 * bevel_expansion,
+        rear_gap_depth,
+    )
+    loft_polygons(
+        component,
+        wall_plane,
+        rear_gap_bottom,
+        pickup_top_plane,
+        rear_gap_top,
+        adsk.fusion.FeatureOperations.CutFeatureOperation,
+        f"{REAR_TAPE_GAP_WIDTH:g} mm Rear Tape Gap with 45 Degree Bevel",
+    )
+
+    # Four 4.65 mm pins on the corners of the 4 x 4 grid-space square. The full
     # diameter continues through the 2 mm platform for maximum root strength.
     outer_half_span = OUTER_PIN_PATTERN_SPAN / 2.0
     pin_locations = (
@@ -578,7 +618,7 @@ def build_model(design):
             cylinder,
             cylinder_height,
             adsk.fusion.FeatureOperations.JoinFeatureOperation,
-            f"{pin_name} 4.7 mm Pin",
+            f"{pin_name} 4.65 mm Pin",
         )
         loft_circles(
             component,

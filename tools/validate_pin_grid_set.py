@@ -1,6 +1,6 @@
 """Validate a built pin-grid set against the masters it was cut from.
 
-Two independent checks, both of which must pass before a set is exposed:
+Three independent checks, all of which must pass before a set is exposed:
 
 1. Reconstruction. Each tile is translated back by its own field center and
    unioned. The result must XOR to exactly zero area against the layer-0 master,
@@ -9,6 +9,10 @@ Two independent checks, both of which must pass before a set is exposed:
    `REGISTRATION_DO_NOT_EXPOSE` whose combined bounding box is exactly
    the declared field half size, so a laser importer that centers on content
    bounds cannot displace one job relative to another.
+3. Grid alignment. The splitter's window centers and this repository's table-grid
+   station table are separate literals that nothing else forces to agree. They
+   must, because the jig indexes on the table's 1 inch grid: a mismatch would
+   offset every exposure by the difference, silently.
 
 Writes `validation_report.txt` into the set and exits non-zero on any failure.
 Needs the standalone `klayout` Python wheel.
@@ -20,13 +24,15 @@ from __future__ import annotations
 
 import argparse
 import os
+import runpy
 from pathlib import Path
 
 import klayout.db as pya
 
-from pin_grid_layout import REGISTRATION_HALF_SIZE_MM, STATIONS
+from pin_grid_layout import GRID_PITCH, REGISTRATION_HALF_SIZE_MM, STATIONS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+SPLITTER = REPO_ROOT / "python" / "split_klayout_four_windows.py"
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
 DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")
@@ -94,9 +100,70 @@ def header_extents_mm(path: Path) -> dict[str, tuple[float, float]]:
     return found
 
 
+def check_grid_alignment() -> tuple[list[str], bool]:
+    """Confirm the splitter's window centers still sit on the table grid.
+
+    `WINDOW_CENTER_*_UM` in the splitter and `field_center_mm` in the station
+    table are independent literals. Nothing derives one from the other, so they
+    can drift apart without any other check noticing: the reconstruction test
+    undoes each tile by the same station offset it was cut with, so it stays at
+    zero XOR even if both are wrong together.
+
+    The jig indexes on the table's 1 inch grid, which puts each field center
+    exactly one grid space from the wafer center and adjacent stations two spaces
+    (2 inches, 50.800 mm) apart. Anything else means the software and the
+    hardware disagree about where a station is.
+    """
+    namespace = runpy.run_path(str(SPLITTER), run_name="grid_alignment_check")
+    center_x_mm = namespace["WINDOW_CENTER_X_UM"] / 1000.0
+    center_y_mm = namespace["WINDOW_CENTER_Y_UM"] / 1000.0
+    windows = namespace["WINDOWS"]
+
+    lines: list[str] = []
+    problems: list[str] = []
+
+    for axis, value in (("X", center_x_mm), ("Y", center_y_mm)):
+        if abs(value - GRID_PITCH) > 1e-9:
+            problems.append(
+                f"WINDOW_CENTER_{axis}_UM is {value:.4f} mm, not one {GRID_PITCH:.3f} mm grid space"
+            )
+
+    by_label = {station.label: station for station in STATIONS}
+    for job_name, x_sign, y_sign in windows:
+        label = job_name.split("_", 1)[0]
+        station = by_label.get(label)
+        if station is None:
+            problems.append(f"splitter emits {label}, which the station table does not define")
+            continue
+        want = station.field_center_mm
+        got = (x_sign * center_x_mm, y_sign * center_y_mm)
+        if abs(want[0] - got[0]) > 1e-9 or abs(want[1] - got[1]) > 1e-9:
+            problems.append(f"{label}: splitter {got} vs station table {want}")
+
+    missing = sorted(set(by_label) - {name.split("_", 1)[0] for name, _, _ in windows})
+    if missing:
+        problems.append(f"station table defines {missing}, which the splitter never emits")
+
+    if problems:
+        lines.append("Grid alignment PROBLEMS: " + "; ".join(problems))
+        return lines, False
+
+    lines.append(
+        f"Grid alignment: window centers at +/-{center_x_mm:.3f} mm are one "
+        f"{GRID_PITCH:.3f} mm grid space from wafer center, so adjacent stations are "
+        f"{2.0 * GRID_PITCH:.3f} mm apart, and all {len(windows)} splitter windows match "
+        "the station table"
+    )
+    return lines, True
+
+
 def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
     lines: list[str] = []
     ok = True
+
+    grid_lines, grid_ok = check_grid_alignment()
+    lines.extend(grid_lines)
+    ok &= grid_ok
 
     for orientation in ORIENTATIONS:
         stem = MASTER_STEM.format(orientation=orientation)

@@ -301,7 +301,7 @@ To regenerate a jig: open Fusion, press **Shift+S**, on the Scripts tab click
 
 Sliceable STLs are already committed. Print the pin-grid jigs with the 2 mm wafer
 platform upward; the downward pins need support blockers everywhere except beneath
-the pins. Verify pin fit on a coupon first: nominal radial clearance is `0.085 mm`
+the pins. Verify pin fit on a coupon first: nominal radial clearance is `0.110 mm`
 against a measured `4.870 mm` thread minor diameter, and PLA shrinkage and thread
 crests both matter at that scale.
 

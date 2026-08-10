@@ -77,12 +77,14 @@ again after the full sample is run. No software correction has been applied yet.
 
 ### Software resolution
 
-- Both four-window splitters add four 50 um corner anchors on the separate
+- The four-window splitter adds four 50 um corner anchors on the separate
   `REGISTRATION_DO_NOT_EXPOSE` layer, sized to half the profile's field so the
-  asymmetric alignment marker cannot change automatic centering. The legacy
-  old-jig profile has a 60 mm field and so anchors at `+/-30 mm`; the current
-  pin-grid production profile has a 52 mm field and anchors at `+/-26 mm`. Each
-  is exact in every tile and orientation.
+  asymmetric alignment marker cannot change automatic centering. They are exact
+  in every tile and orientation. When this was written there were two splitters,
+  the legacy old-jig profile anchoring at `+/-30 mm` for its 60 mm field and the
+  pin-grid profile at `+/-26 mm` for 52 mm. The old-jig profile has since been
+  removed and the field widened, so the one remaining splitter anchors at
+  `+/-27 mm` for a 54 mm field.
 - Cutting geometry remains exclusively on layer `0`. The laser must assign no
   marking / zero power to `REGISTRATION_DO_NOT_EXPOSE`; never expose that layer.
 - The corrected old-jig production set is stored separately as
@@ -119,7 +121,7 @@ final repeatable version should use hard mechanical datums (for example dowel
 pins or shoulder bolts) because sliding PLA clearance and wear are unlikely to
 hold tens-of-microns repeatability by themselves.
 
-## Eight-pin grid-indexed nest
+## Four-pin grid-indexed nest
 
 The sliding concept was superseded by a lift-and-index fixture using the table's
 1 inch (`25.400 mm`) threaded-hole grid.
@@ -143,13 +145,20 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
 - Total pins: `4`, printed downward as an integral part of the platform. The
   inner 2 x 2 set was removed on 2026-08-08: the outer square alone fixes position
   and rotation, and four pins are far easier to line up when seating the plate.
-- Nominal pin diameter: `4.700 mm` for all four pins.
+- Nominal pin diameter: `4.650 mm` for all four pins, reduced from `4.700 mm`
+  on 2026-08-08 after the tighter fit needed sanding to seat.
 - Nominal diametral clearance against the measured 4.870 mm thread minor:
-  `0.170 mm`; nominal radial clearance: `0.085 mm`.
+  `0.220 mm`; nominal radial clearance: `0.110 mm`.
+- That clearance is spent against the `0.200 mm` stitch overlap. Plate shift is
+  the radial clearance itself; plate rotation is that clearance over the
+  `71.842 mm` pin-circle radius, which is `0.088 deg` and a further `0.041 mm`
+  at the 27 mm field edge. Total `0.151 mm`, inside the overlap. A `4.600 mm`
+  pin would reach `0.186 mm` and a `4.465 mm` pin `0.279 mm`, which exceeds it:
+  do not open the pins further without widening the overlap to match.
 - Total pin length below the platform: `5.000 mm`, of which the last
   `1.000 mm` is the entry taper, leaving `4.000 mm` straight.
 - Entry taper height: `1.000 mm`, included in the 5.000 mm above.
-- Tip diameter: `4.000 mm`, increasing to `4.700 mm` over the taper.
+- Tip diameter: `4.000 mm`, increasing to `4.650 mm` over the taper.
 - The four pins are the corners of a `101.600 x 101.600 mm` square
   (`4 x 4` spaces), which gives the most rotational leverage available on the grid.
 - PLA prototype dimensions are nominal. Verify a pin coupon before printing the
@@ -169,8 +178,18 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
 - Sidewall thickness: `3.000 mm`.
 - Radial wafer-pocket clearance: `0.500 mm` per side (`1.000 mm` diametral).
 - Primary-flat clearance: `0.500 mm`.
-- Secondary-flat rotational-datum clearance: `0.100 mm`.
-- Primary-flat pickup opening: `20.000 mm` wide with a 45 degree bevel.
+- Secondary-flat rotational-datum clearance: `0.300 mm`, opened from `0.100 mm`
+  on 2026-08-08. A standard secondary flat is `18.000 +/- 2.000 mm`, and a
+  *short* flat cuts a shallower chord, so it sits further out: at `16.000 mm`
+  the flat is `0.173 mm` proud of nominal. The old `0.100 mm` therefore
+  interfered by `0.073 mm` on a spec-compliant wafer before any print error,
+  which is what forced the sanding. `0.300 mm` clears the whole band.
+- Primary-flat pickup opening: `15.000 mm` wide with a 45 degree bevel.
+- Rear tape gap: `15.000 mm` wide with the same 45 degree bevel, on the plain
+  arc directly opposite the primary flat. The pair gives a Kapton tab a run
+  from platform to wafer at both ends without bridging the 1.5 mm lip. Like
+  the pickup opening it cuts the raised wall only; the 2 mm platform stays
+  continuous beneath the wafer.
 - Side pickup tabs: one centered on the left and right edges,
   `10.000 mm` out by `24.000 mm` long, spanning z `2.000` to `6.000 mm`. Starting
   them at the top of the 2 mm platform leaves a `2.000 mm` undercut to hook a
@@ -178,7 +197,7 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
   instead of being pried against the wafer or the nest wall. Overall plate width
   including both tabs is `148.000 mm`.
 - The outside reinforcement bar has a centered tweezer notch aligned to the
-  primary-flat opening: `20.000 mm` wide at platform level and `28.400 mm` at
+  primary-flat opening: `15.000 mm` wide at platform level and `23.400 mm` at
   the top, producing 45 degree side slopes through the 4 mm bar height.
 - Pickup opening removes only the raised wall; the 2 mm support platform remains
   continuous and uncut.
@@ -197,6 +216,36 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
 - The two long lines used to sit at the bottom of the top-left block, where the
   wafer-pocket wall curves in and clipped them. Splitting them to the front edge
   keeps roughly `5 mm` of clearance to the pocket wall.
+
+### Wafer retention
+
+The pocket locates the wafer; it does not hold it. Clearance cannot do both jobs
+at once, and trying to make it do both is what produced the sanding:
+
+- Tight enough to control rotation means tight enough to interfere with a
+  spec-compliant wafer. Even the old `0.100 mm` secondary datum only limited
+  rotation to `+/-0.637 deg`, which is `0.300 mm` at the 27 mm field edge, still
+  larger than the `0.200 mm` stitch overlap. It was too tight to seat and too
+  loose to locate.
+- The `0.500 mm` radial clearance is a free-play envelope `2.5x` the stitch
+  overlap. It only matters if the wafer moves relative to the nest, but nothing
+  in the plate prevents that across the four re-seatings.
+
+**Decision (2026-08-08): tape the wafer, do not print a spring.** Printed
+cantilever preload fingers were considered and rejected. The nest wall is only
+`1.500 mm` tall and `3.000 mm` thick, so a finger extruded from the platform is
+fused to the floor along its length and behaves as a rib, not a beam; freeing it
+would mean cutting a relief slot down through the 2 mm platform. Useful spring
+force needs roughly a `1.400 mm` beam behind a `0.700 mm` slot, and that slot is
+under two extrusion widths on a 0.4 mm nozzle, so it tends to fuse closed or
+print ragged. PLA also creeps under sustained deflection, so the printed preload
+decays.
+
+Kapton tabs over the top, bridging nest wall to wafer at the extreme perimeter,
+remove the movement entirely rather than reducing it, and cost nothing to undo.
+Tape on top, never underneath: `0.060` to `0.090 mm` of tape below a `0.525 mm`
+wafer rocks it and moves focus. Polyimide absorbs UV strongly, so keep the tabs
+clear of the scanned area.
 
 ### Four-position pin map
 
