@@ -1,4 +1,4 @@
-# UV Dice calibration and sliding-nest notes
+# UV Laser Singulation calibration and sliding-nest notes
 
 Last updated: 2026-08-08
 
