@@ -56,6 +56,15 @@ CUT_WIDTH_UM = 50.0
 
 MARK_LENGTH_UM = 5_000.0
 
+# The same centred cross the production masters carry, reproduced exactly. It
+# straddles both seams at once, so all four stations expose a quadrant of it and
+# it reads out the four-way registration in one place, where the pairwise seam
+# marks only ever test two stations against each other. Production keeps it in
+# the Horizontal master, so this does too.
+MARKER_LENGTH_UM = 2_500.0
+MARKER_WIDTH_UM = 50.0
+MARKER_ORIENTATION = "Horizontal"
+
 OUTPUT_LAYER = 0
 OUTPUT_DATATYPE = 0
 OUTPUT_LAYER_NAME = "0"
@@ -126,6 +135,19 @@ def mark_boxes(layout, orientation: str):
     return boxes
 
 
+def centered_marker(layout):
+    """A plus at the wafer origin, built the same way the production master does."""
+    half_length = MARKER_LENGTH_UM / 2.0
+    half_width = MARKER_WIDTH_UM / 2.0
+    horizontal = pya.Region(pya.Box(
+        to_dbu(layout, -half_length), to_dbu(layout, -half_width),
+        to_dbu(layout, half_length), to_dbu(layout, half_width)))
+    vertical = pya.Region(pya.Box(
+        to_dbu(layout, -half_width), to_dbu(layout, -half_length),
+        to_dbu(layout, half_width), to_dbu(layout, half_length)))
+    return horizontal + vertical
+
+
 def write_dxf(path: Path, layout, region, cell_name: str) -> None:
     out = pya.Layout()
     out.dbu = layout.dbu
@@ -159,6 +181,8 @@ def main() -> None:
         region = pya.Region()
         for box in mark_boxes(layout, orientation):
             region.insert(box)
+        if orientation == MARKER_ORIENTATION:
+            region += centered_marker(layout)
         region.merge()
         path = OUTPUT_DIR / f"{MASTER_STEM.format(orientation=orientation)}.dxf"
         write_dxf(path, layout, region, f"SeamTest_{orientation}")

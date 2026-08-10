@@ -545,7 +545,7 @@ def fig_test_overlay():
     fig.text(0, 64, "Preliminary seam check over the full dice pattern",
              size=4.6, weight="600")
     fig.text(0, 59.5,
-             "four 5 mm marks straddling the seams, at the outermost cell centre on each",
+             "four 5 mm marks straddling the seams, plus the centred cross all four share",
              "muted", 2.9)
     fig.text(0, -59,
              f"each mark is split between two stations with {STITCH_OVERLAP_MM:g} mm shared; "
