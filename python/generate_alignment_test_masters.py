@@ -22,8 +22,8 @@ stations is largest, and still clear of the 2 mm edge bead.
 
 Those four marks cover all four station pairings:
 
-    (+40,   0)   DXF11 meets DXF21     (0, +30)   DXF21 meets DXF22
-    (-40,   0)   DXF12 meets DXF22     (0, -30)   DXF11 meets DXF12
+    (+40,   0)   P1 meets P4     (0, +30)   P4 meets P3
+    (-40,   0)   P2 meets P3     (0, -30)   P1 meets P2
 
 A mark perpendicular to a horizontal seam is a vertical line and belongs in the
 Vertical master; the reverse for the other seam.

@@ -40,8 +40,10 @@ python tools/validate_pin_grid_set.py
 
 The build writes four labeled folders of exposure files. The validator
 reconstructs each master from those tiles and requires zero XOR area against it,
-then checks every registration bounding box and declared window. It exits non-zero
-on failure.
+then runs a field-placement self-test: it confirms every tile's layer-0 geometry
+fits within +/-27 mm of the origin — the qualified field half, with the origin at
+the field center — and reports how far a job would be misplaced if auto-centering
+were left on. It exits non-zero on failure.
 
 To slice a pattern of your own, pick the cutline layer and width in a window and
 watch the four jobs update over the wafer:

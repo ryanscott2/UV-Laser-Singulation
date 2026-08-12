@@ -95,19 +95,18 @@ Worth knowing before choosing a license for this repository:
 
 This is the thing most likely to cause an expensive mistake.
 
-Folder and job labels name the **jig station**, read like a matrix: the first
-digit is the row from the table rear (`1` = top/rear, `2` = bottom/front) and the
-second is the column from the table left (`1` = left, `2` = right).
+Folder and job labels name the **jig station**: P1-P4, numbered clockwise from the
+table's top-left (P1 top-left, P2 top-right, P3 bottom-right, P4 bottom-left).
 
 Indexing the jig moves the wafer, not the laser. Both axes therefore invert, and
 each station exposes the **diagonally opposite** wafer quadrant:
 
 | Folder | Jig station | Engraved hole | Exposure center | Exposes |
 | --- | --- | --- | ---: | --- |
-| `DXF11` | top-left | `C4 R3` | `(+25.4, -25.4) mm` | wafer bottom-right |
-| `DXF12` | top-right | `C6 R3` | `(-25.4, -25.4) mm` | wafer bottom-left |
-| `DXF21` | bottom-left | `C4 R1` | `(+25.4, +25.4) mm` | wafer top-right |
-| `DXF22` | bottom-right | `C6 R1` | `(-25.4, +25.4) mm` | wafer top-left |
+| `P1` | top-left | `C1 R4` | `(+25.4, -25.4) mm` | wafer bottom-right |
+| `P2` | top-right | `C3 R4` | `(-25.4, -25.4) mm` | wafer bottom-left |
+| `P3` | bottom-right | `C3 R2` | `(-25.4, +25.4) mm` | wafer top-left |
+| `P4` | bottom-left | `C1 R2` | `(+25.4, +25.4) mm` | wafer top-right |
 
 ![The top-left jig station exposes the wafer's bottom-right](docs/figures/jig_inversion.svg)
 
@@ -116,9 +115,9 @@ sliding the jig left and rearward slides the exposed area right and forward. The
 red circle is the one hole the plate engraves for this station.
 
 Grid columns count from the table left and rows from the table front, both from
-zero. The engraved hole is the outer front-right pin, the one to the right of the
+one. The engraved hole is the outer front-left pin, the one to the left of the
 wafer's primary flat. The four-pin pattern is rigid, so seating that single pin
-fixes the other three; it always sits two grid spaces right of and two spaces
+fixes the other three; it always sits two grid spaces left of and two spaces
 forward of the pin-pattern center.
 
 Verify all of it from the table geometry rather than trusting this table:
@@ -148,9 +147,8 @@ dxf/100mm_10x30mm_Masters/          python/generate_100mm_10x30mm_masters.py
         |  python/split_klayout_four_windows.py
         |  driven by tools/build_pin_grid_set.py
         v
-output/DXFs/<set>/DXF11..DXF22/     four 51 mm windows in a 54 mm declared field,
-  Horizontal.dxf  Vertical.dxf       each centered on (0,0), 0.2 mm stitch overlap,
-                                     registration anchors at +/-27.000 mm
+output/DXFs/<set>/P1..P4/           four 51 mm windows in a 54 mm declared field,
+  Horizontal.dxf  Vertical.dxf       each centered on (0,0), 0.2 mm stitch overlap
 ```
 
 Horizontal and vertical cuts are separate files for the same jig position. Run
@@ -162,8 +160,9 @@ both without moving the jig or the wafer between them.
 
 The splitter intersects the master with one clip box per station, then translates
 the result by the negative of that station's field center. Every output therefore
-sits centered on `(0, 0)`, which is what the laser expects, and the four
-registration anchors pin the content bounds to the same square in all of them.
+sits centered on `(0, 0)`, which is what the laser expects: run with auto-centering
+off, it places each job at its true coordinates, so the DXF origin lands on the
+field center and the wafer is reproduced exactly.
 
 ### Partition mode and the seam
 
@@ -203,8 +202,7 @@ The split log records all three, including the source and dropped areas.
 
 ### Field and stitch geometry
 
-- Declared exposure/file bounds: `54.000 x 54.000 mm`, which is where the header
-  extents and the registration anchors sit.
+- Declared field: `54.000 x 54.000 mm`, the qualified field the windows sit inside.
 - Window occupied per job: `51.000 mm`, its own half of the pitch plus the stitch,
   centred in the field with `1.500 mm` clear on every side.
 - Field centers on the wafer: `X,Y = +/-25.400 mm`.
@@ -226,61 +224,37 @@ either fails:
 1. **Reconstruction.** Each tile is translated back by its own field center and
    unioned. The result must XOR to exactly zero area against the layer-0 master,
    proving no cut geometry was lost, duplicated, or shifted by the split.
-2. **Registration.** Every file must carry four anchors on
-   `REGISTRATION_DO_NOT_EXPOSE` whose combined bounding box is exactly
-   `+/-26.000 mm`.
+2. **Field placement.** A self-test with the origin at the field center: every
+   tile's layer-0 geometry must fit within `+/-27 mm` of the origin, the qualified
+   field half. It also reports how far a job would be misplaced if auto-centering
+   were left on.
 
 ## Laser import settings
 
 Layer `0` is the only cutting layer.
 
-The window is declared **twice**, on purpose, because the two mechanisms fail in
-different situations:
+Placement relies on **true coordinates**. Run the laser (WinLase Pro) with
+auto-centering **off**, so it places each job at its true coordinates and the DXF
+origin lands on the field center. The splitter already writes every tile with its
+field center at the DXF origin, so this reproduces the wafer exactly. This was
+confirmed empirically on the machine with a placement probe.
 
-- **`$EXTMIN` / `$EXTMAX` in the DXF header**, at exactly `+/-27.000 mm`, along
-  with `$INSBASE` at the origin and `$LIMMIN` / `$LIMMAX`. KLayout writes a header
-  containing only `$ACADVER`, which leaves every importer to infer the extent from
-  whatever entities it finds. A declared extent needs no inference and does not
-  depend on layer visibility.
-- **Four `50 um` anchors on `REGISTRATION_DO_NOT_EXPOSE`**, whose combined bounds
-  are the same `+/-27.000 mm`.
-
-The anchors alone are not sufficient in principle: you are told to set that layer
-to no marking, and an importer that computes extents from marking layers only
-would ignore them. Measured on a deliberately sparse pattern, layer 0 by itself
-gives boxes of `3.000 x 3.000 mm` at four unrelated centres, and two files with no
-layer-0 geometry at all — while all four report the full `54.000 x 54.000 mm`
-window centred on the origin once the anchors are counted. That gap is why the header extents exist.
-
-`tools/validate_pin_grid_set.py` checks both, and fails if either is missing or
-wrong.
-
-**Set `REGISTRATION_DO_NOT_EXPOSE` to no marking / zero power. Never expose it.
-Never use fit-to-field scaling. Import at the drawing origin.**
+**Turn auto-centering off. Never use fit-to-field scaling. Import at the drawing
+origin.**
 
 This is not theoretical. A full-wafer run displaced one horizontal pass by about
 `8 mm` because the importer auto-centered each file on its content bounds, and one
 file's bounds were skewed by the centered alignment marker. The splitter math was
-correct; the placement was not.
-
-![Content bounds differ per file without anchors, and are identical with them](docs/figures/registration_envelope.svg)
-
-Those numbers are measured from the two sets in this repository, not illustrative.
-With cutting geometry alone, `DXF12` and `DXF22` of the failed set have
-bounding-box centers `8.1125 mm` apart in Y, which is what landed on the wafer.
-With the anchors, every file's bounds are exactly `+/-30.000 mm` in that set and
-`+/-26.000 mm` in the current one, so per-file centering becomes geometrically
-harmless. Importing at the origin is still preferred.
-
-If your importer reliably preserves the drawing origin, the anchors can be
-disabled with `-rd add_registration_envelope=0`.
+correct; the placement was not. With cutting geometry alone, `DXF12` and `DXF22`
+of that failed set have bounding-box centers `8.1125 mm` apart in Y, which is what
+landed on the wafer. Placing each job at its true coordinates instead makes
+per-file centering irrelevant.
 
 ## Jigs and printing
 
 | Script | Jig |
 | --- | --- |
-| [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig. Current. |
-| [`fusion/FusionPinGridCenterJig`](fusion/FusionPinGridCenterJig) | Same plate, positioned for a single centered field. |
+| [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig; P0 also centers the wafer. Current. |
 | [`fusion/FusionCenterPassJig`](fusion/FusionCenterPassJig) | Earlier single centered-pass jig, table-edge datums. |
 | [`fusion/FusionSingleJig`](fusion/FusionSingleJig) | Earlier single-position indexer. |
 
@@ -290,9 +264,9 @@ a `101.600 mm` square, and a pickup tab centered on the left and right edges:
 `10 mm` out by `24 mm` long, spanning z `2` to `6 mm` so there is a `2 mm` undercut
 to hook under when lifting the plate off its pins. Each plate carries three engravings,
 `0.500 mm` deep: the station map at top-left, giving one hole per station;
-`C0=LEFT R0=FRONT` at front-left, so the counting convention survives at the
-machine; and `ALIGNMENT PIN` at front-right, naming the outer pin nearest that
-corner, which is the pin every engraved coordinate refers to.
+`ALIGNMENT PIN` at front-left, naming the outer pin nearest that corner, which is
+the pin every engraved coordinate refers to; and `C1=LEFT R1=FRONT` at front-right,
+so the counting convention survives at the machine.
 
 To regenerate a jig: open Fusion, press **Shift+S**, on the Scripts tab click
 **+** and select the script's folder, then Run. Each script writes its `.f3d` and
@@ -355,13 +329,13 @@ them — the generated 100 mm masters are polygons for exactly that reason.
 
 The preview has two views. **Wafer** draws the source with the four windows over it,
 the seam cross, and the wafer outline and edge bead as a guide. **Sliced jobs** draws
-the four outputs as the laser will see them, each centred on its own origin with its
-registration anchors. Both are computed by calling the splitter's own clip, layer and
-anchor functions, so the preview cannot drift from what a run writes.
+the four outputs as the laser will see them, each centred on its own origin. Both are
+computed by calling the splitter's own clip and layer functions, so the preview cannot
+drift from what a run writes.
 
 **Alignment**, pinned at the bottom left, tunes placement without editing code: one
-offset for all four jobs, and a per-station nudge on top of it. Only cut geometry
-moves; the registration frame stays put.
+offset for all four jobs, and a per-station nudge on top of it. It moves the cut
+geometry relative to the field center.
 
 **Datasets** are named settings, kept in `tools/.ui_datasets.json` as
 `{name: {settings}}`. Save, reload and delete them from the header.
@@ -378,7 +352,7 @@ python tools/run_splitter.py --input wafer.dxf --list-layers
 python tools/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40 --width-mode force --output jobs/
 ```
 
-Add `--no-anchors`, `--no-header-extents`, `--allow-outside`, `--global-x/--global-y`,
+Add `--allow-outside`, `--global-x/--global-y`,
 `--clip-mode`, `--stitch`, or `--extension` as needed. This is also the supported way
 to drive the splitter from plain Python, since the macro itself reads overrides from
 `globals()` and parses no arguments of its own.
@@ -455,12 +429,11 @@ Every figure on this page is generated, not drawn:
 python tools/make_figures.py
 ```
 
-Cut geometry is read out of the master DXFs, station geometry comes from
-`tools/pin_grid_layout.py`, and the registration figure reads the real content
-bounds of the two shipped sets. Regenerate after changing any of those and the
+Cut geometry is read out of the master DXFs and station geometry comes from
+`tools/pin_grid_layout.py`. Regenerate after changing either of those and the
 figures follow. Cut features are `50 um` wide on a `100 mm` wafer, so they are
-stroked to stay visible; everything else is to scale except the seam zoom and the
-oversized anchor squares, both of which are labelled as such.
+stroked to stay visible; everything else is to scale except the seam zoom, which
+is labelled as such.
 
 ## Reference
 
@@ -468,4 +441,3 @@ oversized anchor squares, both of which are labelled as such.
 - [Center-pass workflow](python/CenterPassWorkflow_README.md) — the single centered scoring job
 - [Generated job sets](output/README.md) — what each set is and which labeling it uses
 - [Pin-grid jig](fusion/FusionPinGridJig/README.md) — dimensions, tolerances, hole map
-- [Center-field jig](fusion/FusionPinGridCenterJig/README.md) — the centered variant

@@ -6,10 +6,10 @@ cannot disagree about which folder holds which quadrant.
 Four locating pins per station, on the corners of a 4 x 4 grid-space square; the
 inner 2 x 2 set was removed.
 
-Position labels name the JIG STATION, read like a matrix: the first digit is the
-row from the table rear ("top") and the second is the column from the table
-left. Indexing the jig moves the wafer, not the laser, so both axes invert and
-each station exposes the diagonally opposite wafer quadrant.
+Position labels P1-P4 name the JIG STATION, numbered clockwise from the table's
+top-left: P1 top-left, P2 top-right, P3 bottom-right, P4 bottom-left. Indexing the
+jig moves the wafer, not the laser, so both axes invert and each station exposes
+the diagonally opposite wafer quadrant.
 
 Run this file directly to re-derive every number from the table geometry:
 
@@ -30,7 +30,11 @@ NEST_OFFSET_FROM_PIN_CENTER = (+7.290, -4.950)
 
 # Exposure field, matching split_klayout_four_windows.py.
 QUALIFIED_FIELD_SIZE_MM = 54.000
-REGISTRATION_HALF_SIZE_MM = QUALIFIED_FIELD_SIZE_MM / 2.0
+FIELD_HALF_SIZE_MM = QUALIFIED_FIELD_SIZE_MM / 2.0
+# The galvo's addressable field is larger than the qualified region; a calibration
+# offset can place geometry anywhere inside it, so placement is checked against this.
+USABLE_FIELD_SIZE_MM = 60.000
+USABLE_FIELD_HALF_MM = USABLE_FIELD_SIZE_MM / 2.0
 STITCH_OVERLAP_MM = 0.200
 
 
@@ -59,9 +63,9 @@ class Station:
         return f"{self.label}_jig_{self.jig_station}"
 
     @property
-    def outer_front_right_pin(self) -> tuple[int, int]:
+    def outer_front_left_pin(self) -> tuple[int, int]:
         """The single hole engraved on the plate: (column, row)."""
-        return (max(self.outer_columns), min(self.outer_rows))
+        return (min(self.outer_columns), min(self.outer_rows))
 
     @property
     def pin_pattern_center_mm(self) -> tuple[float, float]:
@@ -77,10 +81,10 @@ class Station:
 
 
 STATIONS: tuple[Station, ...] = (
-    Station("DXF11", 1, 1, "top_left", (+25.400, -25.400), (0, 4), (3, 7)),
-    Station("DXF12", 1, 2, "top_right", (-25.400, -25.400), (2, 6), (3, 7)),
-    Station("DXF21", 2, 1, "bottom_left", (+25.400, +25.400), (0, 4), (1, 5)),
-    Station("DXF22", 2, 2, "bottom_right", (-25.400, +25.400), (2, 6), (1, 5)),
+    Station("P1", 1, 1, "top_left", (+25.400, -25.400), (0, 4), (3, 7)),
+    Station("P2", 1, 2, "top_right", (-25.400, -25.400), (2, 6), (3, 7)),
+    Station("P3", 2, 2, "bottom_right", (-25.400, +25.400), (2, 6), (1, 5)),
+    Station("P4", 2, 1, "bottom_left", (+25.400, +25.400), (0, 4), (1, 5)),
 )
 
 # The center-field station, for the single centered pass. Same physical plate.
@@ -91,6 +95,15 @@ CENTER_OUTER_ROWS = (2, 6)
 def hole_coordinate_mm(column: int, row: int) -> tuple[float, float]:
     """Table coordinate of a grid hole center, measured from left/front edges."""
     return (FIRST_HOLE_INSET + GRID_PITCH * column, FIRST_HOLE_INSET + GRID_PITCH * row)
+
+
+def hole_label(column: int, row: int) -> str:
+    """The 1-indexed label a human reads on the plate and in the docs: C1 is the
+    first column from the table left, R1 the first row from the front. Columns and
+    rows are stored 0-indexed everywhere in the geometry (C0/R0 = first hole); only
+    the engraved and documented labels count from one, to match how an operator
+    counts physical holes and to stop the off-by-one seating error."""
+    return f"C{column + 1} R{row + 1}"
 
 
 def check() -> list[str]:
@@ -115,15 +128,15 @@ def check() -> list[str]:
                     f"{station.label}: outer {axis} {outer} do not span {OUTER_SPAN_SPACES}"
                 )
 
-        # The engraved hole must sit half a span right of and forward of center.
-        col, row = station.outer_front_right_pin
+        # The engraved hole must sit half a span left of and forward of center.
+        col, row = station.outer_front_left_pin
         expected = (
-            FIRST_HOLE_INSET + GRID_PITCH * (sum(station.outer_columns) / 2.0 + half),
+            FIRST_HOLE_INSET + GRID_PITCH * (sum(station.outer_columns) / 2.0 - half),
             FIRST_HOLE_INSET + GRID_PITCH * (sum(station.outer_rows) / 2.0 - half),
         )
         actual = hole_coordinate_mm(col, row)
         if tuple(round(v, 3) for v in actual) != tuple(round(v, 3) for v in expected):
-            failures.append(f"{station.label}: engraved pin C{col} R{row} is not front-right")
+            failures.append(f"{station.label}: engraved pin {hole_label(col, row)} is not front-left")
 
         # The label digits must agree with the station name.
         expected_name = (
@@ -149,18 +162,18 @@ def check() -> list[str]:
 def main() -> int:
     print(f"{'label':6} {'jig station':13} {'engraved pin':12} {'hole (mm)':20} exposes")
     for station in STATIONS:
-        col, row = station.outer_front_right_pin
+        col, row = station.outer_front_left_pin
         hx, hy = hole_coordinate_mm(col, row)
         print(
-            f"{station.label:6} {station.jig_station:13} {'C' + str(col) + ' R' + str(row):12} "
+            f"{station.label:6} {station.jig_station:13} {hole_label(col, row):12} "
             f"{f'({hx:.1f}, {hy:.1f})':20} {station.exposed_wafer_area} "
             f"at {station.field_center_mm}"
         )
 
-    col, row = (max(CENTER_OUTER_COLUMNS), min(CENTER_OUTER_ROWS))
+    col, row = (min(CENTER_OUTER_COLUMNS), min(CENTER_OUTER_ROWS))
     hx, hy = hole_coordinate_mm(col, row)
     print(
-        f"{'CENTER':6} {'center':13} {'C' + str(col) + ' R' + str(row):12} "
+        f"{'CENTER':6} {'center':13} {hole_label(col, row):12} "
         f"{f'({hx:.1f}, {hy:.1f})':20} wafer center on laser zero"
     )
 

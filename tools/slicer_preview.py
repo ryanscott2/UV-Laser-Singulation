@@ -1,7 +1,7 @@
 """Compute what the slicer would emit, without writing any files.
 
-The preview calls the splitter's own `clip_bounds_um`, layer matching, width
-handling and anchor generation, so what is drawn cannot drift away from what a
+The preview calls the splitter's own `clip_bounds_um`, layer matching and width
+handling, so what is drawn cannot drift away from what a
 real run produces. The splitter is loaded with a `run_name` other than
 `__main__`, which leaves its `main()` unexecuted.
 """
@@ -22,14 +22,13 @@ Polygon = list[tuple[float, float]]
 
 @dataclass
 class TilePreview:
-    label: str            # DXF11_jig_top_left
-    folder: str           # DXF11
+    label: str            # P1_jig_top_left
+    folder: str           # P1
     station: str          # top_left
     exposed: str          # bottom_right
     clip_mm: tuple[float, float, float, float]      # in source coordinates
     field_center_mm: tuple[float, float]
     cuts_mm: list[Polygon] = field(default_factory=list)   # already translated
-    anchors_mm: list[Polygon] = field(default_factory=list)
     polygon_count: int = 0
     area_mm2: float = 0.0
 
@@ -87,7 +86,6 @@ def build_preview(
     stitch_um: float | None = None,
     global_x_um: float = 0.0,
     global_y_um: float = 0.0,
-    anchors: bool = True,
     window_offsets=None,
     max_polygons: int = 4000,
 ) -> Preview:
@@ -158,12 +156,6 @@ def build_preview(
         cuts, tile_truncated = _polygons_mm(clipped, layout.dbu, per_tile_limit)
         truncated = truncated or tile_truncated
 
-        anchor_polys: list[Polygon] = []
-        if anchors:
-            anchor_polys, _ = _polygons_mm(
-                ns["registration_envelope_region"](layout), layout.dbu, 16
-            )
-
         tiles.append(
             TilePreview(
                 label=label,
@@ -173,7 +165,6 @@ def build_preview(
                 clip_mm=(left / 1000.0, bottom / 1000.0, right / 1000.0, top / 1000.0),
                 field_center_mm=(center_x / 1000.0, center_y / 1000.0),
                 cuts_mm=cuts,
-                anchors_mm=anchor_polys,
                 polygon_count=clipped.count(),
                 area_mm2=ns["dbu_area_to_mm2"](layout, clipped.area()),
             )
@@ -191,7 +182,7 @@ def build_preview(
         source_cuts_mm=source_polys,
         tiles=tiles,
         field_mm=ns["QUALIFIED_FIELD_SIZE_UM"] / 1000.0,
-        half_mm=ns["REGISTRATION_HALF_SIZE_UM"] / 1000.0,
+        half_mm=ns["QUALIFIED_FIELD_SIZE_UM"] / 2000.0,
         stitch_mm=stitch / 1000.0,
         source_bbox_mm=None if source.is_empty() else (
             box.left * scale, box.bottom * scale, box.right * scale, box.top * scale

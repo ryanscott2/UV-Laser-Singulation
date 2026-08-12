@@ -1,0 +1,12 @@
+100 mm wafer, 10 x 30 mm dicing grid (marker-free)
+Edge bead (mm): 2.0
+Edge bead (um): 2000.0
+Safe circular radius (um): 48000.0
+Safe primary-flat Y minimum (um): -45285.70079844434
+Safe secondary-flat X minimum (um): -47183.33050943175
+Cut width (um): 50.0
+Vertical cut centers (um): [-45000.0, -35000.0, -25000.0, -15000.0, -5000.0, 5000.0, 15000.0, 25000.0, 35000.0, 45000.0]
+Horizontal cut centers (um): [-45000.0, -15000.0, 15000.0, 45000.0]
+Alignment marker: none
+Vertical polygons: 10
+Horizontal polygons: 4

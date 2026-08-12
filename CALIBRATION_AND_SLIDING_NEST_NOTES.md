@@ -4,19 +4,18 @@ Last updated: 2026-08-08
 
 ## Coordinate convention
 
-Position labels name the **jig station**, read like a matrix: the first digit is
-the row from the table rear (`1` = top/rear, `2` = bottom/front) and the second
-is the column from the table left (`1` = left, `2` = right).
+P1-P4 name the jig station, numbered clockwise from the table's top-left (P1
+top-left, P2 top-right, P3 bottom-right, P4 bottom-left).
 
 Indexing the jig moves the wafer, not the laser, so both axes invert and each
 station exposes the diagonally opposite wafer quadrant.
 
 | Label | Jig station | Exposed wafer area |
 | --- | --- | --- |
-| `DXF11` | top-left | bottom-right |
-| `DXF12` | top-right | bottom-left |
-| `DXF21` | bottom-left | top-right |
-| `DXF22` | bottom-right | top-left |
+| `P1` | top-left | bottom-right |
+| `P2` | top-right | bottom-left |
+| `P3` | bottom-right | top-left |
+| `P4` | bottom-left | top-right |
 
 Adopted 2026-08-08. The previous scheme labeled by exposed wafer quadrant
 (`DXF11` = wafer top-left). Converting between them swaps `11` and `22` and
@@ -60,39 +59,37 @@ again after the full sample is run. No software correction has been applied yet.
   `Y=+1.4345 mm`. Centering each file independently therefore produces an
   `8.1125 mm` relative Y error, matching the photographed bottom-right step in
   both magnitude and direction.
-- The raw DXFs contain entity coordinates but no common `$INSBASE`, `$EXTMIN`,
-  or `$EXTMAX` header. The splitter also emits only clipped geometry, so every
-  DXF/GDS job has a different content bounding box. Any laser import option that
-  centers or fits each drawing/cell independently destroys the intended `(0,0)`
-  registration.
+- The splitter emits only clipped geometry, so every DXF/GDS job has a
+  different content bounding box. Any laser import option that centers or fits
+  each drawing/cell independently destroys the intended `(0,0)` registration.
 - The splitter coordinate math passed reconstruction validation: the four
   current files reproduce each master with zero XOR area, and the saved project
   files match the validated build byte-for-byte. The failure is therefore most
   consistent with import placement/centering, not the clipping or translation
   calculation.
-- Before applying the earlier 10-20 um / 75-100 um fine corrections, lock the
-  laser import to the DXF/GDS origin and disable per-file centering/fit. If the
-  controller cannot preserve origin, add an identical non-exposed registration
-  frame on a disabled layer to every output file.
+- Before applying the earlier 10-20 um / 75-100 um fine corrections, run the
+  laser (WinLase Pro) with auto-centering off so each job is placed at its true
+  coordinates and the DXF origin lands on the field center. The splitter already
+  writes every tile with its field center at the origin, so this reproduces the
+  wafer exactly.
 
 ### Software resolution
 
-- The four-window splitter adds four 50 um corner anchors on the separate
-  `REGISTRATION_DO_NOT_EXPOSE` layer, sized to half the profile's field so the
-  asymmetric alignment marker cannot change automatic centering. They are exact
-  in every tile and orientation. When this was written there were two splitters,
-  the legacy old-jig profile anchoring at `+/-30 mm` for its 60 mm field and the
-  pin-grid profile at `+/-26 mm` for 52 mm. The old-jig profile has since been
-  removed and the field widened, so the one remaining splitter anchors at
-  `+/-27 mm` for a 54 mm field.
-- Cutting geometry remains exclusively on layer `0`. The laser must assign no
-  marking / zero power to `REGISTRATION_DO_NOT_EXPOSE`; never expose that layer.
+- The fix is true-coordinate placement. The four-window splitter writes every
+  tile with its field center at the DXF origin, and the laser (WinLase Pro) is
+  run with auto-centering off so it places each job at its true coordinates and
+  the DXF origin lands on the field center. This reproduces the wafer exactly and
+  was confirmed on the machine with a placement probe.
+- When this was written there were two splitters, the legacy old-jig profile for
+  its 60 mm field and the pin-grid profile for 52 mm. The old-jig profile has
+  since been removed and the field widened, so the one remaining splitter targets
+  a 54 mm field.
+- Cutting geometry remains exclusively on layer `0`.
 - The corrected old-jig production set is stored separately as
   `output/DXFs/080726_FourPosDicer_OriginLocked`; the failed-run files were left
   unchanged for traceability.
 - KLayout reopened all eight corrected files. Layer-0 horizontal and vertical
-  reconstructions each had zero XOR area, and every registration-layer bounding
-  box was exactly `+/-30.000 mm`.
+  reconstructions each had zero XOR area.
 
 ## Single sliding nest concept
 
@@ -201,23 +198,21 @@ The sliding concept was superseded by a lift-and-index fixture using the table's
   reach the wafer edge from outside the plate at either end. Each is
   `15.000 mm` wide at platform level and `23.400 mm` at
   the top, producing 45 degree side slopes through the 4 mm bar height.
-- Pickup opening removes only the raised wall; the 2 mm support platform remains
+- Pickup opening removes only the raised wall; the 3 mm support platform remains
   continuous and uncut.
-- Both pin-grid jigs carry three engravings cut `0.500 mm` into the platform
-  floor, in the same three places on each plate.
-- Top-left is the station map. The four-position plate reads
-  `2x2 SINGULATION ALIGNER` then one hole per station in rear-first order,
-  `11 C4 R3`, `12 C6 R3`, `21 C4 R1`, `22 C6 R1`, so the engraved rows match the
-  plate's orientation on the table. The center-field plate reads
-  `CENTER FIELD ALIGNER` then `C5 R2`.
-- Front-left reads `C0=LEFT R0=FRONT`, preserving the counting convention.
-- Front-right reads `ALIGNMENT PIN`, naming the outer pin nearest that corner.
-  That pin is the one every engraved coordinate refers to. The four-pin
-  pattern is rigid, so seating it fixes the other three; it always sits two grid
-  spaces right of and two forward of the pin-pattern center.
-- The two long lines used to sit at the bottom of the top-left block, where the
-  wafer-pocket wall curves in and clipped them. Splitting them to the front edge
-  keeps roughly `5 mm` of clearance to the pocket wall.
+- The aligner plate carries four engravings raised `0.500 mm` above the platform
+  floor (additive prints cleaner than cutting them in).
+- Top-left, left-aligned to the outer wall, is the title and centering position:
+  `ALIGNER` then `P0 C2 R3` (seat the wafer here and the alignment pin lands in the
+  field center, so the whole wafer is addressable in one shot).
+- Top-right, right-aligned to the outer wall, is the station map, one hole per
+  position: `P1 C1 R4`, `P2 C3 R4`, `P3 C3 R2`, `P4 C1 R2`.
+- Bottom-left reads `ALIGNMENT PIN`, naming the outer pin nearest that corner. That
+  pin is the one every engraved coordinate refers to. The four-pin pattern is rigid,
+  so seating it fixes the other three; it always sits two grid spaces left of and
+  two forward of the pin-pattern center.
+- Bottom-right is the origin key: two stacked rows `C1=LEFT` / `R1=FRONT`,
+  right-aligned to the outer wall.
 
 ### Wafer retention
 
@@ -252,29 +247,31 @@ clear of the scanned area.
 ### Four-position pin map
 
 Grid columns are numbered from the left and rows from the front, starting at
-zero. Labels are jig stations per the coordinate convention above.
+one. Labels are jig stations per the coordinate convention above.
 
 | Folder | Jig station | Pin columns/rows | Engraved hole | Exposed area |
 | --- | --- | --- | --- | --- |
-| `DXF11` | top-left | columns `0,4`; rows `3,7` | `C4 R3` | bottom-right |
-| `DXF12` | top-right | columns `2,6`; rows `3,7` | `C6 R3` | bottom-left |
-| `DXF21` | bottom-left | columns `0,4`; rows `1,5` | `C4 R1` | top-right |
-| `DXF22` | bottom-right | columns `2,6`; rows `1,5` | `C6 R1` | top-left |
+| `P1` | top-left | columns `1,5`; rows `4,8` | `C1 R4` | bottom-right |
+| `P2` | top-right | columns `3,7`; rows `4,8` | `C3 R4` | bottom-left |
+| `P3` | bottom-right | columns `3,7`; rows `2,6` | `C3 R2` | top-left |
+| `P4` | bottom-left | columns `1,5`; rows `2,6` | `C1 R2` | top-right |
 
-### Center-field pin map
+### Center (P0) pin map
 
-The same physical geometry centers the wafer at laser zero when the common pin
-pattern center is at grid column `3`, row `4`:
+The same four-position plate centers the wafer at laser zero when its four pins are
+seated at the center holes (position `P0`), whose pattern center is grid column `4`,
+row `5`:
 
-- Pins: columns `1,5`; rows `2,6`. Engraved front-right pin: `C5 R2`.
+- Pins: columns `2,6`; rows `3,7`. Engraved front-left pin: `C2 R3`, at
+  `(38.100,63.500) mm` from the table left/front.
 - Pin-pattern center: `(88.900,114.300) mm` from the table left/front.
 - Wafer center after the `(+7.290,-4.950) mm` nest offset:
   `(96.190,109.350) mm`, exactly the directly measured laser-zero center.
 
 ### Fusion packages
 
-- Four-position workflow: `fusion/FusionPinGridJig`.
-- Center-field workflow: `fusion/FusionPinGridCenterJig`.
+- Four-position workflow (also centers via P0): `fusion/FusionPinGridJig`. The
+  separate `FusionPinGridCenterJig` was retired 2026-08-11 once P0 covered centering.
 
 ## Pin-grid DXF/GDS production profile
 
@@ -292,10 +289,9 @@ stitch alone, so the declared field is free to be larger than the window.
   refuses that.
 - Margin from the declared window to each edge of the maximum usable `78.485 mm`
   optical field: `12.2425 mm`.
-- Registration anchors: four 50 um corner polygons on
-  `REGISTRATION_DO_NOT_EXPOSE`, fixing all content bounds at
-  `(-27,-27) to (+27,+27) mm`. Every DXF also declares `$EXTMIN`/`$EXTMAX` at the
-  same bounds. Never expose the anchor layer.
+- Placement is by true coordinates: each tile is written with its field center
+  at the DXF origin, so the laser (WinLase Pro) run with auto-centering off
+  places every job at its true coordinates with the origin on the field center.
 - Double-exposed area per wafer: `0.4925 mm2` of `49.1333 mm2`, about `1.00%`. Of
   that, `0.0700 mm2` is the 28 grid crossings where the horizontal and vertical
   files meet and `0.4225 mm2` is the deliberate seam stitch. Acceptable because the
@@ -311,8 +307,74 @@ stitch alone, so the declared field is free to be larger than the window.
   `output/DXFs/080826_FourPosDicer_PinGrid54mm`. The 52 mm set
   `080726_FourPosDicer_PinGrid52mm` is superseded and kept only for traceability. Relabeled to jig-station names
   on 2026-08-08 and revalidated: layer-0 reconstruction XOR area is zero against
-  both masters, every registration bounding box is exactly `+/-26.000 mm`, and
-  all eight DXFs are byte-identical to the files they replaced.
+  both masters, the field-placement self-test confirms every tile's layer-0
+  geometry fits within `+/-30 mm` (the usable field) of the origin with the origin
+  at the field center, and all eight DXFs are byte-identical to the files they replaced.
 - One production splitter only: `python/split_klayout_four_windows.py`. The
   byte-identical `split_klayout_four_windows_pin_grid.py` duplicate was removed
   on 2026-08-08.
+
+## Print v2 and global-offset calibration (2026-08-11)
+
+Measured on the 081126 alignment test (stations P1-P4, front pins seated in the
+4th row of holes, laser auto-centering off): the exposure landed **+3.017 mm in X
+and -1.286 mm in Y** off the wafer flats. The left seam line read `12.20 mm` from
+the minor (secondary, -X) flat against `9.183 mm` expected; the bottom seam line
+read `16.00 mm` from the major (primary, -Y) flat against `17.286 mm` expected.
+The usable optical field is a `60 x 60 mm` square, so the corrected geometry
+(widest marks at `+/-28.5 mm`) stays well inside it.
+
+Re-measured after applying that correction: the left line read `9.35 mm` from the
+minor flat (`9.183 mm` expected, `+0.17 mm` residual) and the bottom line
+`17.23 mm` from the major flat (`17.286 mm` expected, `-0.06 mm` residual) -- both
+below the `0.200 mm` stitch overlap. Both residuals kept the sign of the original
+error (an under-correction). Correcting the full residual (`-3186.7 / +1345.7`)
+overtuned given the noise, so the difference was split with the first correction and
+half applied: X by `85 um` (`-3016.7 -> -3101.7`) and Y by `30 um`
+(`+1285.7 -> +1315.7`).
+
+The same offset is corrected two ways, and only ONE may be active at a time:
+
+- **Software (current jig):** `GLOBAL_X_OFFSET_UM = -3101.7`,
+  `GLOBAL_Y_OFFSET_UM = +1315.7` in `python/split_klayout_four_windows.py`, applied
+  to every job after it is centered on its field. The `081126_FullDice_v3` set is
+  built with these split-difference values; the earlier `081126` and
+  `081126_AlignmentTest_v2` sets carry the original `-3016.7 / +1285.7` they were
+  measured against.
+- **Jig (print v2):** `NEST_CALIBRATION_X/Y = +3.017 / -1.286` in both
+  `fusion/FusionPinGrid*Jig` scripts shifts the nest relative to the pins so a
+  field-centered exposure lands correctly. This still holds the original
+  `+3.017 / -1.286`; to match the split-difference software offset it becomes
+  `+3.102 / -1.316` when the jig is next regenerated. **Reset the software offsets to
+  0 once a print-v2 jig is in use**, or the two double-correct by ~3 mm.
+
+Print-v2 jig changes to `FusionPinGridJig` (the redundant `FusionPinGridCenterJig`
+was retired 2026-08-11; P0 centers the wafer on the four-position plate):
+
+- Pin diameter `4.650 -> 4.700 mm` (tip `4.000 -> 4.050`); fit vs the `4.870 mm`
+  hole minor tightens from `0.220` to `0.170 mm` diametral clearance.
+- Nest clearances reduced 35%: radial and primary-flat `0.500 -> 0.325 mm`,
+  secondary datum `0.300 -> 0.195 mm`.
+- Base thickness `2.000 -> 3.000 mm` (pin length and platform follow `BASE_THICKNESS`).
+- Engraving text `3.0 -> 3.5 mm` and **additive (raised)** rather than cut.
+- Engraving relayout: the title `ALIGNER` and centering line `P0 C2 R3` moved to the
+  **top-left** (left-aligned); the `P1-P4` station map stays **top-right**
+  (right-aligned). Previously both shared one top-right block. Verify both fit in
+  Fusion.
+
+Other 2026-08-11 changes:
+
+- Quadrant outputs renamed `DXF11/12/21/22 -> P1/P2/P3/P4`, clockwise from the
+  table top-left (P1 top-left ... P4 bottom-left), and grid labels are now
+  **1-indexed** (`C1`/`R1` = first hole). The engraved reference pin moved to the
+  front-left of each station.
+- Combining orientations into one `Combined.dxf` per station was tried and
+  **removed** (it did not expose well); sets are separate `Horizontal.dxf` /
+  `Vertical.dxf` per station again.
+- Marker-free full dice: `python/generate_100mm_10x30mm_masters_nomarker.py` reuses
+  the base 10x30 generator's geometry but omits the centered plus marker, writing
+  masters to `dxf/100mm_10x30mm_Masters_NoMarker`. Full-dice test set
+  `output/DXFs/081126_FullDice_v3` (10x30 mm production dice, no alignment marker)
+  builds and validates clean, carrying the software offset for the current jig.
+- The field-placement self-test checks the `60 mm` usable field (`+/-30 mm`), not
+  the `54 mm` qualified field.

@@ -5,10 +5,12 @@ Three independent checks, all of which must pass before a set is exposed:
 1. Reconstruction. Each tile is translated back by its own field center and
    unioned. The result must XOR to exactly zero area against the layer-0 master,
    which proves no cut geometry was lost, duplicated, or shifted by the split.
-2. Registration. Every file must carry four anchors on
-   `REGISTRATION_DO_NOT_EXPOSE` whose combined bounding box is exactly
-   the declared field half size, so a laser importer that centers on content
-   bounds cannot displace one job relative to another.
+2. Field placement. The laser exposes each job with auto-centering OFF, placing
+   the DXF origin on the field center. This self-test confirms every tile fits
+   inside the qualified field with its origin at the center, so true-coordinate
+   placement reproduces the wafer (reconstruction proves the four origins rebuild
+   the master). It also reports how far each job would move if auto-centering were
+   accidentally left ON.
 3. Grid alignment. The splitter's window centers and this repository's table-grid
    station table are separate literals that nothing else forces to agree. They
    must, because the jig indexes on the table's 1 inch grid: a mismatch would
@@ -29,7 +31,7 @@ from pathlib import Path
 
 import klayout.db as pya
 
-from pin_grid_layout import GRID_PITCH, REGISTRATION_HALF_SIZE_MM, STATIONS
+from pin_grid_layout import GRID_PITCH, STATIONS, USABLE_FIELD_HALF_MM
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPLITTER = REPO_ROOT / "python" / "split_klayout_four_windows.py"
@@ -40,7 +42,6 @@ MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 
 DXF_UNIT_UM = 1_000.0  # 1 DXF drawing unit = 1 mm
 CUT_LAYER = 0
-REGISTRATION_LAYER_NAME = "REGISTRATION_DO_NOT_EXPOSE"
 
 # A Region built from begin_shapes_rec stays bound to its Layout, so the layouts
 # have to outlive the regions returned below.
@@ -75,29 +76,6 @@ def read_region(path: Path, layer_name: str | None = None):
 
 def mm_to_dbu(value_mm: float, dbu: float) -> int:
     return int(round(value_mm * 1_000.0 / dbu))
-
-
-def header_extents_mm(path: Path) -> dict[str, tuple[float, float]]:
-    """Read $EXTMIN/$EXTMAX out of a DXF HEADER, in drawing units.
-
-    These are what an importer should use instead of inferring the extent from
-    entities. Parsed straight from the group codes: `9` names the variable, then
-    `10` and `20` carry its X and Y.
-    """
-    lines = path.read_text(encoding="utf-8", errors="strict").splitlines()
-    found: dict[str, tuple[float, float]] = {}
-    for index, line in enumerate(lines):
-        if line.strip() not in {"$EXTMIN", "$EXTMAX"}:
-            continue
-        name = line.strip()
-        values: dict[str, float] = {}
-        for offset in range(index + 1, min(index + 7, len(lines)) - 1, 2):
-            code, value = lines[offset].strip(), lines[offset + 1].strip()
-            if code in {"10", "20"}:
-                values[code] = float(value)
-        if "10" in values and "20" in values:
-            found[name] = (values["10"], values["20"])
-    return found
 
 
 def check_grid_alignment() -> tuple[list[str], bool]:
@@ -157,6 +135,54 @@ def check_grid_alignment() -> tuple[list[str], bool]:
     return lines, True
 
 
+def check_field_placement(set_dir: Path) -> tuple[list[str], bool]:
+    """Self-test the anchor-free placement method.
+
+    The laser runs with auto-centering OFF, so it places each job at its true
+    coordinates: the DXF origin lands on the field center. For that to expose the
+    wafer correctly each tile must (a) be built with its field center at the origin
+    -- which the reconstruction check proves by rebuilding the master from the four
+    origins -- and (b) fit inside the laser's usable field, so nothing is driven
+    outside the addressable area. This checks (b), and reports the largest
+    content-bbox offset from the origin: that is exactly how far a job would be
+    misplaced if auto-centering were left ON, so a nonzero value is the reminder to
+    keep it OFF.
+    """
+    problems: list[str] = []
+    max_offset_mm = 0.0
+    checked = 0
+    half = USABLE_FIELD_HALF_MM
+    for station in STATIONS:
+        for path in sorted((set_dir / station.label).glob("*.dxf")):
+            region, dbu = read_region(path)
+            where = f"{station.label}/{path.name}"
+            if region is None:
+                problems.append(f"{where}: no layer 0 geometry")
+                continue
+            checked += 1
+            if region.is_empty():
+                continue
+            box = region.bbox()
+            half_dbu = mm_to_dbu(half, dbu)
+            if (box.left < -half_dbu or box.right > half_dbu
+                    or box.bottom < -half_dbu or box.top > half_dbu):
+                edges = tuple(round(v * dbu / 1000.0, 3)
+                              for v in (box.left, box.bottom, box.right, box.top))
+                problems.append(f"{where}: geometry {edges} mm exceeds the +/-{half:.3f} mm field")
+            cx = (box.left + box.right) / 2.0 * dbu / 1000.0
+            cy = (box.bottom + box.top) / 2.0 * dbu / 1000.0
+            max_offset_mm = max(max_offset_mm, abs(cx), abs(cy))
+
+    if problems:
+        return ["Field placement PROBLEMS: " + "; ".join(problems)], False
+    return [
+        f"Field placement self-test: all {checked} tiles fit within "
+        f"the +/-{half:.3f} mm usable field with the DXF origin at the field center, so exposing at "
+        f"true coordinates reproduces the wafer. Expose with the laser's auto-centering OFF: "
+        f"leaving it ON would misplace a job by up to {max_offset_mm:.3f} mm."
+    ], True
+
+
 def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
     lines: list[str] = []
     ok = True
@@ -164,6 +190,12 @@ def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
     grid_lines, grid_ok = check_grid_alignment()
     lines.extend(grid_lines)
     ok &= grid_ok
+
+    # The splitter applies GLOBAL_*_OFFSET_UM to every job as a calibration shift;
+    # undo it here so reconstruction checks the split itself, not the calibration.
+    ns = runpy.run_path(str(SPLITTER), run_name="pin_grid_validate_offsets")
+    global_x_mm = ns["GLOBAL_X_OFFSET_UM"] / 1000.0
+    global_y_mm = ns["GLOBAL_Y_OFFSET_UM"] / 1000.0
 
     for orientation in ORIENTATIONS:
         stem = MASTER_STEM.format(orientation=orientation)
@@ -178,11 +210,12 @@ def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
                 raise RuntimeError(f"No layer 0 in {station.label}/{orientation}.dxf")
             if tile_dbu != dbu:
                 raise RuntimeError(f"{station.label}/{orientation}.dxf has dbu {tile_dbu}, not {dbu}")
-            # Undo the splitter's translation to put the tile back on the wafer.
+            # Undo the splitter's translation (and its calibration offset) to put
+            # the tile back on the wafer.
             rebuilt += tile.transformed(
                 pya.Trans(
-                    mm_to_dbu(station.field_center_mm[0], dbu),
-                    mm_to_dbu(station.field_center_mm[1], dbu),
+                    mm_to_dbu(station.field_center_mm[0] - global_x_mm, dbu),
+                    mm_to_dbu(station.field_center_mm[1] - global_y_mm, dbu),
                 )
             )
 
@@ -193,58 +226,9 @@ def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
             f"reconstructed_polygons={rebuilt.count()}, xor_area_dbu2={xor_area}"
         )
 
-    problems = []
-    for station in STATIONS:
-        for orientation in ORIENTATIONS:
-            path = set_dir / station.label / f"{orientation}.dxf"
-            anchors, dbu = read_region(path, REGISTRATION_LAYER_NAME)
-            where = f"{station.label}/{orientation}.dxf"
-            if anchors is None or anchors.count() != 4:
-                problems.append(f"{where}: anchors={0 if anchors is None else anchors.count()}")
-                continue
-            half = mm_to_dbu(REGISTRATION_HALF_SIZE_MM, dbu)
-            box = anchors.bbox()
-            if (box.left, box.bottom, box.right, box.top) != (-half, -half, half, half):
-                problems.append(
-                    f"{where}: bbox={(box.left * dbu / 1000.0, box.bottom * dbu / 1000.0, box.right * dbu / 1000.0, box.top * dbu / 1000.0)} mm"
-                )
-
-    if problems:
-        ok = False
-        lines.append("Registration envelope PROBLEMS: " + "; ".join(problems))
-    else:
-        lines.append(
-            f"Registration envelope: all {len(STATIONS) * len(ORIENTATIONS)} files have four "
-            f"anchors on {REGISTRATION_LAYER_NAME} with bbox exactly "
-            f"+/-{REGISTRATION_HALF_SIZE_MM:.3f} mm"
-        )
-
-    # The anchors only fix per-file centering for an importer that counts a layer
-    # the operator has set to no marking. The header extents do not depend on that.
-    extent_problems = []
-    half = REGISTRATION_HALF_SIZE_MM
-    for station in STATIONS:
-        for orientation in ORIENTATIONS:
-            path = set_dir / station.label / f"{orientation}.dxf"
-            found = header_extents_mm(path)
-            where = f"{station.label}/{orientation}.dxf"
-            if set(found) != {"$EXTMIN", "$EXTMAX"}:
-                extent_problems.append(f"{where}: missing {sorted({'$EXTMIN','$EXTMAX'} - set(found))}")
-                continue
-            if found["$EXTMIN"] != (-half, -half) or found["$EXTMAX"] != (half, half):
-                extent_problems.append(
-                    f"{where}: $EXTMIN={found['$EXTMIN']} $EXTMAX={found['$EXTMAX']}"
-                )
-
-    if extent_problems:
-        ok = False
-        lines.append("Declared header extents PROBLEMS: " + "; ".join(extent_problems))
-    else:
-        lines.append(
-            f"Declared header extents: all {len(STATIONS) * len(ORIENTATIONS)} files declare "
-            f"$EXTMIN/$EXTMAX at exactly +/-{half:.3f} mm, so an importer need not infer "
-            "the window from entities"
-        )
+    placement_lines, placement_ok = check_field_placement(set_dir)
+    lines.extend(placement_lines)
+    ok &= placement_ok
 
     lines.append(
         "Station labels name the jig position; each exposes the opposite quadrant: "

@@ -35,21 +35,29 @@ OUTPUT_DIR = r""
 
 # Calibration applied to every output after it is centered on its laser field.
 # Positive X moves all output geometry right; positive Y moves it up.
-GLOBAL_X_OFFSET_UM = 0.0
-GLOBAL_Y_OFFSET_UM = 0.0
+# Measured 2026-08-11 on the 081126 alignment test: the exposure sat +3.017 mm in
+# X and -1.286 mm in Y off the wafer flats, so shift every job back by that much.
+# Re-measured after that correction: residual +0.17 mm in X and -0.06 mm in Y, both
+# the same sign as the original error (under-corrected). Correcting the full residual
+# (X -> -3186.7, Y -> +1345.7) overtuned, so split the difference with the first
+# correction and apply half: X by 85 um (-3016.7 -> -3101.7) and Y by 30 um
+# (+1285.7 -> +1315.7).
+# RESET BOTH TO 0 once the print-v2 jig is in use: that jig corrects the same offset
+# in its pin/nest geometry (fusion/FusionPinGrid*Jig NEST_CALIBRATION_*), and
+# leaving this on top would double-correct by ~3 mm.
+GLOBAL_X_OFFSET_UM = -3101.7
+GLOBAL_Y_OFFSET_UM = 1315.7
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. This is for correcting one station measured off from its neighbours
 # without disturbing the other three - the seam measurements in
-# CALIBRATION_AND_SLIDING_NEST_NOTES.md are exactly that case. Only the cut
-# geometry moves; the registration anchors stay put, since they define the canvas
-# the laser places the job on.
-# Override with -rd window_offsets="DXF11:0,-15;DXF21:2.5,-18"
+# CALIBRATION_AND_SLIDING_NEST_NOTES.md are exactly that case.
+# Override with -rd window_offsets="P1:0,-15;P4:2.5,-18"
 WINDOW_OFFSETS_UM = {
-    "DXF11": (0.0, 0.0),
-    "DXF12": (0.0, 0.0),
-    "DXF21": (0.0, 0.0),
-    "DXF22": (0.0, 0.0),
+    "P1": (0.0, 0.0),
+    "P2": (0.0, 0.0),
+    "P3": (0.0, 0.0),
+    "P4": (0.0, 0.0),
 }
 
 # Native KLayout/DXF path widths larger than this are reduced about their
@@ -95,22 +103,10 @@ OUTPUT_LAYER = 0
 OUTPUT_DATATYPE = 0
 OUTPUT_LAYER_NAME = "0"
 
-# Keep every exported job registered to the same declared canvas even when
-# the downstream laser software centers drawings from their content bounds.
-# The four small corner anchors are deliberately placed on a separate layer:
-# configure the laser to NEVER expose this layer. Cutting geometry remains on
-# layer 0. This also stabilizes GDS/OAS cell bounding boxes.
-ADD_IMPORT_REGISTRATION_ENVELOPE = True
-REGISTRATION_LAYER = 999
-REGISTRATION_DATATYPE = 0
-REGISTRATION_LAYER_NAME = "REGISTRATION_DO_NOT_EXPOSE"
-REGISTRATION_HALF_SIZE_UM = QUALIFIED_FIELD_SIZE_UM / 2.0
-REGISTRATION_ANCHOR_SIZE_UM = 50.0
-
-# Declare the window in the DXF header as well, so an importer does not have to
-# infer it from entities. This works even where the registration anchors do not,
-# because it does not depend on the laser counting a non-marking layer.
-WRITE_DXF_HEADER_EXTENTS = True
+# The laser places drawings at their true coordinates with auto-centering OFF, so
+# each job's DXF origin lands on the field center. The splitter writes every tile
+# with its field center at the origin, so this reproduces the wafer exactly;
+# validate_pin_grid_set.py carries a field-placement self-test that proves it.
 
 # Geometry lying outside all four windows would be dropped without a trace, so
 # the run stops instead. Set true only when clipping the pattern is intended.
@@ -138,10 +134,10 @@ DXF_POLYGON_MODE = 1
 # bottom-right. Both axes invert; do not drop the sign flip in either one.
 WINDOWS = (
     # Output label, then the exposed-field X/Y ownership signs in wafer coordinates.
-    ("DXF11_jig_top_left", +1, -1),
-    ("DXF12_jig_top_right", -1, -1),
-    ("DXF21_jig_bottom_left", +1, +1),
-    ("DXF22_jig_bottom_right", -1, +1),
+    ("P1_jig_top_left", +1, -1),
+    ("P2_jig_top_right", -1, -1),
+    ("P3_jig_bottom_right", -1, +1),
+    ("P4_jig_bottom_left", +1, +1),
 )
 
 
@@ -172,12 +168,12 @@ def as_bool(name: str, default: bool) -> bool:
 
 
 def window_folder(name: str) -> str:
-    """`DXF11_jig_top_left` -> `DXF11`, the folder the operator sees."""
+    """`P1_jig_top_left` -> `P1`, the folder the operator sees."""
     return name.split("_", 1)[0]
 
 
 def parse_window_offsets(spec) -> dict[str, tuple[float, float]]:
-    """Read `DXF11:0,-15;DXF21:2.5,-18` into per-folder micron offsets.
+    """Read `P1:0,-15;P4:2.5,-18` into per-folder micron offsets.
 
     A mapping is accepted unchanged, so the module default passes straight
     through. Unknown labels are rejected rather than silently ignored, because a
@@ -196,7 +192,7 @@ def parse_window_offsets(spec) -> dict[str, tuple[float, float]]:
             parts = [p for p in values.split(",") if p.strip() != ""]
             if len(parts) != 2:
                 raise ValueError(
-                    f"window_offsets entry {chunk!r} must look like DXF11:<x_um>,<y_um>"
+                    f"window_offsets entry {chunk!r} must look like P1:<x_um>,<y_um>"
                 )
             pairs[label.strip()] = (float(parts[0]), float(parts[1]))
 
@@ -336,24 +332,6 @@ def region_bbox_um(layout, region) -> tuple[float, float, float, float] | None:
     return tuple(dbu_to_um(layout, value) for value in (box.left, box.bottom, box.right, box.top))
 
 
-def registration_envelope_region(layout):
-    """Four non-exposed anchors whose combined bbox is exactly the field half
-    size, `REGISTRATION_HALF_SIZE_UM`, in every tile and orientation."""
-    half = um_to_dbu(layout, REGISTRATION_HALF_SIZE_UM)
-    size = um_to_dbu(layout, REGISTRATION_ANCHOR_SIZE_UM)
-    if size < 1 or size >= 2 * half:
-        raise ValueError("Invalid registration anchor size")
-    result = pya.Region()
-    for x_sign in (-1, +1):
-        for y_sign in (-1, +1):
-            left = -half if x_sign < 0 else half - size
-            right = -half + size if x_sign < 0 else half
-            bottom = -half if y_sign < 0 else half - size
-            top = -half + size if y_sign < 0 else half
-            result.insert(pya.Box(left, bottom, right, top))
-    return result
-
-
 def partition_window_size_um(stitch_um: float) -> float:
     """How wide a partition window is: its own half of the pitch, plus the overlap.
 
@@ -461,56 +439,11 @@ def dbu_area_to_mm2(layout, area_dbu: int) -> float:
     return area_dbu * (layout.dbu**2) / 1_000_000.0
 
 
-def dxf_header_extents(half_size_um: float, newline: str) -> str:
-    """DXF HEADER variables declaring the window, in millimeter drawing units.
-
-    KLayout writes a HEADER holding only `$ACADVER`, which leaves every importer
-    to infer the drawing extent from the entities it finds. That inference is
-    what displaced a job by 8 mm once already, and the registration anchors only
-    fix it for importers that count a layer the operator has set to no marking.
-    Declaring the extent here does not depend on any layer being counted.
-    """
-    half_mm = half_size_um / 1000.0
-    lines: list[str] = []
-
-    def variable(name: str, x: float, y: float, with_z: bool) -> None:
-        lines.extend(("9", name, "10", f"{x:.6f}", "20", f"{y:.6f}"))
-        if with_z:
-            lines.extend(("30", "0.000000"))
-
-    variable("$INSBASE", 0.0, 0.0, True)
-    variable("$EXTMIN", -half_mm, -half_mm, True)
-    variable("$EXTMAX", half_mm, half_mm, True)
-    variable("$LIMMIN", -half_mm, -half_mm, False)
-    variable("$LIMMAX", half_mm, half_mm, False)
-    return newline.join(lines) + newline
-
-
-def inject_dxf_header_extents(path: Path, half_size_um: float) -> None:
-    text = path.read_text(encoding="utf-8", errors="strict")
-    newline = "\r\n" if "\r\n" in text else "\n"
-    header = text.find("HEADER")
-    if header < 0:
-        raise RuntimeError(f"{path.name}: no DXF HEADER section to declare extents in")
-    marker = f"{newline}0{newline}ENDSEC"
-    endsec = text.find(marker, header)
-    if endsec < 0:
-        raise RuntimeError(f"{path.name}: DXF HEADER section is not terminated")
-    block = dxf_header_extents(half_size_um, newline)
-    path.write_text(
-        text[: endsec + len(newline)] + block + text[endsec + len(newline):],
-        encoding="utf-8",
-        newline="",
-    )
-
-
 def write_layout(
     output_path: Path,
     source_layout,
     region,
     cell_name: str,
-    add_registration_envelope: bool,
-    write_header_extents: bool,
 ) -> None:
     output_layout = pya.Layout()
     output_layout.dbu = source_layout.dbu
@@ -519,12 +452,6 @@ def write_layout(
     layer_info.name = OUTPUT_LAYER_NAME
     output_layer = output_layout.layer(layer_info)
     cell.shapes(output_layer).insert(region)
-
-    if add_registration_envelope:
-        registration_info = pya.LayerInfo(REGISTRATION_LAYER, REGISTRATION_DATATYPE)
-        registration_info.name = REGISTRATION_LAYER_NAME
-        registration_layer = output_layout.layer(registration_info)
-        cell.shapes(registration_layer).insert(registration_envelope_region(output_layout))
 
     options = pya.SaveLayoutOptions()
     options.set_format_from_filename(str(output_path))
@@ -537,19 +464,12 @@ def write_layout(
         # KLayout encodes numeric layers as names such as L0D0_0. Restore the
         # literal DXF layer name requested for the laser workflow.
         generated_name = f"L{OUTPUT_LAYER}D{OUTPUT_DATATYPE}_{OUTPUT_LAYER_NAME}"
-        generated_registration_name = (
-            f"L{REGISTRATION_LAYER}D{REGISTRATION_DATATYPE}_{REGISTRATION_LAYER_NAME}"
-        )
         text = output_path.read_text(encoding="utf-8", errors="strict")
         output_path.write_text(
-            text.replace(generated_name, OUTPUT_LAYER_NAME).replace(
-                generated_registration_name, REGISTRATION_LAYER_NAME
-            ),
+            text.replace(generated_name, OUTPUT_LAYER_NAME),
             encoding="utf-8",
             newline="",
         )
-        if write_header_extents:
-            inject_dxf_header_extents(output_path, REGISTRATION_HALF_SIZE_UM)
 
 
 def main() -> None:
@@ -573,13 +493,9 @@ def main() -> None:
     max_cut_width_um = as_float("max_cut_width_um", MAX_CUT_WIDTH_UM)
     stitch_um = as_float("stitch_overlap_um", STITCH_OVERLAP_UM)
     mode = str(runtime_value("clip_mode", CLIP_MODE)).strip().lower()
-    add_registration_envelope = as_bool(
-        "add_registration_envelope", ADD_IMPORT_REGISTRATION_ENVELOPE
-    )
     source_spec = parse_layer_spec(runtime_value("source_layer", SOURCE_LAYER_SPEC))
     window_offsets = parse_window_offsets(runtime_value("window_offsets", WINDOW_OFFSETS_UM))
     width_mode = str(runtime_value("cut_width_mode", CUT_WIDTH_MODE)).strip().lower()
-    write_header_extents = as_bool("write_dxf_header_extents", WRITE_DXF_HEADER_EXTENTS)
     allow_outside = as_bool("allow_geometry_outside_fields", ALLOW_GEOMETRY_OUTSIDE_FIELDS)
     extension = str(runtime_value("output_extension", OUTPUT_EXTENSION)).strip().lower()
     if not extension.startswith("."):
@@ -665,8 +581,6 @@ def main() -> None:
             layout,
             clipped,
             name.upper(),
-            add_registration_envelope,
-            write_header_extents,
         )
         bbox = region_bbox_um(layout, clipped)
         manifest_rows.append(
@@ -693,8 +607,6 @@ def main() -> None:
                 "output_bbox_um": "" if bbox is None else ";".join(f"{v:.3f}" for v in bbox),
                 "polygon_count": clipped.count(),
                 "has_cut_geometry": not clipped.is_empty(),
-                "import_registration_envelope": add_registration_envelope,
-                "declared_window_half_um": REGISTRATION_HALF_SIZE_UM if write_header_extents else "",
             }
         )
 
@@ -728,17 +640,6 @@ def main() -> None:
             f"widest_original_um={width_stats['widest_original_um']}\n"
         )
         stream.write(f"Stitch overlap (um): {stitch_um}\n")
-        stream.write(
-            "Import registration envelope: "
-            f"enabled={add_registration_envelope}, "
-            f"layer={REGISTRATION_LAYER_NAME}, "
-            f"bbox_um=+/-{REGISTRATION_HALF_SIZE_UM}\n"
-        )
-        stream.write(
-            "Declared DXF header extents: "
-            f"enabled={write_header_extents}, "
-            f"$EXTMIN/$EXTMAX=+/-{REGISTRATION_HALF_SIZE_UM / 1000.0:.3f} mm\n"
-        )
         window_size_um = (QUALIFIED_FIELD_SIZE_UM if mode == "full_window"
                           else partition_window_size_um(stitch_um))
         stream.write(

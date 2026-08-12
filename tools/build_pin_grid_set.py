@@ -3,8 +3,8 @@
 Runs `python/split_klayout_four_windows.py` once per orientation, then assembles
 the labeled folder structure the operator uses at the machine:
 
-    <set>/DXF11/Horizontal.dxf   <set>/DXF11/Vertical.dxf
-    <set>/DXF12/...              <set>/DXF21/...   <set>/DXF22/...
+    <set>/P1/Horizontal.dxf   <set>/P1/Vertical.dxf
+    <set>/P2/...              <set>/P3/...   <set>/P4/...
     <set>/BuildLogs/<orientation>/*_split_log.txt and *_window_manifest.csv
     <set>/Master/  copies of the masters this set was cut from
     <set>/position_manifest.csv
@@ -28,7 +28,7 @@ import runpy
 import shutil
 from pathlib import Path
 
-from pin_grid_layout import STATIONS
+from pin_grid_layout import STATIONS, hole_label
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPLITTER = Path("python/split_klayout_four_windows.py")
@@ -85,22 +85,22 @@ def write_position_manifest(set_dir: Path) -> Path:
             [
                 "folder", "jig_row", "jig_col", "jig_station", "exposed_wafer_area",
                 "field_center_x_wafer_mm", "field_center_y_wafer_mm",
-                "engraved_outer_front_right_pin",
+                "engraved_outer_front_left_pin",
                 "outer_pin_columns", "outer_pin_rows",
                 "horizontal_file", "vertical_file",
             ]
         )
         for station in STATIONS:
-            column, row = station.outer_front_right_pin
+            column, row = station.outer_front_left_pin
             writer.writerow(
                 [
                     station.label, station.jig_row, station.jig_col,
                     station.jig_station, station.exposed_wafer_area,
                     f"{station.field_center_mm[0]:+.3f}",
                     f"{station.field_center_mm[1]:+.3f}",
-                    f"C{column} R{row}",
-                    ",".join(str(v) for v in station.outer_columns),
-                    ",".join(str(v) for v in station.outer_rows),
+                    hole_label(column, row),
+                    ",".join(str(v + 1) for v in station.outer_columns),
+                    ",".join(str(v + 1) for v in station.outer_rows),
                     f"{station.label}/Horizontal.dxf",
                     f"{station.label}/Vertical.dxf",
                 ]

@@ -109,8 +109,6 @@ def splitter_globals(args: argparse.Namespace) -> dict[str, object]:
         "clip_mode": args.clip_mode,
         "global_x_um": str(args.global_x),
         "global_y_um": str(args.global_y),
-        "add_registration_envelope": "0" if args.no_anchors else "1",
-        "write_dxf_header_extents": "0" if args.no_header_extents else "1",
         "allow_geometry_outside_fields": "1" if args.allow_outside else "0",
         "output_extension": args.extension,
     }
@@ -155,12 +153,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--global-y", type=float, default=0.0)
     parser.add_argument("--offset", action="append", metavar="LABEL=X,Y", default=[],
                         help="per-station nudge in microns on top of the global offset, "
-                             "e.g. --offset DXF21=0,-18.5 . Repeatable")
+                             "e.g. --offset P4=0,-18.5 . Repeatable")
     parser.add_argument("--extension", default=".dxf", help=".dxf, .gds, or .oas")
-    parser.add_argument("--no-anchors", action="store_true",
-                        help="omit the REGISTRATION_DO_NOT_EXPOSE anchors")
-    parser.add_argument("--no-header-extents", action="store_true",
-                        help="omit the declared $EXTMIN/$EXTMAX window")
     parser.add_argument("--allow-outside", action="store_true",
                         help="permit discarding geometry outside all four windows")
     parser.add_argument("--list-layers", action="store_true",

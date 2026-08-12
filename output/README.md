@@ -14,8 +14,9 @@ refers to what they actually produced on the machine.
 
 ## Which labeling each set uses
 
-The current set labels folders by **jig station**: `DXF11` is the top-left jig
-position, which exposes the wafer's bottom-right quadrant. See the
+The current set labels folders by **jig station**, numbered clockwise from the
+table's top-left: `P1` is the top-left jig position, which exposes the wafer's
+bottom-right quadrant (`P2` top-right, `P3` bottom-right, `P4` bottom-left). See the
 [coordinate convention](../CALIBRATION_AND_SLIDING_NEST_NOTES.md#coordinate-convention).
 
 Both old-jig sets predate that change and label folders by **exposed wafer
@@ -33,11 +34,13 @@ bounding box.
 
 `080726_FourPosDicer_OriginLocked` is the same geometry re-emitted with four
 `50 um` registration anchors on `REGISTRATION_DO_NOT_EXPOSE`, which force an
-identical bounding box in every file. That fix carried forward into the current
-pin-grid set.
+identical bounding box in every file so an auto-centering importer cannot displace
+one job.
 
-Set `REGISTRATION_DO_NOT_EXPOSE` to no marking / zero power. Never expose that
-layer, and never use fit-to-field scaling.
+The current pin-grid set drops the anchors entirely: it is exposed with the laser's
+automatic centering turned **off**, so each job lands at its true coordinates (the
+DXF origin on the field center), verified by the field-placement self-test in the
+validator. Never use fit-to-field scaling.
 
 ## Regenerating
 
@@ -55,5 +58,5 @@ rebuilding.
 
 There are no rendered previews here. The earlier set was removed on 2026-08-08: it
 showed the superseded 60 mm field and named its panels by the pre-relabel scheme,
-so `DXF11` in those images meant what is now `DXF22`. The figures under
+so `DXF11` in those images meant what is now `P3`. The figures under
 [docs/figures](../docs/figures) are generated from the current geometry instead.

@@ -38,21 +38,21 @@ ApplicationWindow {
         readonly property string mono:        "Cascadia Mono"
     }
 
-    readonly property var stations: ["DXF11", "DXF12", "DXF21", "DXF22"]
+    readonly property var stations: ["P1", "P2", "P3", "P4"]
     readonly property var stationColor: ({
-        "DXF11": "#4cc2ff", "DXF12": "#ffb951", "DXF21": "#6ccb5f", "DXF22": "#c39bf0"
+        "P1": "#4cc2ff", "P2": "#ffb951", "P3": "#c39bf0", "P4": "#6ccb5f"
     })
     readonly property var stationJig: ({
-        "DXF11": "jig top-left", "DXF12": "jig top-right",
-        "DXF21": "jig bottom-left", "DXF22": "jig bottom-right"
+        "P1": "jig top-left", "P2": "jig top-right",
+        "P3": "jig bottom-right", "P4": "jig bottom-left"
     })
 
     property string sourcePath: ""
     property string outputPath: ""
     property string layerSelector: ""
     property var stationOffsets: ({
-        "DXF11": { "x": 0, "y": 0 }, "DXF12": { "x": 0, "y": 0 },
-        "DXF21": { "x": 0, "y": 0 }, "DXF22": { "x": 0, "y": 0 }
+        "P1": { "x": 0, "y": 0 }, "P2": { "x": 0, "y": 0 },
+        "P3": { "x": 0, "y": 0 }, "P4": { "x": 0, "y": 0 }
     })
 
     function params() {
@@ -65,8 +65,6 @@ ApplicationWindow {
             "clipMode": clipCombo.currentText,
             "globalX": parseFloat(offsetX.text) || 0.0,
             "globalY": parseFloat(offsetY.text) || 0.0,
-            "anchors": anchorsBox.checked,
-            "headerExtents": extentsBox.checked,
             "allowOutside": allowOutsideBox.checked,
             "extension": formatCombo.currentText,
             "stationOffsets": root.stationOffsets,
@@ -443,17 +441,6 @@ ApplicationWindow {
                             Layout.bottomMargin: 4
                         }
                         CheckBox {
-                            id: anchorsBox
-                            text: "Registration anchors"
-                            checked: true
-                            onToggled: root.refresh()
-                        }
-                        CheckBox {
-                            id: extentsBox
-                            text: "Declare window in DXF header"
-                            checked: true
-                        }
-                        CheckBox {
                             id: allowOutsideBox
                             text: "Allow discarding outside geometry"
                             checked: false
@@ -507,8 +494,8 @@ ApplicationWindow {
                                 offsetX.text = "0"; offsetY.text = "0"
                                 stitchField.text = String(bridge.defaultStitchUm)
                                 root.stationOffsets = {
-                                    "DXF11": { "x": 0, "y": 0 }, "DXF12": { "x": 0, "y": 0 },
-                                    "DXF21": { "x": 0, "y": 0 }, "DXF22": { "x": 0, "y": 0 }
+                                    "P1": { "x": 0, "y": 0 }, "P2": { "x": 0, "y": 0 },
+                                    "P3": { "x": 0, "y": 0 }, "P4": { "x": 0, "y": 0 }
                                 }
                                 root.refresh()
                             }

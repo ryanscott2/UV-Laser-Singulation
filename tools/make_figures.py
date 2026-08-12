@@ -23,10 +23,10 @@ import klayout.db as pya
 from pin_grid_layout import (
     LASER_ZERO,
     QUALIFIED_FIELD_SIZE_MM,
-    REGISTRATION_HALF_SIZE_MM,
     STATIONS,
     STITCH_OVERLAP_MM,
     hole_coordinate_mm,
+    hole_label,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -34,8 +34,6 @@ FIGURE_DIR = Path("docs/figures")
 MASTERS = Path("dxf/100mm_10x30mm_Masters")
 TEST_MASTERS = Path("dxf/AlignmentTest_5mm_Marks")
 TEST_SET = Path("output/DXFs/081026_AlignmentTest")
-FAILED_SET = Path("output/DXFs/080726_FourPosDicer")
-LOCKED_SET = Path("output/DXFs/080726_FourPosDicer_OriginLocked")
 
 WAFER_RADIUS = 50.0
 PRIMARY_FLAT_LENGTH = 32.500
@@ -45,10 +43,10 @@ HALF_FIELD = QUALIFIED_FIELD_SIZE_MM / 2.0
 SEAM_HALF = STITCH_OVERLAP_MM / 2.0
 
 STATION_COLORS = {
-    "DXF11": "#1f6feb",
-    "DXF12": "#bf8700",
-    "DXF21": "#1a7f37",
-    "DXF22": "#8250df",
+    "P1": "#1f6feb",
+    "P2": "#bf8700",
+    "P3": "#8250df",
+    "P4": "#1a7f37",
 }
 
 STYLE = """  <style>
@@ -342,7 +340,7 @@ def fig_partition():
 
 
 def fig_translation():
-    station = STATIONS[0]  # DXF11, the jig top-left station
+    station = STATIONS[0]  # P1, the jig top-left station
     cx, cy = station.field_center_mm
     color = STATION_COLORS[station.label]
     fig = Fig(margin=5)
@@ -379,17 +377,7 @@ def fig_translation():
     fig.line(shift, -29, shift, 29, "s-muted", 'stroke-width="0.2"')
     fig.circle(shift, 0, 1.1, "", f'fill="{color}"')
 
-    size = 0.6  # 50 um anchors, drawn 12x oversized so they are visible at all
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            ax = shift + (-REGISTRATION_HALF_SIZE_MM if sx < 0 else REGISTRATION_HALF_SIZE_MM - size)
-            ay = -REGISTRATION_HALF_SIZE_MM if sy < 0 else REGISTRATION_HALF_SIZE_MM - size
-            fig.rect(ax, ay, ax + size, ay + size, "anchor")
-
     fig.text(shift, 58, "2.  translate so the field center is (0,0)", size=3.8, weight="600")
-    fig.text(shift, -58, f"four anchors lock content bounds to +/-{REGISTRATION_HALF_SIZE_MM:.0f} mm",
-             "warn", 2.6)
-    fig.text(shift, -61.8, "on REGISTRATION_DO_NOT_EXPOSE  (never exposed)", "muted", 2.4)
 
     mid = (right + shift - HALF_FIELD) / 2.0
     fig.line(mid - 9, 0, mid + 9, 0, "s-ink", 'stroke-width="0.7" marker-end="url(#arrow)"')
@@ -419,7 +407,7 @@ def fig_jig_inversion():
             hx, hy = hole_coordinate_mm(column, row)
             fig.circle(hx, hy, 2.4, "", f'fill="{color}"')
 
-    column, row = station.outer_front_right_pin
+    column, row = station.outer_front_left_pin
     hx, hy = hole_coordinate_mm(column, row)
     fig.circle(hx, hy, 5.8, "s-warn", 'stroke-width="0.8"')
 
@@ -431,71 +419,16 @@ def fig_jig_inversion():
     fig.text(100, 214, "the top-left jig station exposes the wafer's bottom-right",
              size=5.0, weight="600")
     fig.text(100, 208, "the laser field never moves; the wafer moves under it", "muted", 3.0)
-    fig.text(hx + 8, hy - 1, f"engraved hole  C{column} R{row}", "warn", 3.0, anchor="start")
+    fig.text(hx + 8, hy - 1, f"engraved hole  {hole_label(column, row)}", "warn", 3.0, anchor="start")
     fig.text(lx, ly + HALF_FIELD + 2.6,
              f"{QUALIFIED_FIELD_SIZE_MM:g} mm field at laser zero (96.19, 109.35)",
              "warn", 3.0)
     fig.text(wx, wy + 67, f"plate at station {station.jig_station.replace('_', '-')} "
                           f"({station.label})", "muted", 3.0, fill=color)
-    fig.text(2, 2, "C0 = table left,  R0 = table front", "muted", 2.9, anchor="start")
+    fig.text(2, 2, "C1 = table left,  R1 = table front", "muted", 2.9, anchor="start")
     fig.text(198, 6, "jig moves left and rearward", "muted", 2.9, anchor="end")
     fig.text(198, 1.8, "so the exposed area moves right and forward", "muted", 2.9, anchor="end")
     return "jig_inversion.svg", fig.render(900)
-
-
-def fig_registration():
-    """The real failure, using the real content bounds of the two shipped sets."""
-    fig = Fig(margin=6)
-    pair = ("DXF12", "DXF22")
-    width, gap = 16.0, 26.0
-
-    def panel(ox: float, base: Path, layer, title: str, subtitle: str, good: bool):
-        centers = []
-        for index, label in enumerate(pair):
-            _, bottom, _, top = bbox_mm(base / label / "Horizontal.dxf", layer)
-            x = ox + index * gap
-            color = STATION_COLORS[label]
-            fig.rect(x, bottom, x + width, top, "",
-                     f'fill="{color}" opacity="0.16" stroke="{color}" stroke-width="0.5"')
-            middle = (bottom + top) / 2.0
-            centers.append(middle)
-            fig.line(x - 2.5, middle, x + width + 2.5, middle,
-                     "s-muted" if good else "s-warn", 'stroke-width="0.45" stroke-dasharray="2 1.4"')
-            fig.text(x + width / 2, top + 1.6, label, size=3.2, weight="600", fill=color)
-            fig.text(x + width / 2, bottom - 4.2, f"Y {bottom:.3f}", "muted", 2.4)
-            fig.text(x + width / 2, bottom - 7.4, f"to {top:.3f}", "muted", 2.4)
-            fig.text(x + width + 3.5, middle - 0.9, f"center {middle:+.4f}",
-                     "muted" if good else "warn", 2.5, anchor="start")
-
-        delta = abs(centers[1] - centers[0])
-        span = ox + gap + width + 22
-        fig.text(ox + (gap + width) / 2, 44, title, size=3.8, weight="600",
-                 fill="" if good else "#cf222e")
-        fig.text(ox + (gap + width) / 2, 39.6, subtitle, "muted", 2.7)
-        if delta > 0.0005:
-            fig.line(span, centers[0], span, centers[1], "s-warn",
-                     'stroke-width="0.7" marker-start="url(#arrow)" marker-end="url(#arrow)"')
-            fig.text(span + 2, (centers[0] + centers[1]) / 2 - 1, f"{delta:.4f} mm", "warn",
-                     3.0, anchor="start", weight="600")
-            fig.text(span + 2, (centers[0] + centers[1]) / 2 - 4.6, "relative Y error", "warn",
-                     2.5, anchor="start")
-        else:
-            fig.text(span + 2, centers[0] - 1, "0 mm error", "muted", 3.0, anchor="start",
-                     weight="600")
-        return delta
-
-    panel(0, FAILED_SET, None, "layer 0 only", "content bounds differ per file", good=False)
-    panel(118, LOCKED_SET, "REGISTRATION_DO_NOT_EXPOSE",
-          "with registration anchors", "bounds identical in every file", good=True)
-
-    fig.text(88, 56, "why the anchors exist", size=5.0, weight="600")
-    fig.text(88, 50.5, "measured from the two sets in this repository, horizontal pass",
-             "muted", 2.9)
-    fig.text(88, -36, "dashed line is the bounding-box center an auto-centering importer "
-                      "would align to", "muted", 2.7)
-    fig.text(88, -40.5, "bars show each file's content bounds in Y, the axis the failure "
-                        "appeared on", "muted", 2.7)
-    return "registration_envelope.svg", fig.render(1050)
 
 
 def fig_test_overlay():
@@ -558,7 +491,7 @@ def main() -> int:
     os.chdir(REPO_ROOT)
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     for builder in (fig_wafer_and_fields, fig_partition, fig_translation,
-                    fig_jig_inversion, fig_registration, fig_test_overlay):
+                    fig_jig_inversion, fig_test_overlay):
         name, svg = builder()
         path = FIGURE_DIR / name
         path.write_text(svg + "\n", encoding="utf-8")

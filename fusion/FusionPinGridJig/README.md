@@ -28,8 +28,8 @@ platform, so neither table width nor a front-edge alignment bar is used.
   top with 45 degree sides. One aligned with the pickup opening, one with the
   rear tape gap
 - Three floor engravings, each cut `0.500 mm` into the `2.000 mm` baseplate:
-  `2x2 SINGULATION ALIGNER` plus the four single-hole station coordinates at
-  top-left, `C0=LEFT R0=FRONT` at front-left, `ALIGNMENT PIN` at front-right
+  `4-POSITION ALIGNER` plus the four single-hole station coordinates at
+  top-left, `ALIGNMENT PIN` at front-left, `C1=LEFT R1=FRONT` at front-right
 
 The measured threaded-hole minor diameter was `4.870 mm`, giving a nominal
 `0.220 mm` diametral clearance around each 4.650 mm pin. Print a small pin-fit
@@ -38,41 +38,40 @@ fit.
 
 ## Hole positions and exposure folders
 
-Number grid columns from the left and rows from the front, starting at zero.
+Number grid columns from the left and rows from the front, starting at one.
 The first hole center is assumed to be 12.7 mm from each edge.
 
-Folder labels name the **jig station**, read like a matrix: the first digit is
-the row from the table rear (`1` = top/rear, `2` = bottom/front) and the second
-is the column from the table left (`1` = left, `2` = right).
+`P1`-`P4` name the **jig station**, numbered clockwise from the table's top-left
+(`P1` top-left, `P2` top-right, `P3` bottom-right, `P4` bottom-left).
 
-| Folder | Jig station | Engraved front-right pin | Pin columns/rows | Exposed area |
+| Folder | Jig station | Engraved front-left pin | Pin columns/rows | Exposed area |
 | --- | --- | --- | --- | --- |
-| `DXF11` | top-left (rear-left) | `C4 R3` | columns `0,4`; rows `3,7` | bottom-right |
-| `DXF12` | top-right (rear-right) | `C6 R3` | columns `2,6`; rows `3,7` | bottom-left |
-| `DXF21` | bottom-left (front-left) | `C4 R1` | columns `0,4`; rows `1,5` | top-right |
-| `DXF22` | bottom-right (front-right) | `C6 R1` | columns `2,6`; rows `1,5` | top-left |
+| `P1` | top-left (rear-left) | `C1 R4` | columns `1,5`; rows `4,8` | bottom-right |
+| `P2` | top-right (rear-right) | `C3 R4` | columns `3,7`; rows `4,8` | bottom-left |
+| `P3` | bottom-right (front-right) | `C3 R2` | columns `3,7`; rows `2,6` | top-left |
+| `P4` | bottom-left (front-left) | `C1 R2` | columns `1,5`; rows `2,6` | top-right |
 
 ### Reading the plate
 
-The engraving gives **one hole per station**: the outer front-right pin, the one
-to the right of the wafer's primary flat. The four-pin pattern is rigid, so
+The engraving gives **one hole per station**: the outer front-left pin, the one
+to the left of the wafer's primary flat. The four-pin pattern is rigid, so
 seating that single pin fixes the other three. It always lands two grid spaces
-right and two spaces forward of the pin-pattern center.
+left and two spaces forward of the pin-pattern center.
 
-Coordinates are abbreviated `C` (column) and `R` (row), so `21 C4 R1` seats the
-alignment pin in the hole at column 4, row 1. The heading reads
-`2x2 SINGULATION ALIGNER` and the four label rows are listed rear-first so they
+Coordinates are abbreviated `C` (column) and `R` (row), so `P4 C1 R2` seats the
+alignment pin in the hole at column 1, row 2. The heading reads
+`4-POSITION ALIGNER` and the four label rows are listed rear-first so they
 match the plate's orientation on the table.
 
 Two further engravings sit along the front edge, where the operator reads them:
-`C0=LEFT R0=FRONT` at front-left preserves the counting convention, and
-`ALIGNMENT PIN` at front-right names the outer pin nearest that corner, which is
-the pin every engraved coordinate refers to. Both are placed forward of the
+`ALIGNMENT PIN` at front-left names the outer pin nearest that corner, which is
+the pin every engraved coordinate refers to, and `C1=LEFT R1=FRONT` at
+front-right preserves the counting convention. Both are placed forward of the
 wafer pocket and outboard of the pickup notch, keeping about `5 mm` to the
 pocket wall.
 
-The `ALIGNMENT PIN` label is engraved at the front-right of the plate, next to the
-pin it names. With the inner 2 x 2 set removed there is only one front-right pin,
+The `ALIGNMENT PIN` label is engraved at the front-left of the plate, next to the
+pin it names. With the inner 2 x 2 set removed there is only one front-left pin,
 out near the platform corner, so the reference is unambiguous.
 
 The outer square is not centered on the platform, because the nest is offset
@@ -88,7 +87,7 @@ wafer.
 Moving the jig right exposes farther left on the wafer; moving it away from the
 operator exposes farther toward the wafer's primary flat. Both axes therefore
 invert, and each station exposes the diagonally opposite wafer quadrant. This is
-why `DXF11`, the top-left station, carries the wafer's bottom-right geometry.
+why `P1`, the top-left station, carries the wafer's bottom-right geometry.
 
 ## Wafer fit
 

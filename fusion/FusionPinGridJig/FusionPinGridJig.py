@@ -30,21 +30,29 @@ LASER_ZERO_Y = 109.350
 # Y=114.300 mm. These offsets place the four exposure centers at +/-25.4 mm.
 NEST_OFFSET_FROM_PIN_CENTER_X = +7.290
 NEST_OFFSET_FROM_PIN_CENTER_Y = -4.950
-NEST_CENTER_X = NEST_OFFSET_FROM_PIN_CENTER_X
-NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y
+# Print-v2 machine-offset correction. The 081126 alignment test measured the
+# exposure landing +3.017 mm X, -1.286 mm Y off the wafer flats; shifting the nest
+# by that much relative to the pins makes a fixed, field-centered exposure land
+# correctly, so the DXFs no longer need the software offset. IMPORTANT: once a jig
+# printed from this is in use, reset GLOBAL_X/Y_OFFSET_UM to 0 in
+# python/split_klayout_four_windows.py, or the DXF and the jig double-correct.
+NEST_CALIBRATION_X = +3.017
+NEST_CALIBRATION_Y = -1.286
+NEST_CENTER_X = NEST_OFFSET_FROM_PIN_CENTER_X + NEST_CALIBRATION_X
+NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y + NEST_CALIBRATION_Y
 
 # Four downward locating pins on the corners of a 4 x 4 grid-space square. The
 # inner 2 x 2 set was removed: the outer square alone fixes position and rotation,
 # and fewer pins means fewer holes to line up when seating the plate.
-PIN_DIAMETER = 4.650
+PIN_DIAMETER = 4.700
 PIN_ENGAGEMENT = 5.000
-PIN_TIP_DIAMETER = 4.000
+PIN_TIP_DIAMETER = 4.050
 PIN_TIP_TAPER = 1.000
 
 # Compact platform and wafer nest.
 PLATFORM_SIZE_X = 128.000
 PLATFORM_SIZE_Y = 128.000
-BASE_THICKNESS = 2.000
+BASE_THICKNESS = 3.000
 OUTER_BAR_WIDTH = 4.000
 OUTER_BAR_HEIGHT = 4.000
 SIDEWALL_HEIGHT = 1.500
@@ -52,16 +60,16 @@ SIDEWALL_THICKNESS = 3.000
 
 # Small pickup tabs centered on the left and right edges, so the plate can be
 # lifted straight off the pins without prying at the wafer or the nest wall. They
-# start at the top of the 2 mm platform, leaving a 2 mm undercut to hook under.
+# start at the top of the platform, leaving a full base-thickness undercut to hook under.
 SIDE_TAB_PROTRUSION = 10.000
 SIDE_TAB_LENGTH = 24.000
 
 WAFER_DIAMETER = 100.000
 PRIMARY_FLAT_LENGTH = 32.500
 SECONDARY_FLAT_LENGTH = 18.000
-RADIAL_CLEARANCE = 0.500
-PRIMARY_FLAT_CLEARANCE = 0.500
-SECONDARY_DATUM_CLEARANCE = 0.300
+RADIAL_CLEARANCE = 0.325
+PRIMARY_FLAT_CLEARANCE = 0.325
+SECONDARY_DATUM_CLEARANCE = 0.195
 
 # Two gaps in the raised lip, 180 degrees apart, so a Kapton tab can run from the
 # platform onto the wafer without having to bridge the 1.5 mm wall. The wafer is
@@ -75,42 +83,51 @@ SECONDARY_DATUM_CLEARANCE = 0.300
 PICKUP_GAP_WIDTH = 15.000
 REAR_TAPE_GAP_WIDTH = 15.000
 
-# Three separate engravings cut into the platform floor.
+# Two engravings across the top of the platform floor, plus the front-edge labels
+# below.
 #
-# Top-left is the station map. Labels name the jig station, read like a matrix:
+# Top-LEFT carries the title and P0, the centering position: seat the wafer on
+# P0 and the alignment pin lands in the field center, so the whole wafer is
+# addressable in one shot.
+#
+# Top-RIGHT is the station map. Labels name the jig station, read like a matrix:
 # first digit is the row from the table rear ("top"), second is the column from
 # the table left. The station exposes the opposite wafer quadrant, so the rows
 # are listed rear-first to match how the plate sits on the table. Each row gives
-# ONE hole, the alignment pin, which is the outer front-right pin of the pattern.
+# ONE hole, the alignment pin, which is the outer front-left pin of the pattern.
 # The four-pin pattern is rigid, so that single hole fixes the other three; it
-# sits two grid spaces right of and two forward of the pin-pattern center.
-#
-# Only the heading is long, and it sits at the very top where the corner is
-# widest. A previous single block carried its two longest lines at the BOTTOM of
-# this corner, where the wafer-pocket wall curves in and clipped them; those two
-# lines are now the separate front-edge labels below.
+# sits two grid spaces left of and two forward of the pin-pattern center.
 ANNOTATION_DEPTH = 0.500
-ANNOTATION_TEXT_HEIGHT = 2.000
+ANNOTATION_TEXT_HEIGHT = 3.500
 ANNOTATION_MARGIN_X = 5.000
 ANNOTATION_MARGIN_Y = 5.000
-ANNOTATION_BOX_WIDTH = 62.000
-ANNOTATION_BOX_HEIGHT = 20.000
-ANNOTATION_TEXT = (
-    "2x2 SINGULATION ALIGNER\n"
-    "11 C4 R3\n"
-    "12 C6 R3\n"
-    "21 C4 R1\n"
-    "22 C6 R1"
+# Title + P0 (centering), left-aligned into the top-left corner.
+TITLE_BOX_WIDTH = 40.000
+TITLE_BOX_HEIGHT = 14.000
+TITLE_TEXT = (
+    "ALIGNER\n"
+    "P0 C2 R3"
+)
+# The four quadrant stations, right-aligned into the top-right corner.
+MAP_BOX_WIDTH = 40.000
+MAP_BOX_HEIGHT = 24.000
+MAP_TEXT = (
+    "P1 C1 R4\n"
+    "P2 C3 R4\n"
+    "P3 C3 R2\n"
+    "P4 C1 R2"
 )
 
-# Front-edge labels: the grid convention at front-left, and the alignment pin
-# named at front-right, which is the corner its outer pin sits nearest. Both live
-# in the clear band forward of the wafer pocket and outboard of the centered
-# pickup notch, which keeps about 5 mm to the pocket wall.
+# Front-edge labels: the alignment pin named at front-left, next to the outer pin
+# it now marks, and the grid convention at front-right. Both live in the clear
+# band forward of the wafer pocket and outboard of the centered pickup notch,
+# which keeps about 5 mm to the pocket wall.
 FRONT_LABEL_MARGIN = 5.000
-FRONT_LABEL_BOX_WIDTH = 34.000
+FRONT_LABEL_BOX_WIDTH = 42.000
 FRONT_LABEL_BOX_HEIGHT = 6.000
-ORIENTATION_TEXT = "C0=LEFT R0=FRONT"
+# The origin key is two stacked rows, right-aligned into the bottom-right corner.
+ORIGIN_LABEL_BOX_HEIGHT = 10.000
+ORIENTATION_TEXT = "C1=LEFT\nR1=FRONT"
 ALIGNMENT_PIN_TEXT = "ALIGNMENT PIN"
 
 SEGMENTS = 180
@@ -257,15 +274,18 @@ def extrude_profile(component, sketch, distance_mm, operation, name):
     return feature
 
 
-def engrave_text(component, plane, text, x_min, y_min, width, height, text_height, depth, name):
-    """Cut multiline sketch text downward from the platform's top face."""
+def engrave_text(component, plane, text, x_min, y_min, width, height, text_height, depth, name,
+                 align=None):
+    """Raise multiline sketch text above the platform's top face (additive)."""
+    if align is None:
+        align = adsk.core.HorizontalAlignments.LeftHorizontalAlignment
     sketch = component.sketches.add(plane)
     sketch.name = f"{name} Sketch"
     text_input = sketch.sketchTexts.createInput2(text, cm(text_height))
     placed = text_input.setAsMultiLine(
         adsk.core.Point3D.create(cm(x_min), cm(y_min), 0),
         adsk.core.Point3D.create(cm(x_min + width), cm(y_min + height), 0),
-        adsk.core.HorizontalAlignments.LeftHorizontalAlignment,
+        align,
         adsk.core.VerticalAlignments.TopVerticalAlignment,
         0.0,
     )
@@ -278,11 +298,11 @@ def engrave_text(component, plane, text, x_min, y_min, width, height, text_heigh
     extrudes = component.features.extrudeFeatures
     feature_input = extrudes.createInput(
         sketch_text,
-        adsk.fusion.FeatureOperations.CutFeatureOperation,
+        adsk.fusion.FeatureOperations.JoinFeatureOperation,
     )
     feature_input.setDistanceExtent(
         False,
-        adsk.core.ValueInput.createByString(f"-{depth} mm"),
+        adsk.core.ValueInput.createByString(f"{depth} mm"),
     )
     feature = extrudes.add(feature_input)
     feature.name = name
@@ -381,7 +401,7 @@ def add_parameter(design, name, value_mm, comment):
 def build_model(design):
     component = design.rootComponent
     xy_plane = component.xYConstructionPlane
-    wall_plane = offset_plane(component, BASE_THICKNESS, "Top of 2 mm Wafer Platform")
+    wall_plane = offset_plane(component, BASE_THICKNESS, "Top of Wafer Platform")
     pickup_top_plane = offset_plane(
         component,
         BASE_THICKNESS + SIDEWALL_HEIGHT + 0.2,
@@ -436,7 +456,7 @@ def build_model(design):
         "128 mm Square Wafer Platform",
     )
 
-    # Continuous 4 x 4 mm perimeter reinforcement above the 2 mm platform.
+    # Continuous 4 x 4 mm perimeter reinforcement above the platform.
     inner_platform = rectangle_points(
         NEST_CENTER_X - PLATFORM_SIZE_X / 2.0 + OUTER_BAR_WIDTH,
         NEST_CENTER_Y - PLATFORM_SIZE_Y / 2.0 + OUTER_BAR_WIDTH,
@@ -454,7 +474,7 @@ def build_model(design):
     )
 
     # Pickup tabs, one per side, centered on the platform's Y center. Extruded
-    # from the top of the 2 mm platform rather than from the table, so each tab
+    # from the top of the platform rather than from the table, so each tab
     # is cantilevered with a 2 mm gap underneath: that undercut is what a
     # fingernail or tweezer tip hooks into to lift the plate straight off its
     # pins, instead of prying against the wafer or the nest wall.
@@ -479,7 +499,7 @@ def build_model(design):
         )
 
     # Centered tweezer notch aligned to the pickup opening, same width, with
-    # a 45 degree flare through the full 4 mm perimeter bar. The 2 mm platform
+    # a 45 degree flare through the full 4 mm perimeter bar. The platform
     # remains continuous.
     platform_front_y = NEST_CENTER_Y - PLATFORM_SIZE_Y / 2.0
     outer_notch_bottom = rectangle_points(
@@ -596,7 +616,7 @@ def build_model(design):
 
     # The perimeter bar gets the same 45 degree notch behind the rear tape gap
     # that it already has behind the pickup opening, so a finger and a tab can
-    # reach the wafer edge from outside the plate. The 2 mm platform is untouched.
+    # reach the wafer edge from outside the plate. The platform is untouched.
     platform_rear_y = NEST_CENTER_Y + PLATFORM_SIZE_Y / 2.0
     rear_notch_bottom = rectangle_points(
         NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0,
@@ -621,7 +641,7 @@ def build_model(design):
     )
 
     # Four 4.65 mm pins on the corners of the 4 x 4 grid-space square. The full
-    # diameter continues through the 2 mm platform for maximum root strength.
+    # diameter continues through the platform for maximum root strength.
     outer_half_span = OUTER_PIN_PATTERN_SPAN / 2.0
     pin_locations = (
         ("Outer Front Left", -outer_half_span, -outer_half_span),
@@ -665,38 +685,52 @@ def build_model(design):
     engrave_text(
         component,
         wall_plane,
-        ANNOTATION_TEXT,
+        TITLE_TEXT,
         platform_left + ANNOTATION_MARGIN_X,
-        platform_rear - ANNOTATION_MARGIN_Y - ANNOTATION_BOX_HEIGHT,
-        ANNOTATION_BOX_WIDTH,
-        ANNOTATION_BOX_HEIGHT,
+        platform_rear - ANNOTATION_MARGIN_Y - TITLE_BOX_HEIGHT,
+        TITLE_BOX_WIDTH,
+        TITLE_BOX_HEIGHT,
         ANNOTATION_TEXT_HEIGHT,
         ANNOTATION_DEPTH,
-        "2x2 Position Map - 0.5 mm Engraving",
+        "Title and P0 - 0.5 mm Engraving",
     )
     engrave_text(
         component,
         wall_plane,
-        ORIENTATION_TEXT,
+        MAP_TEXT,
+        platform_right - ANNOTATION_MARGIN_X - MAP_BOX_WIDTH,
+        platform_rear - ANNOTATION_MARGIN_Y - MAP_BOX_HEIGHT,
+        MAP_BOX_WIDTH,
+        MAP_BOX_HEIGHT,
+        ANNOTATION_TEXT_HEIGHT,
+        ANNOTATION_DEPTH,
+        "Position Map - 0.5 mm Engraving",
+        align=adsk.core.HorizontalAlignments.RightHorizontalAlignment,
+    )
+    engrave_text(
+        component,
+        wall_plane,
+        ALIGNMENT_PIN_TEXT,
         platform_left + FRONT_LABEL_MARGIN,
         platform_front + FRONT_LABEL_MARGIN,
         FRONT_LABEL_BOX_WIDTH,
         FRONT_LABEL_BOX_HEIGHT,
         ANNOTATION_TEXT_HEIGHT,
         ANNOTATION_DEPTH,
-        "Grid Orientation Label - 0.5 mm Engraving",
+        "Alignment Pin Label - 0.5 mm Engraving",
     )
     engrave_text(
         component,
         wall_plane,
-        ALIGNMENT_PIN_TEXT,
+        ORIENTATION_TEXT,
         platform_right - FRONT_LABEL_MARGIN - FRONT_LABEL_BOX_WIDTH,
         platform_front + FRONT_LABEL_MARGIN,
         FRONT_LABEL_BOX_WIDTH,
-        FRONT_LABEL_BOX_HEIGHT,
+        ORIGIN_LABEL_BOX_HEIGHT,
         ANNOTATION_TEXT_HEIGHT,
         ANNOTATION_DEPTH,
-        "Alignment Pin Label - 0.5 mm Engraving",
+        "Grid Orientation Label - 0.5 mm Engraving",
+        align=adsk.core.HorizontalAlignments.RightHorizontalAlignment,
     )
 
     for plane in (

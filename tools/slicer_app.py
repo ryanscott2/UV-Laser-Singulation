@@ -54,10 +54,10 @@ RUN_SPLITTER = REPO_ROOT / "tools" / "run_splitter.py"
 DATASETS_JSON = REPO_ROOT / "tools" / ".ui_datasets.json"
 
 STATION_COLORS = {
-    "DXF11": "#4cc2ff",
-    "DXF12": "#ffb951",
-    "DXF21": "#6ccb5f",
-    "DXF22": "#c39bf0",
+    "P1": "#4cc2ff",
+    "P2": "#ffb951",
+    "P3": "#c39bf0",
+    "P4": "#6ccb5f",
 }
 CUT_COLOR = "#f2f2f2"
 ANCHOR_COLOR = "#ff99a4"
@@ -70,7 +70,7 @@ FACE = "Segoe UI Variable Text"
 
 # Every field the UI remembers per dataset.
 DATASET_FIELDS = ("input", "output", "layer", "cutWidth", "widthMode", "clipMode",
-                  "globalX", "globalY", "anchors", "headerExtents", "allowOutside",
+                  "globalX", "globalY", "allowOutside",
                   "extension", "stationOffsets", "stitchUm")
 
 
@@ -352,7 +352,7 @@ class PreviewItem(QQuickPaintedItem):
     def _draw_sliced(self, painter: QPainter, rect: QRectF) -> None:
         preview = self._preview
         half = preview.half_mm
-        grid = {"DXF11": (0, 0), "DXF12": (1, 0), "DXF21": (0, 1), "DXF22": (1, 1)}
+        grid = {"P1": (0, 0), "P2": (1, 0), "P3": (1, 1), "P4": (0, 1)}
         gap, caption = 16.0, 40.0
         side = max(min((rect.width() - gap * 3) / 2,
                        (rect.height() - gap * 3 - caption * 2) / 2), 40.0)
@@ -389,9 +389,6 @@ class PreviewItem(QQuickPaintedItem):
             self._font(painter, 12)
             painter.setPen(QPen(QColor(ANCHOR_COLOR)))
             painter.drawText(cell, Qt.AlignCenter, "no cut geometry")
-
-        if tile.anchors_mm:
-            self._ink(painter, self._path(tile.anchors_mm, view), ANCHOR_COLOR, 1.8)
 
         pen = QPen(QColor("#454545"))
         pen.setWidthF(1.0)
@@ -631,7 +628,6 @@ class Bridge(QObject):
             "clip_mode": str(params.get("clipMode", "partition")),
             "global_x_um": float(params.get("globalX", 0.0)),
             "global_y_um": float(params.get("globalY", 0.0)),
-            "anchors": bool(params.get("anchors", True)),
             "window_offsets": self._offsets_from(params),
             "stitch_um": self._stitch_from(params),
         })
@@ -651,7 +647,7 @@ class Bridge(QObject):
     @staticmethod
     def _offsets_from(params) -> dict:
         """Pull the per-station nudges out of the QML params map."""
-        stations = ("DXF11", "DXF12", "DXF21", "DXF22")
+        stations = ("P1", "P2", "P3", "P4")
         raw = params.get("stationOffsets") or {}
         return {label: (float((raw.get(label) or {}).get("x", 0.0) or 0.0),
                         float((raw.get(label) or {}).get("y", 0.0) or 0.0))
@@ -695,10 +691,6 @@ class Bridge(QObject):
         layer = str(params.get("layer", "")).strip()
         if layer:
             arguments += ["--layer", layer]
-        if not bool(params.get("anchors", True)):
-            arguments.append("--no-anchors")
-        if not bool(params.get("headerExtents", True)):
-            arguments.append("--no-header-extents")
         if bool(params.get("allowOutside", False)):
             arguments.append("--allow-outside")
         arguments += ["--stitch", f"{self._stitch_from(params):g}"]

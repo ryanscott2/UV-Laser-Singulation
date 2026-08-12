@@ -19,7 +19,6 @@ Edit these near the top of the script:
 - `MAX_CUT_WIDTH_UM` (default `50.0`)
 - `STITCH_OVERLAP_UM`
 - `CLIP_MODE`
-- `WRITE_DXF_HEADER_EXTENTS` (default `True`)
 - `ALLOW_GEOMETRY_OUTSIDE_FIELDS` (default `False`)
 
 Positive global X moves cut geometry right in every output. Positive global Y
@@ -60,20 +59,19 @@ The split log and manifest record all three, plus any job that came out empty.
 
 ## Window mapping
 
-Jobs are named for the **jig station** that produces them, read like a matrix:
-the first digit is the row from the table rear (`1` = top/rear, `2` =
-bottom/front) and the second is the column from the table left (`1` = left,
-`2` = right).
+Jobs are named for the **jig station** that produces them. P1-P4 name the jig
+station, numbered clockwise from the table's top-left (P1 top-left, P2
+top-right, P3 bottom-right, P4 bottom-left).
 
 Indexing the jig moves the wafer, not the laser, so both axes invert and each
 station exposes the diagonally opposite wafer quadrant:
 
 | Job | Jig station | Window center in wafer coordinates | Owned quadrant |
 | --- | --- | ---: | --- |
-| `DXF11_jig_top_left` | top-left | +25,400 um X; -25,400 um Y | right / bottom |
-| `DXF12_jig_top_right` | top-right | -25,400 um X; -25,400 um Y | left / bottom |
-| `DXF21_jig_bottom_left` | bottom-left | +25,400 um X; +25,400 um Y | right / top |
-| `DXF22_jig_bottom_right` | bottom-right | -25,400 um X; +25,400 um Y | left / top |
+| `P1_jig_top_left` | top-left | +25,400 um X; -25,400 um Y | right / bottom |
+| `P2_jig_top_right` | top-right | -25,400 um X; -25,400 um Y | left / bottom |
+| `P3_jig_bottom_right` | bottom-right | -25,400 um X; +25,400 um Y | left / top |
+| `P4_jig_bottom_left` | bottom-left | +25,400 um X; +25,400 um Y | right / top |
 
 Each output is translated so its own laser-field center is `(0, 0)`. A manifest
 CSV records the jig station, exposed wafer area, clip box, translation, polygon
@@ -113,38 +111,21 @@ secondary flat. It can also be overridden with `-rd edge_bead_mm=...`.
 
 ## Outputs
 
-- Four files named `DXF11_jig_top_left` through `DXF22_jig_bottom_right`
+- Four files named `P1_jig_top_left` through `P4_jig_bottom_left`
 - A `window_manifest.csv`
 - A `split_log.txt`
 
 DXF outputs contain closed `LWPOLYLINE` cut polygons on literal layer `0` and
 retain the source convention of 1 drawing unit = 1 mm.
 
-Every DXF output declares its window twice.
-
-The header carries `$EXTMIN` and `$EXTMAX` at exactly `+/-27.000 mm`, plus
-`$INSBASE` at the origin and `$LIMMIN`/`$LIMMAX`. KLayout writes a header holding
-only `$ACADVER`, leaving importers to infer the extent from entities; a declared
-extent removes that inference and does not depend on layer visibility. Disable
-with `-rd write_dxf_header_extents=0`.
-
-Every output also contains four 50 um import-registration anchors on
-`REGISTRATION_DO_NOT_EXPOSE` with the same `(-27,-27) to (+27,+27) mm` bounds, so
-automatic drawing centering cannot shift jobs differently. The laser must be
-configured to ignore this layer. Never expose the registration anchors.
-
-The anchors are not sufficient on their own: an importer that computes extents
-from marking layers only would skip a layer set to no marking. On a sparse
-pattern, layer 0 alone yields `3 x 3 mm` boxes at four unrelated centers and two
-files with no layer-0 geometry at all, while all four report the full declared
-window about the origin once the anchors count. Hence both mechanisms.
+Jobs are placed by their true coordinates with the laser's auto-centering OFF,
+so the DXF origin lands on the field center exactly as written. All cut geometry
+lives on layer `0`; there are no registration anchors and no declared header
+extents.
 
 The production field is `54 x 54 mm` and each job occupies `51 x 51 mm` of it,
 centred, leaving `1.5 mm` of clear field on every side. A centred 54 mm job retains
 `12.2425 mm` margin to every edge of the `78.485 mm` maximum usable field.
-
-If the laser importer reliably preserves the drawing origin, the anchors can
-be disabled with `-rd add_registration_envelope=0`.
 
 ## The removed original-jig profile
 

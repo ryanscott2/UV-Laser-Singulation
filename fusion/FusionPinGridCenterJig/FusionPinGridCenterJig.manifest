@@ -1,8 +1,0 @@
-{
-  "autodeskProduct": "Fusion360",
-  "type": "script",
-  "author": "",
-  "description": "Builds and exports an eight-pin center-field 100 mm wafer jig",
-  "supportedOS": "windows|mac",
-  "editEnabled": true
-}
