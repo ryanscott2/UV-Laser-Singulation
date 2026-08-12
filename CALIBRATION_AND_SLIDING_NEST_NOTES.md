@@ -1,6 +1,6 @@
 # UV Laser Singulation calibration and sliding-nest notes
 
-Last updated: 2026-08-08
+Last updated: 2026-08-12
 
 ## Coordinate convention
 
@@ -379,3 +379,49 @@ Other 2026-08-11 changes:
   builds and validates clean, carrying the software offset for the current jig.
 - The field-placement self-test checks the `60 mm` usable field (`+/-30 mm`), not
   the `54 mm` qualified field.
+
+## Nest tightened to flat-only datuming (2026-08-12)
+
+The printed jig moved to pressed steel dowels in bosses and a tight bounding-box
+plate (`123.53 x 116.63 mm`; see `fusion/FusionPinGridJig`), and the wafer nest was
+retuned to locate the wafer **purely on its two flats** for maximum repeatability.
+The calibrated print in hand was very roomy even in PLA, so the flats were pulled
+in hard while the arc was left loose enough never to touch first.
+
+Clearances now, in `FusionPinGridJig.py` (these supersede the v2 values in the
+"Platform and nest dimensions" section above):
+
+- Primary flat (front datum) and secondary flat (left datum): **0.175 mm each**
+  (the calibrated print's nest was `0.500` primary / `0.300` secondary).
+- Radial arc: **0.500 mm**. With both flats home the wafer center sits
+  `sqrt(0.175^2 + 0.175^2) = 0.248 mm` off nest center, so the arc must exceed that
+  or the front-left arc jams before the flats seat. `0.500` leaves `~0.25 mm` arc
+  clearance, sized so every wafer -- including undersize, which seats deeper into
+  the corner -- clears the arc and datums on its flats.
+
+**Dowel length:** the bore engages `BOSS_HEIGHT + BASE_THICKNESS = 8 mm`, so cut
+each 3/16 in steel dowel to **`13 mm`** and press it flush with the boss top; that
+leaves `5 mm` protruding below the base, matching the v2 printed pins.
+
+### Calibration impact -- manual recalibration required
+
+The seat moves, so the current `NEST_CALIBRATION = +3.187 / -1.346` (and the
+matching software `GLOBAL_*_OFFSET_UM = -3101.7 / +1315.7`) are no longer valid;
+they were measured against the old roomy nest. A manual recalibration will be done
+with this print.
+
+- **Y (primary flat):** both the old and new nests datum Y on the primary flat, so
+  the shift is clean -- tightening `0.500 -> 0.175` seats the wafer **+0.325 mm
+  rearward (+Y)**, so the field-centered exposure lands about `0.325 mm` further
+  forward (`-Y`) on the wafer before re-trim.
+- **X (secondary flat):** the OLD nest's arc interfered -- its `0.500` arc was
+  smaller than the `0.500 / 0.300` flats' `0.583 mm` diagonal, so pushing forward
+  pinned the front arc and the secondary flat never fully seated; X was not cleanly
+  flat-datumed. The new nest lets the secondary flat seat (X datums at `-0.175`), so
+  X needs careful re-measurement -- the shift direction depends on where the old
+  arc-limited seat actually sat.
+
+Recalibrate as in the 2026-08-11 section (re-measure flat-to-seam distances at each
+station) and reset `NEST_CALIBRATION`; keep the software `GLOBAL_*_OFFSET_UM` at `0`
+while the baked-offset jig is in use. The flat-only datum should make the new
+calibration more repeatable than the arc-limited v2 seat.
