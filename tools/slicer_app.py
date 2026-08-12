@@ -44,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 import slicer_preview  # noqa: E402
-from make_figures import EDGE_BEAD, WAFER_RADIUS, wafer_outline  # noqa: E402
+from make_figures import WAFER_RADIUS, wafer_outline  # noqa: E402
 from run_splitter import inspect_layers  # noqa: E402
 
 QML_IMPORT_NAME = "Slicer"
@@ -71,7 +71,7 @@ FACE = "Segoe UI Variable Text"
 # Every field the UI remembers per dataset.
 DATASET_FIELDS = ("input", "output", "layer", "cutWidth", "widthMode", "clipMode",
                   "globalX", "globalY", "allowOutside",
-                  "extension", "stationOffsets", "stitchUm")
+                  "extension", "stationOffsets", "stitchUm", "edgeBead")
 
 
 # --------------------------------------------------------------------- models
@@ -290,9 +290,11 @@ class PreviewItem(QQuickPaintedItem):
 
         if self._wafer_guide:
             self._outline(painter, [wafer_outline(WAFER_RADIUS)], view, GUIDE_COLOR, 1.4)
-            self._outline(painter,
-                          [wafer_outline(WAFER_RADIUS - EDGE_BEAD, EDGE_BEAD, EDGE_BEAD)],
-                          view, GUIDE_COLOR, 1.0, dashed=True)
+            bead = getattr(preview, "edge_bead_mm", 0.0) or 0.0
+            if bead > 0:
+                self._outline(painter,
+                              [wafer_outline(WAFER_RADIUS - bead, bead, bead)],
+                              view, GUIDE_COLOR, 1.0, dashed=True)
 
         for tile in preview.tiles:
             colour = QColor(STATION_COLORS.get(tile.folder, "#8a8a8a"))
@@ -630,6 +632,7 @@ class Bridge(QObject):
             "global_y_um": float(params.get("globalY", 0.0)),
             "window_offsets": self._offsets_from(params),
             "stitch_um": self._stitch_from(params),
+            "edge_bead_mm": float(params.get("edgeBead", 0.0) or 0.0),
         })
         self._worker.done.connect(self._preview_done)
         self._worker.start()
@@ -683,6 +686,7 @@ class Bridge(QObject):
             "--clip-mode", str(params.get("clipMode", "partition")),
             "--global-x", str(params.get("globalX", 0.0)),
             "--global-y", str(params.get("globalY", 0.0)),
+            "--edge-bead", str(params.get("edgeBead", 0.0) or 0.0),
             "--extension", str(params.get("extension", ".dxf")),
         ]
         output = str(params.get("output", "")).strip()

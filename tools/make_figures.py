@@ -487,11 +487,63 @@ def fig_test_overlay():
     return "test_overlay.svg", fig.render(900)
 
 
+def fig_combined_split():
+    """One combined cut layer, auto-split into horizontal and vertical passes.
+
+    Built from the two 10x30 masters unioned back into a single layer, then run
+    through the same split the `--combined` front end uses, so the figure
+    exercises the real code path rather than a mock-up.
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(REPO_ROOT / "python"))
+    import split_cut_orientation as sco
+
+    combined, scale = read_layer(MASTERS / "100mm_wafer_10x30mm_Horizontal_master.dxf")
+    vertical_master, _ = read_layer(MASTERS / "100mm_wafer_10x30mm_Vertical_master.dxf")
+    combined += vertical_master
+    combined.merge()
+    horizontal, vertical = sco.split_horizontal_vertical(combined)
+
+    def rects(region):
+        out = []
+        for shape in region.decompose_trapezoids():
+            b = shape.bbox()
+            out.append([(b.left * scale, b.bottom * scale), (b.right * scale, b.bottom * scale),
+                        (b.right * scale, b.top * scale), (b.left * scale, b.top * scale)])
+        return out
+
+    fig = Fig(margin=5)
+    shift = 122.0
+
+    # Left: the combined layer, a single colour.
+    fig.poly(wafer_outline(WAFER_RADIUS), "wafer", 'stroke-width="0.4"')
+    for r in rects(combined):
+        fig.poly(r, "cut", 'stroke-width="0.35"')
+    fig.text(0, 58, "1.  one combined cut layer", size=3.8, weight="600")
+
+    # Right: the same cuts, coloured by the orientation the split assigned.
+    fig.poly([(x + shift, y) for x, y in wafer_outline(WAFER_RADIUS)], "wafer", 'stroke-width="0.4"')
+    for r in rects(vertical):
+        fig.poly([(x + shift, y) for x, y in r], "",
+                 'fill="#cf222e" stroke="#cf222e" stroke-width="0.5"')
+    for r in rects(horizontal):
+        fig.poly([(x + shift, y) for x, y in r], "",
+                 'fill="#1f6feb" stroke="#1f6feb" stroke-width="0.5"')
+    fig.text(shift, 58, "2.  split into H (blue) + V (red) passes", size=3.8, weight="600")
+
+    mid = shift / 2.0
+    fig.line(mid - 9, 0, mid + 9, 0, "s-ink", 'stroke-width="0.7" marker-end="url(#arrow)"')
+    fig.text(mid, -58,
+             "decomposed into rectangles, each sorted by its long axis; the split is lossless",
+             "muted", 2.6)
+    return "combined_split.svg", fig.render(1050)
+
+
 def main() -> int:
     os.chdir(REPO_ROOT)
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     for builder in (fig_wafer_and_fields, fig_partition, fig_translation,
-                    fig_jig_inversion, fig_test_overlay):
+                    fig_jig_inversion, fig_test_overlay, fig_combined_split):
         name, svg = builder()
         path = FIGURE_DIR / name
         path.write_text(svg + "\n", encoding="utf-8")

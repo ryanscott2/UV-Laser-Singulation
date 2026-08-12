@@ -68,7 +68,8 @@ ApplicationWindow {
             "allowOutside": allowOutsideBox.checked,
             "extension": formatCombo.currentText,
             "stationOffsets": root.stationOffsets,
-            "stitchUm": stitchField.text
+            "stitchUm": stitchField.text,
+            "edgeBead": parseFloat(edgeBeadField.text) || 0.0
         }
     }
 
@@ -519,6 +520,32 @@ ApplicationWindow {
                         }
                         Label {
                             text: "µm total, max " + bridge.maxStitchUm
+                            color: theme.textTertiary
+                            font.family: theme.face; font.pixelSize: 11
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: theme.cardStroke
+                                Layout.topMargin: 2; Layout.bottomMargin: 2 }
+
+                    Label {
+                        text: "Wafer edge bead"; color: theme.textSecond
+                        font.family: theme.face; font.pixelSize: 13
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        TextField {
+                            id: edgeBeadField
+                            text: "0"
+                            Layout.preferredWidth: 74
+                            validator: DoubleValidator { bottom: 0; decimals: 3 }
+                            font.family: theme.face
+                            onEditingFinished: root.refresh()
+                        }
+                        Label {
+                            text: "mm inset from the wafer edge (0 = none)"
                             color: theme.textTertiary
                             font.family: theme.face; font.pixelSize: 11
                         }

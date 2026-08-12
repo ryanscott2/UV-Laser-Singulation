@@ -285,6 +285,28 @@ The production path (`tools/build_pin_grid_set.py`) is wired to the 100 mm maste
 To slice something else, pick which layer holds the cutlines and what width they
 should be.
 
+### One combined cut layer
+
+The production build takes two pre-separated masters, one horizontal and one
+vertical. When a source instead carries both orientations on a single layer — as
+customer layouts often do, drawn as connected street networks or die-outline
+frames — `build_pin_grid_set.py` can split it in one step:
+
+```bash
+python tools/build_pin_grid_set.py --combined wafer.gds --cut-layer 7 --set output/DXFs/MySet
+```
+
+It reads the cut layer, decomposes it into axis-aligned rectangles, and sorts each
+by its long axis into a horizontal pass and a vertical pass; crossing junctions
+join both passes so no cut line is broken. The split is lossless — `H | V`
+reconstructs the layer exactly — and it aborts if the layer is not purely
+axis-aligned (author those cuts on two layers and use `--masters` instead).
+`--cut-layer` takes a GDS number like `7` or `7/0`, and `--edge-bead <mm>` insets
+the cuts from the wafer edge first. Validate the result with the `--master-stem`
+the build prints.
+
+![One combined cut layer, split into horizontal and vertical passes](docs/figures/combined_split.svg)
+
 ### Desktop window
 
 ```bash
@@ -328,7 +350,8 @@ polygons, because those carry their size as geometry and no width setting can ch
 them — the generated 100 mm masters are polygons for exactly that reason.
 
 The preview has two views. **Wafer** draws the source with the four windows over it,
-the seam cross, and the wafer outline and edge bead as a guide. **Sliced jobs** draws
+the seam cross, the wafer outline, and the edge-bead ring when one is set, as a
+guide. **Sliced jobs** draws
 the four outputs as the laser will see them, each centred on its own origin. Both are
 computed by calling the splitter's own clip and layer functions, so the preview cannot
 drift from what a run writes.
@@ -336,6 +359,10 @@ drift from what a run writes.
 **Alignment**, pinned at the bottom left, tunes placement without editing code: one
 offset for all four jobs, and a per-station nudge on top of it. It moves the cut
 geometry relative to the field center.
+
+**Wafer edge bead**, entered in millimetres, insets the cut geometry from the wafer
+edge before slicing — the same safe region the master generator uses — and the
+dashed guide ring follows the value entered. `0` leaves the geometry untouched.
 
 **Datasets** are named settings, kept in `tools/.ui_datasets.json` as
 `{name: {settings}}`. Save, reload and delete them from the header.
@@ -353,7 +380,7 @@ python tools/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40 --widt
 ```
 
 Add `--allow-outside`, `--global-x/--global-y`,
-`--clip-mode`, `--stitch`, or `--extension` as needed. This is also the supported way
+`--clip-mode`, `--stitch`, `--edge-bead`, or `--extension` as needed. This is also the supported way
 to drive the splitter from plain Python, since the macro itself reads overrides from
 `globals()` and parses no arguments of its own.
 

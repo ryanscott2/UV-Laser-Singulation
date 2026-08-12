@@ -14,6 +14,7 @@ area they expose. See `WINDOWS` for the mapping.
 from __future__ import annotations
 
 import csv
+import math
 import os
 from pathlib import Path
 
@@ -59,6 +60,16 @@ WINDOW_OFFSETS_UM = {
     "P3": (0.0, 0.0),
     "P4": (0.0, 0.0),
 }
+
+# Optional edge bead: inset the cut geometry from the wafer edge before windowing,
+# the same safe region the 10x30 master generator uses. 0 mm keeps the historical
+# behaviour (no clip). Assumes a 100 mm wafer with the primary (major) flat facing
+# -Y and the secondary (minor) flat facing -X. Override with -rd edge_bead_mm=2.0
+EDGE_BEAD_MM = 0.0
+WAFER_RADIUS_UM = 50_000.0
+PRIMARY_FLAT_LENGTH_UM = 32_500.0
+SECONDARY_FLAT_LENGTH_UM = 18_000.0
+EDGE_BEAD_CIRCLE_SEGMENTS = 2048
 
 # Native KLayout/DXF path widths larger than this are reduced about their
 # existing centerlines before clipping. Filled polygons are geometry rather
@@ -332,6 +343,29 @@ def region_bbox_um(layout, region) -> tuple[float, float, float, float] | None:
     return tuple(dbu_to_um(layout, value) for value in (box.left, box.bottom, box.right, box.top))
 
 
+def safe_wafer_region(layout, edge_bead_um: float):
+    """Circle inset by the bead and clipped by both flats -- the same safe region
+    the master generator builds, so an entered edge bead removes cut geometry
+    inside the bead of the wafer edge. Shared with the preview via the namespace."""
+    safe_radius = WAFER_RADIUS_UM - edge_bead_um
+    primary_depth = math.sqrt(WAFER_RADIUS_UM**2 - (PRIMARY_FLAT_LENGTH_UM / 2.0) ** 2)
+    secondary_depth = math.sqrt(WAFER_RADIUS_UM**2 - (SECONDARY_FLAT_LENGTH_UM / 2.0) ** 2)
+    safe_primary_y = -primary_depth + edge_bead_um
+    safe_secondary_x = -secondary_depth + edge_bead_um
+    n = EDGE_BEAD_CIRCLE_SEGMENTS
+    radius_dbu = um_to_dbu(layout, safe_radius)
+    circle = pya.Region(pya.Polygon([
+        pya.Point(int(round(radius_dbu * math.cos(2.0 * math.pi * i / n))),
+                  int(round(radius_dbu * math.sin(2.0 * math.pi * i / n))))
+        for i in range(n)
+    ]))
+    flat_limits = pya.Region(pya.Box(
+        um_to_dbu(layout, safe_secondary_x), um_to_dbu(layout, safe_primary_y),
+        um_to_dbu(layout, safe_radius + 1_000.0), um_to_dbu(layout, safe_radius + 1_000.0),
+    ))
+    return circle & flat_limits
+
+
 def partition_window_size_um(stitch_um: float) -> float:
     """How wide a partition window is: its own half of the pitch, plus the overlap.
 
@@ -515,6 +549,9 @@ def main() -> None:
     source_region, source_layers, width_stats = region_from_source(
         layout, max_cut_width_um, source_spec, width_mode
     )
+    edge_bead_mm = as_float("edge_bead_mm", EDGE_BEAD_MM)
+    if edge_bead_mm > 0:
+        source_region = source_region & safe_wafer_region(layout, edge_bead_mm * 1000.0)
     source_bbox = region_bbox_um(layout, source_region)
     manifest_rows = []
 

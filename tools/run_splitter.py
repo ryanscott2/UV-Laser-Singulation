@@ -111,6 +111,7 @@ def splitter_globals(args: argparse.Namespace) -> dict[str, object]:
         "global_y_um": str(args.global_y),
         "allow_geometry_outside_fields": "1" if args.allow_outside else "0",
         "output_extension": args.extension,
+        "edge_bead_mm": str(args.edge_bead),
     }
     if args.output is not None:
         values["output_dir"] = str(args.output)
@@ -151,6 +152,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--global-x", type=float, default=0.0,
                         help="calibration shift applied to every output, microns")
     parser.add_argument("--global-y", type=float, default=0.0)
+    parser.add_argument("--edge-bead", type=float, default=0.0,
+                        help="mm to inset the cuts from the wafer edge before windowing "
+                             "(0 = no clip)")
     parser.add_argument("--offset", action="append", metavar="LABEL=X,Y", default=[],
                         help="per-station nudge in microns on top of the global offset, "
                              "e.g. --offset P4=0,-18.5 . Repeatable")

@@ -26,6 +26,7 @@ import csv
 import os
 import runpy
 import shutil
+import sys
 from pathlib import Path
 
 from pin_grid_layout import STATIONS, hole_label
@@ -38,9 +39,9 @@ ORIENTATIONS = ("Horizontal", "Vertical")
 MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 
 
-def build(masters_dir: Path, set_dir: Path) -> None:
+def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM) -> None:
     for orientation in ORIENTATIONS:
-        stem = MASTER_STEM.format(orientation=orientation)
+        stem = master_stem.format(orientation=orientation)
         master = masters_dir / f"{stem}.dxf"
         if not master.is_file():
             raise FileNotFoundError(f"Master not found: {master}")
@@ -77,6 +78,56 @@ def build(masters_dir: Path, set_dir: Path) -> None:
     write_position_manifest(set_dir)
 
 
+def parse_cut_layer(spec: str) -> tuple[int, int]:
+    """`5` -> (5, 0);  `5/2` -> (5, 2)."""
+    spec = spec.strip()
+    if "/" in spec:
+        layer, datatype = spec.split("/", 1)
+        return int(layer), int(datatype)
+    return int(spec), 0
+
+
+def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
+                   edge_bead_mm: float) -> str:
+    """Front end for a single source whose cut layer holds both orientations.
+
+    Reads the cut layer, optionally insets it by an edge bead, splits it into
+    horizontal and vertical regions (lossless), writes those as two masters, then
+    runs the normal per-orientation build against them. Returns the master stem.
+    """
+    import klayout.db as pya  # noqa: E402 - lazy so a masters-only build needs no wheel import here
+
+    sys.path.insert(0, str(REPO_ROOT / "python"))
+    import split_cut_orientation as sco  # noqa: E402
+
+    layout = pya.Layout()
+    layout.read(str(source))
+    dbu = layout.dbu
+
+    region = sco.read_layer_region(layout, cut_layer[0], cut_layer[1])
+    if edge_bead_mm and edge_bead_mm > 0:
+        region &= sco.safe_wafer_region(layout, edge_bead_mm * 1000.0)
+    horizontal, vertical = sco.split_horizontal_vertical(region)
+    if not sco.lossless(region, horizontal, vertical):
+        raise RuntimeError(
+            "H/V split lost geometry: the cut layer is not purely axis-aligned. "
+            "Author the cuts on two layers and use --masters instead."
+        )
+
+    base = source.stem
+    master_stem = f"{base}_{{orientation}}_master"
+    staging = set_dir / "BuildLogs" / "combined_source_masters"
+    staging.mkdir(parents=True, exist_ok=True)
+    sco.write_master_dxf(staging / f"{base}_Horizontal_master.dxf", dbu, horizontal)
+    sco.write_master_dxf(staging / f"{base}_Vertical_master.dxf", dbu, vertical)
+
+    print(f"Combined layer {cut_layer[0]}/{cut_layer[1]}: split into "
+          f"H ({horizontal.count()} polys) + V ({vertical.count()} polys)"
+          + (f", inset {edge_bead_mm:g} mm edge bead" if edge_bead_mm > 0 else ""))
+    build(staging, set_dir, master_stem=master_stem)
+    return master_stem
+
+
 def write_position_manifest(set_dir: Path) -> Path:
     path = set_dir / "position_manifest.csv"
     with path.open("w", newline="", encoding="utf-8") as stream:
@@ -111,19 +162,38 @@ def write_position_manifest(set_dir: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--masters", type=Path, default=DEFAULT_MASTERS,
-                        help=f"master DXF directory (default: {DEFAULT_MASTERS})")
+                        help=f"pre-split master DXF directory (default: {DEFAULT_MASTERS})")
     parser.add_argument("--set", dest="set_dir", type=Path, default=DEFAULT_SET,
                         help=f"output set directory (default: {DEFAULT_SET})")
+    parser.add_argument("--combined", type=Path, default=None,
+                        help="single source (GDS/DXF/OAS) whose cut layer holds both "
+                             "orientations; split into H/V automatically instead of --masters")
+    parser.add_argument("--cut-layer", default=None,
+                        help="cut-lines layer for --combined, e.g. 5 or 5/0")
+    parser.add_argument("--edge-bead", type=float, default=0.0,
+                        help="mm to inset the cuts from the wafer edge before splitting (0 = none)")
     args = parser.parse_args()
 
     # Relative paths keep the generated build logs free of local absolute paths.
     os.chdir(REPO_ROOT)
-    build(args.masters, args.set_dir)
 
-    print(f"\nBuilt {args.set_dir} from {args.masters}")
+    if args.combined is not None:
+        if args.cut_layer is None:
+            parser.error("--cut-layer is required with --combined")
+        stem = build_combined(args.combined, parse_cut_layer(args.cut_layer),
+                              args.set_dir, args.edge_bead)
+        source_desc = f"{args.combined} (auto-split combined cut layer)"
+        validate_hint = (f"python tools/validate_pin_grid_set.py --set {args.set_dir} "
+                         f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"")
+    else:
+        build(args.masters, args.set_dir)
+        source_desc = str(args.masters)
+        validate_hint = "python tools/validate_pin_grid_set.py"
+
+    print(f"\nBuilt {args.set_dir} from {source_desc}")
     for station in STATIONS:
         print(f"  {station.label}  jig {station.jig_station:13} exposes {station.exposed_wafer_area}")
-    print("\nNow run: python tools/validate_pin_grid_set.py")
+    print(f"\nNow run: {validate_hint}")
     return 0
 
 

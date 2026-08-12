@@ -45,8 +45,18 @@ fits within +/-30 mm of the origin — the usable field half, with the origin at
 the field center — and reports how far a job would be misplaced if auto-centering
 were left on. It exits non-zero on failure.
 
-To slice a pattern of your own, pick the cutline layer and width in a window and
-watch the four jobs update over the wafer:
+If your source keeps both dicing orientations on one layer, split it automatically
+instead of supplying separate masters:
+
+```bash
+python tools/build_pin_grid_set.py --combined wafer.gds --cut-layer 7
+```
+
+It decomposes the layer and sorts each cut into a horizontal or vertical pass,
+losslessly. Add `--edge-bead <mm>` to inset the cuts from the wafer edge first.
+
+To slice a pattern of your own, pick the cutline layer, width, and any wafer edge
+bead in a window and watch the four jobs update over the wafer:
 
 ```bash
 python tools/slicer_app.py

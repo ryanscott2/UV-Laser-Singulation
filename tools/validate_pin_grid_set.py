@@ -183,7 +183,8 @@ def check_field_placement(set_dir: Path) -> tuple[list[str], bool]:
     ], True
 
 
-def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
+def validate(masters_dir: Path, set_dir: Path,
+             master_stem: str = MASTER_STEM) -> tuple[list[str], bool]:
     lines: list[str] = []
     ok = True
 
@@ -198,7 +199,7 @@ def validate(masters_dir: Path, set_dir: Path) -> tuple[list[str], bool]:
     global_y_mm = ns["GLOBAL_Y_OFFSET_UM"] / 1000.0
 
     for orientation in ORIENTATIONS:
-        stem = MASTER_STEM.format(orientation=orientation)
+        stem = master_stem.format(orientation=orientation)
         master, dbu = read_region(masters_dir / f"{stem}.dxf")
         if master is None:
             raise RuntimeError(f"No layer 0 in master {stem}.dxf")
@@ -241,10 +242,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--masters", type=Path, default=DEFAULT_MASTERS)
     parser.add_argument("--set", dest="set_dir", type=Path, default=DEFAULT_SET)
+    parser.add_argument("--master-stem", dest="master_stem", default=MASTER_STEM,
+                        help="master filename stem with an {orientation} field "
+                             "(for sets built from a combined source)")
     args = parser.parse_args()
 
     os.chdir(REPO_ROOT)
-    lines, ok = validate(args.masters, args.set_dir)
+    lines, ok = validate(args.masters, args.set_dir, args.master_stem)
 
     report = "\n".join(lines) + "\n"
     print(report, end="")

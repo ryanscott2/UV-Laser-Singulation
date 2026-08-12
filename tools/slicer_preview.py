@@ -44,6 +44,7 @@ class Preview:
     field_mm: float
     half_mm: float
     stitch_mm: float
+    edge_bead_mm: float
     source_bbox_mm: tuple[float, float, float, float] | None
     source_area_mm2: float
     dropped_area_mm2: float
@@ -87,6 +88,7 @@ def build_preview(
     global_x_um: float = 0.0,
     global_y_um: float = 0.0,
     window_offsets=None,
+    edge_bead_mm: float = 0.0,
     max_polygons: int = 4000,
 ) -> Preview:
     ns = splitter_namespace()
@@ -109,6 +111,8 @@ def build_preview(
         layout, cut_width_um, spec, width_mode
     )
     source = source.merged()
+    if edge_bead_mm and edge_bead_mm > 0:
+        source = source & ns["safe_wafer_region"](layout, edge_bead_mm * 1000.0)
 
     notes: list[str] = []
     if width_stats["paths_seen"] == 0:
@@ -184,6 +188,7 @@ def build_preview(
         field_mm=ns["QUALIFIED_FIELD_SIZE_UM"] / 1000.0,
         half_mm=ns["QUALIFIED_FIELD_SIZE_UM"] / 2000.0,
         stitch_mm=stitch / 1000.0,
+        edge_bead_mm=edge_bead_mm,
         source_bbox_mm=None if source.is_empty() else (
             box.left * scale, box.bottom * scale, box.right * scale, box.top * scale
         ),
