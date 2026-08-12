@@ -34,7 +34,7 @@ import klayout.db as pya
 from pin_grid_layout import GRID_PITCH, STATIONS, USABLE_FIELD_HALF_MM
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SPLITTER = REPO_ROOT / "python" / "split_klayout_four_windows.py"
+SPLITTER = REPO_ROOT / "python" / "split_klayout.py"
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
 DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")

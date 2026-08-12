@@ -144,7 +144,7 @@ dxf/100mm_10x30mm_Masters/          python/generate_100mm_10x30mm_masters.py
   Horizontal_master.dxf                 50 um cuts on a 10 x 30 mm grid, clipped
   Vertical_master.dxf                   2 mm inside the edge and both flats
         |
-        |  python/split_klayout_four_windows.py
+        |  python/split_klayout.py
         |  driven by tools/build_pin_grid_set.py
         v
 output/DXFs/<set>/P1..P4/           four 51 mm windows in a 54 mm declared field,
@@ -418,7 +418,7 @@ KLayout's `-rd` mechanism. They have no `argv` parsing, so plain
 From the repository root, with KLayout's headless executable:
 
 ```powershell
-& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\python\split_klayout_four_windows.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output"
+& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\python\split_klayout.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output"
 ```
 
 Or from the KLayout GUI with **File > Run Script**, after editing `INPUT_FILE` and

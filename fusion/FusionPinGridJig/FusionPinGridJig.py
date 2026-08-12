@@ -35,7 +35,7 @@ NEST_OFFSET_FROM_PIN_CENTER_Y = -4.950
 # by that much relative to the pins makes a fixed, field-centered exposure land
 # correctly, so the DXFs no longer need the software offset. IMPORTANT: once a jig
 # printed from this is in use, reset GLOBAL_X/Y_OFFSET_UM to 0 in
-# python/split_klayout_four_windows.py, or the DXF and the jig double-correct.
+# python/split_klayout.py, or the DXF and the jig double-correct.
 NEST_CALIBRATION_X = +3.017
 NEST_CALIBRATION_Y = -1.286
 NEST_CENTER_X = NEST_OFFSET_FROM_PIN_CENTER_X + NEST_CALIBRATION_X

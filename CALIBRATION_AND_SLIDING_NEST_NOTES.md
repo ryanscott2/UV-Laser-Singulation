@@ -310,7 +310,7 @@ stitch alone, so the declared field is free to be larger than the window.
   both masters, the field-placement self-test confirms every tile's layer-0
   geometry fits within `+/-30 mm` (the usable field) of the origin with the origin
   at the field center, and all eight DXFs are byte-identical to the files they replaced.
-- One production splitter only: `python/split_klayout_four_windows.py`. The
+- One production splitter only: `python/split_klayout.py`. The
   byte-identical `split_klayout_four_windows_pin_grid.py` duplicate was removed
   on 2026-08-08.
 
@@ -337,7 +337,7 @@ half applied: X by `85 um` (`-3016.7 -> -3101.7`) and Y by `30 um`
 The same offset is corrected two ways, and only ONE may be active at a time:
 
 - **Software (current jig):** `GLOBAL_X_OFFSET_UM = -3101.7`,
-  `GLOBAL_Y_OFFSET_UM = +1315.7` in `python/split_klayout_four_windows.py`, applied
+  `GLOBAL_Y_OFFSET_UM = +1315.7` in `python/split_klayout.py`, applied
   to every job after it is centered on its field. The `081126_FullDice_v3` set is
   built with these split-difference values; the earlier `081126` and
   `081126_AlignmentTest_v2` sets carry the original `-3016.7 / +1285.7` they were

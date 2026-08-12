@@ -15,7 +15,7 @@ from pathlib import Path
 import klayout.db as pya
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SPLITTER = REPO_ROOT / "python" / "split_klayout_four_windows.py"
+SPLITTER = REPO_ROOT / "python" / "split_klayout.py"
 
 Polygon = list[tuple[float, float]]
 

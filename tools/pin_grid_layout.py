@@ -28,7 +28,7 @@ OUTER_SPAN_SPACES = 4
 LASER_ZERO = (96.190, 109.350)
 NEST_OFFSET_FROM_PIN_CENTER = (+7.290, -4.950)
 
-# Exposure field, matching split_klayout_four_windows.py.
+# Exposure field, matching split_klayout.py.
 QUALIFIED_FIELD_SIZE_MM = 54.000
 FIELD_HALF_SIZE_MM = QUALIFIED_FIELD_SIZE_MM / 2.0
 # The galvo's addressable field is larger than the qualified region; a calibration
@@ -59,7 +59,7 @@ class Station:
 
     @property
     def splitter_job(self) -> str:
-        """Output name emitted by split_klayout_four_windows.py."""
+        """Output name emitted by split_klayout.py."""
         return f"{self.label}_jig_{self.jig_station}"
 
     @property

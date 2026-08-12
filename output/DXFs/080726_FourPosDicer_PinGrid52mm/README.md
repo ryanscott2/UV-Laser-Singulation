@@ -7,7 +7,7 @@
 > traceability; do not mix its files with the current set.
 
 This set uses the eight-pin grid jig and the production
-`split_klayout_four_windows.py` profile.
+`split_klayout.py` profile.
 
 ## Optical and stitch geometry
 

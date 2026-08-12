@@ -1,6 +1,6 @@
 """Build the four-position pin-grid production set from the master DXFs.
 
-Runs `python/split_klayout_four_windows.py` once per orientation, then assembles
+Runs `python/split_klayout.py` once per orientation, then assembles
 the labeled folder structure the operator uses at the machine:
 
     <set>/P1/Horizontal.dxf   <set>/P1/Vertical.dxf
@@ -32,7 +32,7 @@ from pathlib import Path
 from pin_grid_layout import STATIONS, hole_label
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SPLITTER = Path("python/split_klayout_four_windows.py")
+SPLITTER = Path("python/split_klayout.py")
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
 DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")
