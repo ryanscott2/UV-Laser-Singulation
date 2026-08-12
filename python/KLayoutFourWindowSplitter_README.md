@@ -4,7 +4,7 @@
 and writes four laser-centered jobs. It supports DXF, GDS, and OAS input through
 KLayout. DXF input and output use millimeters; configuration values use microns.
 
-This is the single production splitter and carries the 52 mm pin-grid profile.
+This is the single production splitter and carries the 54 mm pin-grid profile.
 An identical copy previously existed as `split_klayout_four_windows_pin_grid.py`;
 it has been removed, so edit this file only.
 
@@ -125,7 +125,7 @@ extents.
 
 The production field is `54 x 54 mm` and each job occupies `51 x 51 mm` of it,
 centred, leaving `1.5 mm` of clear field on every side. A centred 54 mm job retains
-`12.2425 mm` margin to every edge of the `78.485 mm` maximum usable field.
+`3 mm` margin to every edge of the `60 mm` usable field.
 
 ## The removed original-jig profile
 

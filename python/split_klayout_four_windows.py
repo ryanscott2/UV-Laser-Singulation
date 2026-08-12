@@ -78,9 +78,9 @@ MAX_CUT_WIDTH_UM = 50.0
 
 # Pin-grid production geometry. The jig moves exactly two 1 inch grid spaces
 # (50.8 mm) between positions, which fixes the window centers. The field is the
-# declared exposure window: 54 mm keeps 12.2425 mm margin to every edge of the
-# 78.485 mm optical field and leaves headroom above the 51 mm a partition window
-# actually needs, so the stitch can be changed without resizing the field.
+# declared exposure window: 54 mm keeps 3 mm margin to every edge of the 60 mm
+# usable field and leaves headroom above the 51 mm a partition window actually
+# needs, so the stitch can be changed without resizing the field.
 QUALIFIED_FIELD_SIZE_UM = 54_000.0
 WINDOW_CENTER_X_UM = 25_400.0
 WINDOW_CENTER_Y_UM = 25_400.0
@@ -366,6 +366,51 @@ def safe_wafer_region(layout, edge_bead_um: float):
     return circle & flat_limits
 
 
+def set_line_widths(region, width_um, mode, dbu):
+    """Resize filled Manhattan cut polygons so each run is `width_um` wide.
+
+    Filled polygons carry no path width to cap or force, so this sets the width
+    geometrically: split the region into horizontal and vertical runs (crossings
+    shared, so nothing breaks), then set each run's short side, keeping its
+    centerline and long axis. `mode` 'force' sets every run; otherwise only runs
+    already wider are narrowed. Assumes axis-aligned cuts."""
+    target = int(round(width_um / dbu))
+    aspect = 1.25
+    horizontal = pya.Region()
+    vertical = pya.Region()
+    for shape in region.decompose_trapezoids():
+        box = shape.bbox()
+        w, h = box.width(), box.height()
+        if w == 0 or h == 0:
+            continue
+        poly = shape.polygon
+        if poly is None:
+            poly = pya.Polygon(box)
+        if w >= h * aspect:
+            horizontal.insert(poly)
+        elif h >= w * aspect:
+            vertical.insert(poly)
+        else:
+            horizontal.insert(poly)
+            vertical.insert(poly)
+    horizontal.merge()
+    vertical.merge()
+
+    out = pya.Region()
+    for shape in horizontal.decompose_trapezoids():
+        box = shape.bbox()
+        new = box.height() if (mode != "force" and box.height() <= target) else target
+        low = int(round((box.bottom + box.top) / 2.0 - new / 2.0))
+        out.insert(pya.Box(box.left, low, box.right, low + new))
+    for shape in vertical.decompose_trapezoids():
+        box = shape.bbox()
+        new = box.width() if (mode != "force" and box.width() <= target) else target
+        low = int(round((box.left + box.right) / 2.0 - new / 2.0))
+        out.insert(pya.Box(low, box.bottom, low + new, box.top))
+    out.merge()
+    return out
+
+
 def partition_window_size_um(stitch_um: float) -> float:
     """How wide a partition window is: its own half of the pitch, plus the overlap.
 
@@ -549,6 +594,11 @@ def main() -> None:
     source_region, source_layers, width_stats = region_from_source(
         layout, max_cut_width_um, source_spec, width_mode
     )
+    # Paths carry a width to cap or force; filled polygons do not, so `force`
+    # resizes them geometrically to the requested width. `cap` leaves polygons as
+    # drawn, which keeps the combined front end and the 50 um masters untouched.
+    if width_mode == "force" and width_stats["paths_seen"] == 0:
+        source_region = set_line_widths(source_region, max_cut_width_um, "force", layout.dbu)
     edge_bead_mm = as_float("edge_bead_mm", EDGE_BEAD_MM)
     if edge_bead_mm > 0:
         source_region = source_region & safe_wafer_region(layout, edge_bead_mm * 1000.0)

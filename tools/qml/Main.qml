@@ -365,7 +365,7 @@ ApplicationWindow {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: "Width applies to native paths only, not filled polygons."
+                            text: "Cap narrows native paths. Force to also sets the width of filled axis-aligned cut polygons."
                             color: theme.textTertiary
                             font.family: theme.face
                             font.pixelSize: 11
@@ -398,12 +398,19 @@ ApplicationWindow {
                             TextField {
                                 Layout.fillWidth: true
                                 text: root.outputPath
-                                placeholderText: "Beside the input"
+                                placeholderText: "Folder name (saved under output/)"
                                 font.family: theme.face
                                 font.pixelSize: 12
                                 onEditingFinished: root.outputPath = text
                             }
                             Button { text: "Browse"; onClicked: folderDialog.open() }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: "A plain name is created under the repo's output/ folder; Browse picks any folder."
+                            color: theme.textTertiary
+                            font.family: theme.face; font.pixelSize: 11
+                            wrapMode: Text.WordWrap
                         }
                         RowLayout {
                             Layout.fillWidth: true
@@ -556,8 +563,17 @@ ApplicationWindow {
                                 Layout.topMargin: 2; Layout.bottomMargin: 2 }
 
                     Label {
-                        text: "Offset, all four jobs"; color: theme.textSecond
+                        text: "Extra offset, all four jobs"; color: theme.textSecond
                         font.family: theme.face; font.pixelSize: 13
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: "on top of the calibrated " + (bridge.calibratedOffsetXUm / 1000).toFixed(3)
+                              + " / " + (bridge.calibratedOffsetYUm / 1000).toFixed(3)
+                              + " mm baked into the splitter"
+                        color: theme.textTertiary
+                        font.family: theme.face; font.pixelSize: 11
+                        wrapMode: Text.WordWrap
                     }
                     RowLayout {
                         Layout.fillWidth: true

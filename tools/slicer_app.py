@@ -568,6 +568,24 @@ class Bridge(QObject):
 
     maxStitchUm = Property(float, _get_max_stitch, constant=True)
 
+    @staticmethod
+    def _calibrated_offset() -> tuple[float, float]:
+        """The global calibration baked into the splitter. The UI offset adds to
+        it, and per-station nudges add on top of that, so the calibration is the
+        hidden baseline beneath every adjustment."""
+        ns = slicer_preview.splitter_namespace()
+        return float(ns["GLOBAL_X_OFFSET_UM"]), float(ns["GLOBAL_Y_OFFSET_UM"])
+
+    def _get_cal_x(self) -> float:
+        return self._calibrated_offset()[0]
+
+    calibratedOffsetXUm = Property(float, _get_cal_x, constant=True)
+
+    def _get_cal_y(self) -> float:
+        return self._calibrated_offset()[1]
+
+    calibratedOffsetYUm = Property(float, _get_cal_y, constant=True)
+
     def _get_layers(self) -> QObject:
         return self._layers
 
@@ -607,7 +625,7 @@ class Bridge(QObject):
             "ok": True,
             "path": str(path),
             "layerRow": LayerModel.best_row(self._entries),
-            "suggestedOutput": str(path.parent / f"{path.stem}_four_windows"),
+            "suggestedOutput": f"{path.stem}_four_windows",
         }
 
     @Slot(int, result=str)
@@ -622,14 +640,15 @@ class Bridge(QObject):
         if self._worker is not None and self._worker.isRunning():
             return
         self._set_busy(True)
+        cal_x, cal_y = self._calibrated_offset()
         self._worker = PreviewWorker({
             "input_path": path,
             "layer_spec": str(params.get("layer", "")),
             "cut_width_um": float(params.get("cutWidth", 50.0)),
             "width_mode": str(params.get("widthMode", "cap")),
             "clip_mode": str(params.get("clipMode", "partition")),
-            "global_x_um": float(params.get("globalX", 0.0)),
-            "global_y_um": float(params.get("globalY", 0.0)),
+            "global_x_um": cal_x + float(params.get("globalX", 0.0) or 0.0),
+            "global_y_um": cal_y + float(params.get("globalY", 0.0) or 0.0),
             "window_offsets": self._offsets_from(params),
             "stitch_um": self._stitch_from(params),
             "edge_bead_mm": float(params.get("edgeBead", 0.0) or 0.0),
@@ -678,19 +697,23 @@ class Bridge(QObject):
             self._set_status("Choose a source file first.")
             return
 
+        cal_x, cal_y = self._calibrated_offset()
         arguments = [
             str(RUN_SPLITTER),
             "--input", str(path),
             "--cut-width", str(params.get("cutWidth", 50.0)),
             "--width-mode", str(params.get("widthMode", "cap")),
             "--clip-mode", str(params.get("clipMode", "partition")),
-            "--global-x", str(params.get("globalX", 0.0)),
-            "--global-y", str(params.get("globalY", 0.0)),
+            "--global-x", str(cal_x + float(params.get("globalX", 0.0) or 0.0)),
+            "--global-y", str(cal_y + float(params.get("globalY", 0.0) or 0.0)),
             "--edge-bead", str(params.get("edgeBead", 0.0) or 0.0),
             "--extension", str(params.get("extension", ".dxf")),
         ]
         output = str(params.get("output", "")).strip()
         if output:
+            # A bare name lands under the repo's output/ folder; a full path wins.
+            if not os.path.isabs(output):
+                output = str(REPO_ROOT / "output" / output)
             arguments += ["--output", output]
         layer = str(params.get("layer", "")).strip()
         if layer:

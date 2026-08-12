@@ -111,14 +111,16 @@ def build_preview(
         layout, cut_width_um, spec, width_mode
     )
     source = source.merged()
+    if width_mode == "force" and width_stats["paths_seen"] == 0:
+        source = ns["set_line_widths"](source, cut_width_um, "force", layout.dbu)
     if edge_bead_mm and edge_bead_mm > 0:
         source = source & ns["safe_wafer_region"](layout, edge_bead_mm * 1000.0)
 
     notes: list[str] = []
     if width_stats["paths_seen"] == 0:
         notes.append(
-            "Selected layer holds filled polygons and no paths, so the width setting "
-            "cannot change it."
+            "Selected layer is filled polygons: 'Force to' sets their width, "
+            "'Cap at' leaves them as drawn."
         )
 
     union = ns["clip_union_region"](layout, clip_mode, stitch)

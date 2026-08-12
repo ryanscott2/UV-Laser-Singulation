@@ -287,8 +287,8 @@ stitch alone, so the declared field is free to be larger than the window.
   X=0 and Y=0 seam, which covers the 75-100 um mismatch measured above. Raising it
   past `3.200 mm` would push a window outside the declared field, and the splitter
   refuses that.
-- Margin from the declared window to each edge of the maximum usable `78.485 mm`
-  optical field: `12.2425 mm`.
+- Margin from the declared 54 mm window to each edge of the `60 mm` usable field:
+  `3 mm`.
 - Placement is by true coordinates: each tile is written with its field center
   at the DXF origin, so the laser (WinLase Pro) run with auto-centering off
   places every job at its true coordinates with the origin on the field center.
