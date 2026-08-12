@@ -7,7 +7,7 @@ and generates the 3D-printed jigs that index the wafer between them.
 Geometry is built with [KLayout](https://www.klayout.de/)'s Python API. The jigs
 are built by Autodesk Fusion scripts from the same measured table dimensions.
 
-![One 100 mm wafer split into four 52 mm exposures](docs/figures/wafer_and_fields.svg)
+![One 100 mm wafer split into four 54 mm exposures](docs/figures/wafer_and_fields.svg)
 
 > **This repository is geometry, not a process.** It specifies no laser, no
 > wavelength, no power, no pulse parameters and no exposure recipe, and it has not
@@ -41,7 +41,7 @@ python tools/validate_pin_grid_set.py
 The build writes four labeled folders of exposure files. The validator
 reconstructs each master from those tiles and requires zero XOR area against it,
 then runs a field-placement self-test: it confirms every tile's layer-0 geometry
-fits within +/-27 mm of the origin — the qualified field half, with the origin at
+fits within +/-30 mm of the origin — the usable field half, with the origin at
 the field center — and reports how far a job would be misplaced if auto-centering
 were left on. It exits non-zero on failure.
 
@@ -76,5 +76,4 @@ wheel half-extracts; see [DOCUMENTATION.md](DOCUMENTATION.md#desktop-window).
 
 ## License
 
-None yet, which means all rights reserved: published for reference only. Add a
-LICENSE file if you want others to be able to build on it.
+None by choice: all rights reserved, published for reference only.

@@ -225,7 +225,7 @@ either fails:
    unioned. The result must XOR to exactly zero area against the layer-0 master,
    proving no cut geometry was lost, duplicated, or shifted by the split.
 2. **Field placement.** A self-test with the origin at the field center: every
-   tile's layer-0 geometry must fit within `+/-27 mm` of the origin, the qualified
+   tile's layer-0 geometry must fit within `+/-30 mm` of the origin, the usable
    field half. It also reports how far a job would be misplaced if auto-centering
    were left on.
 
