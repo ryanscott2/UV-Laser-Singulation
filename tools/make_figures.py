@@ -25,6 +25,7 @@ from pin_grid_layout import (
     QUALIFIED_FIELD_SIZE_MM,
     STATIONS,
     STITCH_OVERLAP_MM,
+    USABLE_FIELD_SIZE_MM,
     hole_coordinate_mm,
     hole_label,
 )
@@ -40,6 +41,7 @@ PRIMARY_FLAT_LENGTH = 32.500
 SECONDARY_FLAT_LENGTH = 18.000
 EDGE_BEAD = 2.000
 HALF_FIELD = QUALIFIED_FIELD_SIZE_MM / 2.0
+USABLE_HALF = USABLE_FIELD_SIZE_MM / 2.0
 SEAM_HALF = STITCH_OVERLAP_MM / 2.0
 
 STATION_COLORS = {
@@ -245,33 +247,33 @@ def fig_wafer_and_fields():
              'stroke-width="0.32"')
     add_cuts(fig, master_cuts())
 
-    reach = 25.4 + HALF_FIELD
+    reach = 25.4 + USABLE_HALF
     fig.rect(-SEAM_HALF, -reach, SEAM_HALF, reach, "overlap")
     fig.rect(-reach, -SEAM_HALF, reach, SEAM_HALF, "overlap")
 
     for station in STATIONS:
         cx, cy = station.field_center_mm
         color = STATION_COLORS[station.label]
-        fig.rect(cx - HALF_FIELD, cy - HALF_FIELD, cx + HALF_FIELD, cy + HALF_FIELD,
+        fig.rect(cx - USABLE_HALF, cy - USABLE_HALF, cx + USABLE_HALF, cy + USABLE_HALF,
                  "", f'fill="none" stroke="{color}" stroke-width="0.55" rx="0.8"')
         fig.circle(cx, cy, 0.9, "", f'fill="{color}"')
 
     for station in STATIONS:
         cx, cy = station.field_center_mm
         color = STATION_COLORS[station.label]
-        lx = cx + (HALF_FIELD - 9) * (1 if cx > 0 else -1)
-        ly = cy + (HALF_FIELD - 4.5) * (1 if cy > 0 else -1)
+        lx = cx + (USABLE_HALF - 9) * (1 if cx > 0 else -1)
+        ly = cy + (USABLE_HALF - 4.5) * (1 if cy > 0 else -1)
         fig.text(lx, ly, station.label, size=3.6, weight="600", fill=color)
         fig.text(lx, ly - 3.8, f"jig {station.jig_station.replace('_', '-')}", "muted", 2.5)
         fig.text(cx, cy + 2.4, f"({cx:+.1f}, {cy:+.1f})", "muted", 2.3)
 
-    fig.text(0, 64, f"One 100 mm wafer, four {QUALIFIED_FIELD_SIZE_MM:g} mm exposures",
+    fig.text(0, 67, f"One 100 mm wafer, four {USABLE_FIELD_SIZE_MM:g} x {USABLE_FIELD_SIZE_MM:g} mm fields",
              size=4.6, weight="600")
-    fig.text(0, 59.5,
+    fig.text(0, 62.5,
              f"field centers at X,Y = +/-25.4 mm   .   {STITCH_OVERLAP_MM:g} mm total "
              "overlap at every seam",
              "muted", 2.9)
-    fig.text(0, -59, "primary flat faces the operator (-Y);  dashed ring is the 2 mm edge bead",
+    fig.text(0, -62, "primary flat faces the operator (-Y);  dashed ring is the 2 mm edge bead",
              "muted", 2.6)
     fig.text(reach + 1, 14, "overlap", "warn", 2.6, anchor="start")
     fig.text(reach + 1, 10.6, "bands", "warn", 2.6, anchor="start")

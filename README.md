@@ -7,7 +7,7 @@ and generates the 3D-printed jigs that index the wafer between them.
 Geometry is built with [KLayout](https://www.klayout.de/)'s Python API. The jigs
 are built by Autodesk Fusion scripts from the same measured table dimensions.
 
-![One 100 mm wafer split into four 54 mm exposures](docs/figures/wafer_and_fields.svg)
+![One 100 mm wafer split into four 60 x 60 mm fields](docs/figures/wafer_and_fields.svg)
 
 > **This repository is geometry, not a process.** It specifies no laser, no
 > wavelength, no power, no pulse parameters and no exposure recipe, and it has not
