@@ -76,13 +76,12 @@ DOWEL_DIAMETER = 4.7625          # 3/16 in ground steel dowel
 DOWEL_PROTRUSION = 5.000         # protrusion below the base into the table hole; matches the v2 pins (5 mm)
 # Bore engagement = BOSS_HEIGHT + BASE_THICKNESS = 8 mm, so cut each dowel to
 # 8 + 5 = 13 mm and press it flush with the boss top to leave 5 mm proud below.
-# Bore for the dowel, carried over from the PLA jig as a starting point. Resin
-# (MSLA) prints small holes closer to nominal than FDM -- light bleed shrinks them
-# a little, but less than FDM's extrusion undersize -- so at 4.85 the fit lands
-# looser (nearer a slip fit) on the 4.7625 mm dowel. That is fine: resin is brittle,
-# so retain the dowel with epoxy rather than a hard press. Dial this in on a printed
-# coupon (try 4.70 / 4.75 / 4.80 / 4.85) for your resin and exposure.
-DOWEL_HOLE_DIAMETER = 4.850
+# Bore for the dowel. Resin (MSLA) prints small holes closer to nominal than FDM
+# (light bleed shrinks them a little, but less than FDM's extrusion undersize), so
+# this is dropped from the PLA jig's 4.85 to 4.80 for a snugger fit on the
+# 4.7625 mm dowel. Resin is brittle, so still retain with epoxy rather than a hard
+# press. Dial in on a printed coupon (try 4.70 / 4.75 / 4.80 / 4.85) for your resin.
+DOWEL_HOLE_DIAMETER = 4.800
 BOSS_DIAMETER = 8.500            # ~1.85 mm wall around the bore
 BOSS_HEIGHT = 5.000              # above the platform top; total engagement = base + boss = 8 mm
 
