@@ -258,15 +258,16 @@ per-file centering irrelevant.
 | [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig; P0 also centers the wafer. Current. |
 | [`fusion/FusionSingleJig`](fusion/FusionSingleJig) | Earlier single-position indexer. |
 
-The two pin-grid jigs are the same physical plate; only the engraving and which
-table holes the pins engage differ. Each has **four** locating pins on the corners of
+The pin-grid jig is one physical plate, moved between table-hole positions: the four
+stations `P1`-`P4` and the centered `P0`. It has **four** locating pins on the corners of
 a `101.600 mm` square, and a pickup tab centered on the left and right edges:
 `10 mm` out by `24 mm` long, spanning z `2` to `6 mm` so there is a `2 mm` undercut
-to hook under when lifting the plate off its pins. Each plate carries three engravings,
-`0.500 mm` deep: the station map at top-left, giving one hole per station;
-`ALIGNMENT PIN` at front-left, naming the outer pin nearest that corner, which is
-the pin every engraved coordinate refers to; and `C1=LEFT R1=FRONT` at front-right,
-so the counting convention survives at the machine.
+to hook under when lifting the plate off its pins. The base is `3 mm` thick. It carries
+**four** raised `0.500 mm` engravings: the title `ALIGNER` and the centering position
+`P0` at top-left; the `P1`-`P4` station map (one hole per station) at top-right;
+`ALIGNMENT PIN` at front-left, naming the outer pin nearest that corner, which is the
+pin every engraved coordinate refers to; and `C1=LEFT R1=FRONT` at front-right, so the
+counting convention survives at the machine.
 
 To regenerate a jig: open Fusion, press **Shift+S**, on the Scripts tab click
 **+** and select the script's folder, then Run. Each script writes its `.f3d` and
