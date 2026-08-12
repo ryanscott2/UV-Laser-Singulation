@@ -53,6 +53,10 @@ class Preview:
     paths_changed: int
     truncated: bool
     notes: list[str]
+    run_mode: str = "four_windows"
+    score_diameter_mm: float = 0.0
+    score_shape: str = "circle"
+    center_cuts_mm: list[Polygon] = field(default_factory=list)
 
 
 _namespace: dict | None = None
@@ -89,6 +93,9 @@ def build_preview(
     global_y_um: float = 0.0,
     window_offsets=None,
     edge_bead_mm: float = 0.0,
+    run_mode: str = "four_windows",
+    score_diameter_um: float = 75000.0,
+    score_shape: str = "circle",
     max_polygons: int = 4000,
 ) -> Preview:
     ns = splitter_namespace()
@@ -121,6 +128,35 @@ def build_preview(
         notes.append(
             "Selected layer is filled polygons: 'Force to' sets their width, "
             "'Cap at' leaves them as drawn."
+        )
+
+    if run_mode == "center_pass":
+        score = ns["score_clip_region"](layout, score_shape, score_diameter_um)
+        kept = source & score
+        source_polys, truncated = _polygons_mm(source, layout.dbu, max_polygons)
+        center_polys, kept_truncated = _polygons_mm(kept, layout.dbu, max_polygons)
+        scale = layout.dbu / 1000.0
+        box = source.bbox()
+        return Preview(
+            source_cuts_mm=source_polys,
+            tiles=[],
+            field_mm=score_diameter_um / 1000.0,
+            half_mm=score_diameter_um / 2000.0,
+            stitch_mm=0.0,
+            edge_bead_mm=edge_bead_mm,
+            source_bbox_mm=None if source.is_empty() else (
+                box.left * scale, box.bottom * scale, box.right * scale, box.top * scale),
+            source_area_mm2=ns["dbu_area_to_mm2"](layout, source.area()),
+            dropped_area_mm2=ns["dbu_area_to_mm2"](layout, (source - score).area()),
+            layers_matched=matched,
+            paths_seen=int(width_stats["paths_seen"]),
+            paths_changed=int(width_stats["paths_capped"]),
+            truncated=truncated or kept_truncated,
+            notes=notes,
+            run_mode="center_pass",
+            score_diameter_mm=score_diameter_um / 1000.0,
+            score_shape=score_shape,
+            center_cuts_mm=center_polys,
         )
 
     union = ns["clip_union_region"](layout, clip_mode, stitch)

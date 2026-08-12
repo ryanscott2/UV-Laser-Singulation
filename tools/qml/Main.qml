@@ -69,7 +69,10 @@ ApplicationWindow {
             "extension": formatCombo.currentText,
             "stationOffsets": root.stationOffsets,
             "stitchUm": stitchField.text,
-            "edgeBead": parseFloat(edgeBeadField.text) || 0.0
+            "edgeBead": parseFloat(edgeBeadField.text) || 0.0,
+            "mode": modeToggle.centerPass ? "center-pass" : "four-window",
+            "scoreDiameter": parseFloat(scoreDiameterField.text) || 75.0,
+            "scoreShape": scoreShapeCombo.currentText
         }
     }
 
@@ -370,6 +373,62 @@ ApplicationWindow {
                             font.family: theme.face
                             font.pixelSize: 11
                             wrapMode: Text.WordWrap
+                        }
+
+                        Label {
+                            text: "Mode"; color: theme.textSecond
+                            font.family: theme.face; font.pixelSize: 13
+                            Layout.topMargin: 4
+                        }
+                        RowLayout {
+                            id: modeToggle
+                            property bool centerPass: false
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button {
+                                text: "Four windows"
+                                checkable: true
+                                checked: !modeToggle.centerPass
+                                highlighted: !modeToggle.centerPass
+                                onClicked: { modeToggle.centerPass = false; root.refresh() }
+                            }
+                            Button {
+                                text: "Center pass"
+                                checkable: true
+                                checked: modeToggle.centerPass
+                                highlighted: modeToggle.centerPass
+                                onClicked: { modeToggle.centerPass = true; root.refresh() }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: modeToggle.centerPass
+                            spacing: 6
+                            Label {
+                                text: "Score"; color: theme.textTertiary
+                                font.family: theme.face; font.pixelSize: 12
+                            }
+                            TextField {
+                                id: scoreDiameterField
+                                text: "75"
+                                Layout.preferredWidth: 68
+                                validator: DoubleValidator { bottom: 0.001; decimals: 3 }
+                                font.family: theme.face
+                                font.pixelSize: 12
+                                onEditingFinished: root.refresh()
+                            }
+                            Label {
+                                text: "mm dia"; color: theme.textTertiary
+                                font.family: theme.face; font.pixelSize: 12
+                            }
+                            ComboBox {
+                                id: scoreShapeCombo
+                                model: ["circle", "square"]
+                                Layout.preferredWidth: 100
+                                onActivated: root.refresh()
+                            }
+                            Item { Layout.fillWidth: true }
                         }
                     }
                 }

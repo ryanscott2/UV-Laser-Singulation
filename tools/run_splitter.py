@@ -112,6 +112,9 @@ def splitter_globals(args: argparse.Namespace) -> dict[str, object]:
         "allow_geometry_outside_fields": "1" if args.allow_outside else "0",
         "output_extension": args.extension,
         "edge_bead_mm": str(args.edge_bead),
+        "mode": "center_pass" if args.mode == "center-pass" else "four_windows",
+        "score_diameter_um": str(args.score_diameter),
+        "score_shape": args.score_shape,
     }
     if args.output is not None:
         values["output_dir"] = str(args.output)
@@ -161,6 +164,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--extension", default=".dxf", help=".dxf, .gds, or .oas")
     parser.add_argument("--allow-outside", action="store_true",
                         help="permit discarding geometry outside all four windows")
+    parser.add_argument("--mode", choices=("four-window", "center-pass"), default="four-window",
+                        help="four-window pin-grid split (default) or a single centered score pass")
+    parser.add_argument("--score-diameter", type=float, default=75000.0,
+                        help="center-pass score diameter in microns")
+    parser.add_argument("--score-shape", choices=("circle", "square"), default="circle",
+                        help="center-pass score shape")
     parser.add_argument("--list-layers", action="store_true",
                         help="list the layers in --input and exit")
     return parser

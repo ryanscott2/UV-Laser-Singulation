@@ -13,41 +13,37 @@ exceeds the 60 mm qualified usable field, so it reaches into the weaker edge reg
 
 ## KLayout center-pass script
 
-Edit these values near the top of `split_klayout_center_pass.py`:
+The center pass is `mode=center_pass` of `split_klayout_four_windows.py`, so it
+shares that file's `GLOBAL_X_OFFSET_UM` / `GLOBAL_Y_OFFSET_UM` calibration with the
+four-window split (currently `-3101.7 / +1315.7 um`; reset both to 0 when the
+print-v2 jig's nest calibration is in use). Its center-pass settings there are:
 
 ```python
-INPUT_FILE = r"C:\path\to\wafer_cutlines.dxf"
-GLOBAL_X_OFFSET_UM = 0.0
-GLOBAL_Y_OFFSET_UM = 0.0
-MAX_CUT_WIDTH_UM = 50.0
 SCORE_DIAMETER_UM = 75_000.0
-SCORE_SHAPE = "circle"
+SCORE_SHAPE = "circle"      # `circle` or `square`
+FULL_FIELD_SIZE_UM = 78_485.0
 ```
 
-Native DXF/KLayout paths wider than `MAX_CUT_WIDTH_UM` are narrowed around
-their existing centerlines before clipping. The default cap is `50 um`; thinner
-paths are unchanged. Closed filled contours are polygons rather than paths and
-retain their drawn dimensions. The center-pass log reports how many paths were
-capped.
+Native DXF/KLayout paths wider than `MAX_CUT_WIDTH_UM` are narrowed around their
+existing centerlines before clipping. Closed filled contours are polygons rather
+than paths and keep their drawn dimensions unless the width mode is `force`. The
+supplied DXFs are read as 1 DXF unit = 1 mm; the generated DXF is also in
+millimeters, on layer `0`.
 
-Positive X moves the output cut geometry right. Positive Y moves it away from
-the operator in the drawing coordinate system. The supplied DXFs are read as
-1 DXF unit = 1 mm. The generated DXF is also in millimeters and all entities
-are written on layer `0`.
-
-Run it from KLayout with **File > Run Script**, or headlessly:
+Run it from the slicer UI (choose **Center pass**), from KLayout with
+**File > Run Script**, or headlessly:
 
 ```powershell
-klayout_app.exe -zz -rx -r split_klayout_center_pass.py `
+klayout_app.exe -zz -rx -r split_klayout_four_windows.py `
+  -rd "mode=center_pass" `
   -rd "input=C:\path\to\wafer_cutlines.dxf" `
   -rd "output_dir=C:\path\to\center_output" `
-  -rd "global_x_um=0" -rd "global_y_um=0" `
-  -rd "max_cut_width_um=50"
+  -rd "score_diameter_um=75000" -rd "score_shape=circle"
 ```
 
-The output is `<input_name>_center_pass.dxf` plus a text log. The optional
-runtime variables `score_diameter_um` and `score_shape` override the settings
-without editing the file.
+Or via the CLI wrapper: `python tools/run_splitter.py --input wafer.dxf --mode
+center-pass --score-diameter 75000`. The output is `<input_name>_center_pass.dxf`
+plus a text log.
 
 ## Physical sequence
 

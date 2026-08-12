@@ -1,12 +1,17 @@
 # Four-window KLayout cutline splitter
 
 `split_klayout_four_windows.py` reads wafer-centered cut geometry from layer 0
-and writes four laser-centered jobs. It supports DXF, GDS, and OAS input through
+and writes laser-centered jobs. It supports DXF, GDS, and OAS input through
 KLayout. DXF input and output use millimeters; configuration values use microns.
 
 This is the single production splitter and carries the 54 mm pin-grid profile.
 An identical copy previously existed as `split_klayout_four_windows_pin_grid.py`;
 it has been removed, so edit this file only.
+
+It runs in one of two modes (`-rd mode=...`). `four_windows` (default) is the
+production four-station split documented below. `center_pass` instead clips one
+centered score job (see [CenterPassWorkflow_README.md](CenterPassWorkflow_README.md));
+both modes share the `GLOBAL_*_OFFSET_UM` calibration and every helper in the file.
 
 ## Important variables
 

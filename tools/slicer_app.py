@@ -71,7 +71,8 @@ FACE = "Segoe UI Variable Text"
 # Every field the UI remembers per dataset.
 DATASET_FIELDS = ("input", "output", "layer", "cutWidth", "widthMode", "clipMode",
                   "globalX", "globalY", "allowOutside",
-                  "extension", "stationOffsets", "stitchUm", "edgeBead")
+                  "extension", "stationOffsets", "stitchUm", "edgeBead",
+                  "mode", "scoreDiameter", "scoreShape")
 
 
 # --------------------------------------------------------------------- models
@@ -211,6 +212,13 @@ class PreviewItem(QQuickPaintedItem):
         self._preview = preview
         if preview is None:
             self._caption = ""
+        elif getattr(preview, "run_mode", "four_windows") == "center_pass":
+            self._caption = (
+                f"{preview.source_area_mm2:.3f} mm² of cut geometry   ·   "
+                f"{preview.score_shape} score {preview.score_diameter_mm:.3f} mm"
+                + (f"   ·   {preview.dropped_area_mm2:.3f} mm² outside the score"
+                   if preview.dropped_area_mm2 > 0 else "")
+            )
         else:
             self._caption = (
                 f"{preview.source_area_mm2:.3f} mm² of cut geometry   ·   "
@@ -274,7 +282,9 @@ class PreviewItem(QQuickPaintedItem):
             painter.drawText(rect, Qt.AlignCenter,
                              "Choose a source file to see the slice preview")
             return
-        if self._mode == "sliced":
+        if getattr(self._preview, "run_mode", "four_windows") == "center_pass":
+            self._draw_center_pass(painter, rect)
+        elif self._mode == "sliced":
             self._draw_sliced(painter, rect)
         else:
             self._draw_wafer(painter, rect)
@@ -349,6 +359,38 @@ class PreviewItem(QQuickPaintedItem):
             painter.setPen(QPen(QColor(TEXT_3)))
             painter.drawText(QRectF(x, y + line * 2, width, line), align,
                              f"exposes {tile.exposed.replace('_', '-')}")
+
+    # A single centered score job: the wafer with the score boundary over it.
+    def _draw_center_pass(self, painter: QPainter, rect: QRectF) -> None:
+        preview = self._preview
+        radius = max(preview.score_diameter_mm / 2.0, 1.0)
+        span = max(WAFER_RADIUS, radius) * 1.12
+        usable = min(rect.width(), rect.height()) - 24
+        view = Viewport(max(usable, 40.0) / (2 * span), rect.center().x(), rect.center().y())
+
+        if self._wafer_guide:
+            self._outline(painter, [wafer_outline(WAFER_RADIUS)], view, GUIDE_COLOR, 1.4)
+            bead = getattr(preview, "edge_bead_mm", 0.0) or 0.0
+            if bead > 0:
+                self._outline(painter, [wafer_outline(WAFER_RADIUS - bead, bead, bead)],
+                              view, GUIDE_COLOR, 1.0, dashed=True)
+
+        # Whole source faint, then the kept (scored) geometry bright.
+        self._ink(painter, self._path(preview.source_cuts_mm, view), TEXT_3, 0.8)
+
+        pen = QPen(QColor(SEAM_COLOR))
+        pen.setWidthF(1.4)
+        pen.setCosmetic(True)
+        pen.setDashPattern([5, 4])
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        if preview.score_shape == "square":
+            painter.drawRect(view.rect(-radius, -radius, radius, radius))
+        else:
+            center = view.point(0.0, 0.0)
+            painter.drawEllipse(center, radius * view.scale, radius * view.scale)
+
+        self._ink(painter, self._path(preview.center_cuts_mm, view), CUT_COLOR, 1.1)
 
     # The four jobs as the laser will see them, each centred on its own origin.
     def _draw_sliced(self, painter: QPainter, rect: QRectF) -> None:
@@ -652,6 +694,9 @@ class Bridge(QObject):
             "window_offsets": self._offsets_from(params),
             "stitch_um": self._stitch_from(params),
             "edge_bead_mm": float(params.get("edgeBead", 0.0) or 0.0),
+            "run_mode": "center_pass" if str(params.get("mode", "")) == "center-pass" else "four_windows",
+            "score_diameter_um": float(params.get("scoreDiameter", 75.0) or 75.0) * 1000.0,
+            "score_shape": str(params.get("scoreShape", "circle")),
         })
         self._worker.done.connect(self._preview_done)
         self._worker.start()
@@ -708,6 +753,9 @@ class Bridge(QObject):
             "--global-y", str(cal_y + float(params.get("globalY", 0.0) or 0.0)),
             "--edge-bead", str(params.get("edgeBead", 0.0) or 0.0),
             "--extension", str(params.get("extension", ".dxf")),
+            "--mode", str(params.get("mode", "four-window")),
+            "--score-diameter", str(float(params.get("scoreDiameter", 75.0) or 75.0) * 1000.0),
+            "--score-shape", str(params.get("scoreShape", "circle")),
         ]
         output = str(params.get("output", "")).strip()
         if output:

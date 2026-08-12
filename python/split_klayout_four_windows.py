@@ -1,14 +1,16 @@
-"""Split wafer-centered layer-0 cut geometry into four laser-window jobs.
+"""Split wafer-centered layer-0 cut geometry into laser jobs, in one of two modes.
 
-This is the pin-grid production profile: a 54 mm declared field at the four
-`+/-25.4 mm` centers reached by the four-pin grid jig.
+`mode=four_windows` (default) is the pin-grid production profile: a 54 mm declared
+field at the four `+/-25.4 mm` centers reached by the four-pin grid jig, one output
+per station. `mode=center_pass` instead clips a single centered score job. Both
+share the GLOBAL_*_OFFSET_UM calibration and every helper in this file.
 
 Run inside KLayout or from its command line. DXF input is assumed to use
 millimeter drawing units; GDS/OAS input uses the units stored in the file.
 Each output job is translated so its physical laser-window center is (0, 0).
 
-Outputs are named for the JIG STATION that produces them, not for the wafer
-area they expose. See `WINDOWS` for the mapping.
+Four-window outputs are named for the JIG STATION that produces them, not for the
+wafer area they expose. See `WINDOWS` for the mapping.
 """
 
 from __future__ import annotations
@@ -70,6 +72,18 @@ WAFER_RADIUS_UM = 50_000.0
 PRIMARY_FLAT_LENGTH_UM = 32_500.0
 SECONDARY_FLAT_LENGTH_UM = 18_000.0
 EDGE_BEAD_CIRCLE_SEGMENTS = 2048
+
+# Which job this run produces. `four_windows` is the production four-station split;
+# `center_pass` clips one centered score job instead. Both share the calibration
+# GLOBAL_*_OFFSET_UM above and every helper below. Override with -rd mode=center_pass.
+RUN_MODE = "four_windows"
+
+# Center-pass mode only. The score fits the galvo's full max field; only the
+# central 60 mm is qualified as usable (weaker at the edges).
+FULL_FIELD_SIZE_UM = 78_485.0
+SCORE_DIAMETER_UM = 75_000.0
+SCORE_SHAPE = "circle"  # `circle` recommended; `square` also supported.
+SCORE_CIRCLE_SEGMENTS = 256
 
 # Native KLayout/DXF path widths larger than this are reduced about their
 # existing centerlines before clipping. Filled polygons are geometry rather
@@ -411,6 +425,21 @@ def set_line_widths(region, width_um, mode, dbu):
     return out
 
 
+def score_clip_region(layout, shape: str, diameter_um: float):
+    """Center-pass clip: a centered circle (or square) of the score diameter."""
+    radius_dbu = um_to_dbu(layout, diameter_um / 2.0)
+    if shape == "square":
+        return pya.Region(pya.Box(-radius_dbu, -radius_dbu, radius_dbu, radius_dbu))
+    if shape != "circle":
+        raise ValueError("SCORE_SHAPE must be 'circle' or 'square'")
+    n = SCORE_CIRCLE_SEGMENTS
+    return pya.Region(pya.Polygon([
+        pya.Point(int(round(radius_dbu * math.cos(2.0 * math.pi * i / n))),
+                  int(round(radius_dbu * math.sin(2.0 * math.pi * i / n))))
+        for i in range(n)
+    ]))
+
+
 def partition_window_size_um(stitch_um: float) -> float:
     """How wide a partition window is: its own half of the pitch, plus the overlap.
 
@@ -551,7 +580,48 @@ def write_layout(
         )
 
 
+def run_center_pass(layout, source_region, source_layers, width_stats, input_file,
+                    output_dir, extension, global_x_um, global_y_um,
+                    max_cut_width_um, edge_bead_mm) -> None:
+    """`mode=center_pass`: clip the source to one centered score job, offset it by
+    the shared calibration, and write a single output plus a log."""
+    diameter = as_float("score_diameter_um", SCORE_DIAMETER_UM)
+    shape = str(runtime_value("score_shape", SCORE_SHAPE)).strip().lower()
+    if diameter <= 0 or diameter > FULL_FIELD_SIZE_UM:
+        raise ValueError(f"score_diameter_um must be > 0 and <= {FULL_FIELD_SIZE_UM} um")
+
+    clipped = source_region & score_clip_region(layout, shape, diameter)
+    clipped.transform(pya.Trans(um_to_dbu(layout, global_x_um), um_to_dbu(layout, global_y_um)))
+
+    output_path = output_dir / f"{input_file.stem}_center_pass{extension}"
+    write_layout(output_path, layout, clipped, "CENTER_PASS")
+
+    log_path = output_dir / f"{input_file.stem}_center_pass_log.txt"
+    log_path.write_text(
+        "\n".join((
+            f"Input: {input_file}",
+            f"Input layers: {', '.join(source_layers)}",
+            f"Output: {output_path}",
+            "Mode: center_pass",
+            f"Score shape: {shape}",
+            f"Score diameter (um): {diameter}",
+            f"Full field (um): {FULL_FIELD_SIZE_UM} (only the central 60 mm is qualified as usable)",
+            f"Global offset (um): X={global_x_um}, Y={global_y_um}",
+            f"Edge bead (mm): {edge_bead_mm}",
+            f"Cut width (um): {max_cut_width_um}, mode={width_stats['width_mode']}",
+            "Source native paths: "
+            f"seen={width_stats['paths_seen']}, changed={width_stats['paths_capped']}",
+            f"Source polygons: {source_region.count()}",
+            f"Output polygons: {clipped.count()}",
+            f"Output bbox (um): {region_bbox_um(layout, clipped)}",
+        )) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Wrote center-pass job: {output_path}")
+
+
 def main() -> None:
+    run_mode = str(runtime_value("mode", RUN_MODE)).strip().lower()
     input_file = Path(str(runtime_value("input", INPUT_FILE))).expanduser()
     if not input_file.is_file():
         raise FileNotFoundError(
@@ -560,28 +630,24 @@ def main() -> None:
         )
 
     configured_output = str(runtime_value("output_dir", OUTPUT_DIR)).strip()
+    default_suffix = "_center_pass" if run_mode == "center_pass" else "_four_windows"
     output_dir = (
         Path(configured_output).expanduser()
         if configured_output
-        else input_file.with_name(f"{input_file.stem}_four_windows")
+        else input_file.with_name(f"{input_file.stem}{default_suffix}")
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     global_x_um = as_float("global_x_um", GLOBAL_X_OFFSET_UM)
     global_y_um = as_float("global_y_um", GLOBAL_Y_OFFSET_UM)
     max_cut_width_um = as_float("max_cut_width_um", MAX_CUT_WIDTH_UM)
-    stitch_um = as_float("stitch_overlap_um", STITCH_OVERLAP_UM)
-    mode = str(runtime_value("clip_mode", CLIP_MODE)).strip().lower()
     source_spec = parse_layer_spec(runtime_value("source_layer", SOURCE_LAYER_SPEC))
-    window_offsets = parse_window_offsets(runtime_value("window_offsets", WINDOW_OFFSETS_UM))
     width_mode = str(runtime_value("cut_width_mode", CUT_WIDTH_MODE)).strip().lower()
-    allow_outside = as_bool("allow_geometry_outside_fields", ALLOW_GEOMETRY_OUTSIDE_FIELDS)
     extension = str(runtime_value("output_extension", OUTPUT_EXTENSION)).strip().lower()
     if not extension.startswith("."):
         extension = "." + extension
     if max_cut_width_um <= 0:
         raise ValueError("MAX_CUT_WIDTH_UM must be greater than zero")
-    validate_field_geometry(mode, stitch_um)
 
     layout = pya.Layout()
     if input_file.suffix.lower() == ".dxf":
@@ -602,6 +668,19 @@ def main() -> None:
     edge_bead_mm = as_float("edge_bead_mm", EDGE_BEAD_MM)
     if edge_bead_mm > 0:
         source_region = source_region & safe_wafer_region(layout, edge_bead_mm * 1000.0)
+
+    if run_mode == "center_pass":
+        run_center_pass(layout, source_region, source_layers, width_stats, input_file,
+                        output_dir, extension, global_x_um, global_y_um,
+                        max_cut_width_um, edge_bead_mm)
+        return
+
+    # ----------------------------------------------------------- four-window mode
+    stitch_um = as_float("stitch_overlap_um", STITCH_OVERLAP_UM)
+    mode = str(runtime_value("clip_mode", CLIP_MODE)).strip().lower()
+    window_offsets = parse_window_offsets(runtime_value("window_offsets", WINDOW_OFFSETS_UM))
+    allow_outside = as_bool("allow_geometry_outside_fields", ALLOW_GEOMETRY_OUTSIDE_FIELDS)
+    validate_field_geometry(mode, stitch_um)
     source_bbox = region_bbox_um(layout, source_region)
     manifest_rows = []
 
