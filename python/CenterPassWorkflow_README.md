@@ -1,44 +1,15 @@
-# Center-pass wafer jig and KLayout job
+# Center-pass KLayout job
 
-This package makes one centered laser-field job and a matching single-position
-jig for the measured table.
+This makes one centered laser-field job. The dedicated center-pass Fusion jig was
+retired on 2026-08-11; center the wafer with the four-position pin-grid jig at its
+P0 position instead (see [`../fusion/FusionPinGridJig`](../fusion/FusionPinGridJig)).
 
 ## Geometry assumption
 
 `75 mm` is treated as the **scored diameter**, not radius. A standard 100 mm
 wafer has a 50 mm radius, so a 75 mm score radius cannot fit on the wafer. The
-default 75.000 mm score circle leaves 1.7425 mm between the scored circle and
-each edge of the 78.485 mm square usable optical field.
-
-## Jig datums
-
-- Table width: 200.000 mm nominal.
-- Inside stop span: 200.000 mm, with no designed side clearance.
-- Front edge and both side stops establish the jig position.
-- The near edges of a centered 78.484 mm measurement field were X = 60.930 mm
-  and Y = 68.430 mm from the table edges.
-- Those edges imply the reference center `(100.172, 107.672) mm`, but the
-  direct calibration cross commanded at `(0, 0)` was measured at
-  `(96.190, 109.350) mm` and is authoritative for the jig.
-- Primary flat faces front; secondary flat touches the left nest wall to set
-  rotation.
-- Base thickness: 2.000 mm.
-- Nest wall height above base: 1.500 mm.
-- Table lip drop: 5.000 mm.
-- Four ribs are 8.000 mm wide by 8.000 mm high at the frame and taper only in
-  height at 45 degrees near the nest.
-- Primary-flat pickup opening: 20.000 mm with a 45 degree wall-edge bevel.
-
-Use `FusionCenterPassJig/FusionCenterPassJig.py` in Fusion. The two calibration
-settings near the top are:
-
-```python
-JIG_X_CORRECTION = 0.000
-JIG_Y_CORRECTION = 0.000
-```
-
-After a low-power calibration target, enter the measured systematic placement
-error there and rerun the Fusion script.
+default 75.000 mm score circle fits the galvo's 78.485 mm square max field but
+exceeds the 60 mm qualified usable field, so it reaches into the weaker edge region.
 
 ## KLayout center-pass script
 
@@ -80,14 +51,13 @@ without editing the file.
 
 ## Physical sequence
 
-1. Seat the jig firmly against the front edge with both side stops fitted over
-   the 200.000 mm table width.
-2. Place the wafer on the 2 mm base with the primary flat forward and the
-   secondary flat seated against the left nest datum.
-3. Confirm the wafer is flat, clean, and fully seated before focusing.
-4. Run a low-power alignment target first, then apply measured X/Y corrections.
-5. Run the centered DXF once without moving the jig or wafer.
-6. Remove the wafer with the pickup opening. Evaluate fracture behavior on a
+1. Mount the pin-grid jig and seat the wafer at its P0 (center) position: primary
+   flat forward, secondary flat against the nest datum (see ../fusion/FusionPinGridJig).
+2. Confirm the wafer is flat, clean, and fully seated before focusing.
+3. Run a low-power alignment target first; placement calibration lives in the
+   pin-grid jig / splitter offset, not here.
+4. Run the centered DXF once without moving the jig or wafer.
+5. Remove the wafer with the plate's pickup tab. Evaluate fracture behavior on a
    sacrificial wafer before relying on a scored break for finished material.
 
 Wear eye protection and contain fragments when testing a scored break. Score

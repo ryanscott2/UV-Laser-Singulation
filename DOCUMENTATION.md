@@ -256,7 +256,6 @@ per-file centering irrelevant.
 | Script | Jig |
 | --- | --- |
 | [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig; P0 also centers the wafer. Current. |
-| [`fusion/FusionCenterPassJig`](fusion/FusionCenterPassJig) | Earlier single centered-pass jig, table-edge datums. |
 | [`fusion/FusionSingleJig`](fusion/FusionSingleJig) | Earlier single-position indexer. |
 
 The two pin-grid jigs are the same physical plate; only the engraving and which

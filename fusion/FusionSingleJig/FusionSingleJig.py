@@ -17,7 +17,7 @@ import adsk.fusion
 
 # Machine geometry, millimeters.
 TABLE_WIDTH = 200.000
-MAX_USABLE_FIELD_SIZE = 78.485
+MAX_USABLE_FIELD_SIZE = 78.485  # galvo max field; only the central 60 mm is qualified as usable
 MEASUREMENT_FIELD_SIZE = 78.484
 MEASURED_FIELD_LEFT_EDGE_X = 60.930
 MEASURED_FIELD_FRONT_EDGE_Y = 68.430

@@ -18,8 +18,8 @@ This Fusion script builds the wafer indexer as an editable solid and exports:
 ## Current controlled dimensions
 
 - Table width: `200.000 mm`
-- Maximum usable field: `78.485 x 78.485 mm`
-- Measurement field: `78.484 x 78.484 mm`, centered in the usable field
+- Maximum field: `78.485 x 78.485 mm` (only the central `60 x 60 mm` is qualified as usable)
+- Measurement field: `78.484 x 78.484 mm`, centered in the max field
 - Measured near edges: X `60.930 mm`, Y `68.430 mm`
 - Edge-derived field center (reference only): X `100.172 mm`, Y `107.672 mm`
 - Authoritative field center from the cross commanded at `(0, 0)`:

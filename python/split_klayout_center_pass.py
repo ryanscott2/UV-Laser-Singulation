@@ -1,7 +1,8 @@
 """Create one laser-centered score job from wafer-centered layer-0 geometry.
 
 Default behavior keeps geometry inside a 75 mm diameter circle centered in the
-78.485 mm usable galvo field. Configuration distances are microns; DXF files use mm.
+galvo's 78.485 mm max field (only the central 60 mm is qualified as usable).
+Configuration distances are microns; DXF files use mm.
 """
 
 from __future__ import annotations
