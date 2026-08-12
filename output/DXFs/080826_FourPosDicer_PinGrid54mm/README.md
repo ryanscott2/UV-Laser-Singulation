@@ -22,8 +22,9 @@ python tools/validate_pin_grid_set.py
 - Stitch overlap: `0.200 mm` total, so each job reaches `0.100 mm` past the nominal
   `X=0` and `Y=0` seams. That covers the `75-100 um` seam mismatch recorded in the
   calibration notes.
-- Margin from the 54 mm window to every edge of the `78.485 mm` maximum usable
-  optical field: `12.2425 mm`.
+- Margin from the 54 mm window to every edge of the `60 mm` usable field: `3 mm`
+  (the galvo's full `78.485 mm` field is weaker at the edges, so only the central
+  60 mm is used).
 - The stitch can be raised to `3.200 mm` before a window would exceed the declared
   field; the splitter refuses anything larger.
 - All cutting geometry is on DXF layer `0`.

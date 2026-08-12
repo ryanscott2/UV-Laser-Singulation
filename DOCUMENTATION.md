@@ -211,6 +211,8 @@ The split log records all three, including the source and dropped areas.
   nominal `X=0` and `Y=0` seams. That covers the `75-100 um` seam mismatch the
   calibration notes measured.
 - Margin from the 54 mm window to every edge of the `60 mm` usable field: `3 mm`.
+  The galvo's full field is about `78.485 mm`, but it weakens toward the edges, so
+  only the central `60 mm` is used.
 - Dice pitch `10.000 mm` in X, `30.000 mm` in Y. Cut width `50 um`.
 - Edge bead / exclusion `2.000 mm`, applied inward from the circular edge and
   both flats, from the single `EDGE_BEAD_MM` variable in the master generator.

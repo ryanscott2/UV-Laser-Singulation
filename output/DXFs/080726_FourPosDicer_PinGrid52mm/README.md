@@ -18,8 +18,9 @@ This set uses the eight-pin grid jig and the production
 - Total field overlap: `1.200 mm`.
 - Partition stitch overlap: `1.200 mm`, extending each job `0.600 mm` across
   the nominal X=0 and Y=0 seams.
-- Margin from the 52 mm exposure to every edge of the 78.485 mm maximum usable
-  field: `13.2425 mm`.
+- Margin from the 52 mm exposure to every edge of the `60 mm` usable field: `4 mm`
+  (the galvo's full `78.485 mm` field is weaker at the edges, so only the central
+  60 mm is used).
 - All cutting geometry is on DXF layer `0`.
 - Every file has four bounding anchors on `REGISTRATION_DO_NOT_EXPOSE`, fixing
   its content bounds at exactly `(-26,-26) to (+26,+26) mm`.

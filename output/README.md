@@ -1,14 +1,15 @@
 # Generated laser job sets
 
 Each folder under `DXFs/` is one complete, validated set of exposure files. Only
-the pin-grid set is current. The two old-jig sets are kept because the
+the 54 mm pin-grid set is current. The two old-jig sets are kept because the
 calibration history in
 [CALIBRATION_AND_SLIDING_NEST_NOTES.md](../CALIBRATION_AND_SLIDING_NEST_NOTES.md)
 refers to what they actually produced on the machine.
 
 | Set | Jig | Field | Status |
 | --- | --- | --- | --- |
-| [080726_FourPosDicer_PinGrid52mm](DXFs/080726_FourPosDicer_PinGrid52mm) | eight-pin grid | `52 mm` | **current production** |
+| [080826_FourPosDicer_PinGrid54mm](DXFs/080826_FourPosDicer_PinGrid54mm) | eight-pin grid | `54 mm` | **current production** |
+| [080726_FourPosDicer_PinGrid52mm](DXFs/080726_FourPosDicer_PinGrid52mm) | eight-pin grid | `52 mm` | superseded |
 | [080726_FourPosDicer_OriginLocked](DXFs/080726_FourPosDicer_OriginLocked) | original printed four-position | `60 mm` | superseded |
 | [080726_FourPosDicer](DXFs/080726_FourPosDicer) | original printed four-position | `60 mm` | superseded, failed on the machine |
 

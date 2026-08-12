@@ -55,8 +55,8 @@ use a fit-to-field operation that scales the drawing.
 
 This set is compensated for the original printed four-position jig using the
 window-pattern offset `X=-3.982 mm`, `Y=+1.678 mm`. It keeps each job inside the
-centered 60 mm optical area, leaving 9.2425 mm to every 78.485 mm usable-field
-edge. Do not use these files with the corrected jig.
+centered 60 mm optical area, which fills the 60 mm usable field (the galvo's full
+78.485 mm field is weaker at the edges, so only the central 60 mm is used). Do not use these files with the corrected jig.
 
 Use a low-power sacrificial-wafer pass first and verify both the marker and a
 few grid intersections before running the full dicing recipe.

@@ -321,8 +321,9 @@ Measured on the 081126 alignment test (stations P1-P4, front pins seated in the
 and -1.286 mm in Y** off the wafer flats. The left seam line read `12.20 mm` from
 the minor (secondary, -X) flat against `9.183 mm` expected; the bottom seam line
 read `16.00 mm` from the major (primary, -Y) flat against `17.286 mm` expected.
-The usable optical field is a `60 x 60 mm` square, so the corrected geometry
-(widest marks at `+/-28.5 mm`) stays well inside it.
+The usable optical field is a `60 x 60 mm` square -- the galvo's full field is
+about `78.485 mm`, but it weakens toward the edges, so only the central 60 mm is
+used -- so the corrected geometry (widest marks at `+/-28.5 mm`) stays well inside it.
 
 Re-measured after applying that correction: the left line read `9.35 mm` from the
 minor flat (`9.183 mm` expected, `+0.17 mm` residual) and the bottom line
