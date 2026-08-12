@@ -342,12 +342,12 @@ The same offset is corrected two ways, and only ONE may be active at a time:
   built with these split-difference values; the earlier `081126` and
   `081126_AlignmentTest_v2` sets carry the original `-3016.7 / +1285.7` they were
   measured against.
-- **Jig (print v2):** `NEST_CALIBRATION_X/Y = +3.017 / -1.286` in both
-  `fusion/FusionPinGrid*Jig` scripts shifts the nest relative to the pins so a
-  field-centered exposure lands correctly. This still holds the original
-  `+3.017 / -1.286`; to match the split-difference software offset it becomes
-  `+3.102 / -1.316` when the jig is next regenerated. **Reset the software offsets to
-  0 once a print-v2 jig is in use**, or the two double-correct by ~3 mm.
+- **Jig (print v2):** `NEST_CALIBRATION_X/Y = +3.187 / -1.346` in
+  `fusion/FusionPinGridJig/FusionPinGridJig.py` shifts the nest relative to the pins
+  so a field-centered exposure lands correctly. This is the full best-known offset
+  (the software split-difference under-corrects by design), so the jig should need
+  only a small re-trim after printing. **Reset the software `GLOBAL_*_OFFSET_UM` to
+  0 once a print-v2 jig is in use**, or the DXF and the jig double-correct by ~3 mm.
 
 Print-v2 jig changes to `FusionPinGridJig` (the redundant `FusionPinGridCenterJig`
 was retired 2026-08-11; P0 centers the wafer on the four-position plate):
