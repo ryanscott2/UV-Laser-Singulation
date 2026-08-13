@@ -1,0 +1,5 @@
+Grid alignment: window centers at +/-25.400 mm are one 25.400 mm grid space from wafer center, so adjacent stations are 50.800 mm apart, and all 4 splitter windows match the station table
+Horizontal.dxf: master_polygons=3, reconstructed_polygons=8, xor_area_dbu2=0
+Vertical.dxf: master_polygons=2, reconstructed_polygons=4, xor_area_dbu2=0
+Field placement self-test: all 8 tiles fit within the +/-30.000 mm usable field with the DXF origin at the field center, so exposing at true coordinates reproduces the wafer. Expose with the laser's auto-centering OFF: leaving it ON would misplace a job by up to 24.200 mm.
+Station labels name the jig position; each exposes the opposite quadrant: P1=top_left->bottom_right, P2=top_right->bottom_left, P3=bottom_right->top_left, P4=bottom_left->top_right

@@ -1,66 +1,63 @@
-"""Generate a minimal seam-test master pair for a settings-check exposure.
+"""Generate a seam-test master pair for a settings-check exposure.
 
-Instead of dicing the wafer, this writes four short marks that straddle the
-field seams, which is where a placement error actually shows up. Each mark is a
-5 mm line running perpendicular to its seam, so one station draws the half on
-its side and the neighbour draws the other. The two halves have to meet: a
-lateral misregistration between those stations appears directly as a step at the
-join, and the size of the step is the error.
+Instead of dicing the wafer, this writes four short marks that straddle the field
+seams, where a placement error shows up: one station draws the half of a mark on
+its side and the neighbour draws the other, so a lateral misregistration between
+those stations appears as a step at the join, and the size of the step is the
+error. Marks perpendicular to the x = 0 seam are horizontal lines (Horizontal
+master); those perpendicular to y = 0 are vertical (Vertical master).
 
-Where the marks go
-------------------
-The four exposures meet at x = 0 and y = 0. Each station's geometry is clipped
-half a stitch past its seam, so the overlap band is +/-0.100 mm and a mark laid
-across the seam is genuinely shared.
+The marks are parameterized (run with -h). Placement is measured off the outermost
+fitting cell centre on each seam (+/-40 mm in x, +/-30 mm in y on the production
+grid):
 
-Note that the seams do not fall on cell boundaries. With cut lines at
-x = +/-5, +/-15, ... and y = +/-15, +/-45, the lines x = 0 and y = 0 run through
-the *middle* of a cell. The marks are therefore centred on the outermost cell
-whose centre lies on each seam, which is (+/-40, 0) on the horizontal seam and
-(0, +/-30) on the vertical one -- furthest out, where any rotation between
-stations is largest, and still clear of the 2 mm edge bead.
+  --placement symmetric : all four at the cell centre + --approach-um (signed;
+                          + is outboard toward the edge, - is inboard)
+  --placement flat      : the two flat-facing marks (-X, -Y) sit --mark-from-flat-um
+                          from their flats; the other two at cell centre + approach
 
-Those four marks cover all four station pairings:
+Variants used so far (each writes the two production filenames, so build/validate
+work unchanged; then `build_pin_grid_set.py --masters <out-dir> --set <set>`):
 
-    (+40,   0)   P1 meets P4     (0, +30)   P4 meets P3
-    (-40,   0)   P2 meets P3     (0, -30)   P1 meets P2
+  v1  --width-um 50 --length-mm 5  --placement symmetric --approach-um 0 --marker
+  v2  --width-um 20 --length-mm 10 --placement flat      --approach-um 2000
+  v3  --width-um 50 --length-mm 10 --placement symmetric --approach-um -3000
 
-A mark perpendicular to a horizontal seam is a vertical line and belongs in the
-Vertical master; the reverse for the other seam.
-
-Writes the same two filenames the production masters use, so the existing build
-and validate tools work against this directory unchanged:
-
-    python python/generate_alignment_test_masters.py
-    python tools/build_pin_grid_set.py --masters dxf/AlignmentTest_5mm_Marks \\
-        --set output/DXFs/081026_AlignmentTest
-    python tools/validate_pin_grid_set.py --masters dxf/AlignmentTest_5mm_Marks \\
-        --set output/DXFs/081026_AlignmentTest
+Defaults reproduce v2.
 """
 
 from __future__ import annotations
 
+import argparse
 import math
 from pathlib import Path
 
 import klayout.db as pya
 
-OUTPUT_DIR = Path("dxf/AlignmentTest_5mm_Marks")
+OUTPUT_DIR = Path("dxf/AlignmentTest_v2_Marks")
 
 # Must match the production grid, or the marks will not sit on real cell centres.
 WAFER_RADIUS_UM = 50_000.0
 EDGE_BEAD_MM = 2.000
 X_PITCH_UM = 10_000.0
 Y_PITCH_UM = 30_000.0
-CUT_WIDTH_UM = 50.0
+PRIMARY_FLAT_LENGTH_UM = 32_500.0    # major flat, faces -Y
+SECONDARY_FLAT_LENGTH_UM = 18_000.0  # minor flat, faces -X
+CUT_WIDTH_UM = 20.0
 
-MARK_LENGTH_UM = 5_000.0
+MARK_LENGTH_UM = 10_000.0
 
-# The same centred cross the production masters carry, reproduced exactly. It
-# straddles both seams at once, so all four stations expose a quadrant of it and
-# it reads out the four-way registration in one place, where the pairwise seam
-# marks only ever test two stations against each other. Production keeps it in
-# the Horizontal master, so this does too.
+# The two flat-facing marks (toward the -X and -Y flats) sit MARK_FROM_FLAT_UM from
+# their flat, for a consistent short mark-to-flat read. The other two (+X, +Y, on
+# the plain arc) sit on the outermost fitting cell centre plus EDGE_APPROACH_UM.
+MARK_FROM_FLAT_UM = 5_000.0
+EDGE_APPROACH_UM = 2_000.0
+PLACEMENT = "flat"  # "flat" (v2) or "symmetric" (v1/v3); see --placement
+
+# The centered plus is dropped for v2; set True to bring it back (a plus at the
+# origin that reads the four-way registration in one place). Kept in the Horizontal
+# master when enabled.
+INCLUDE_CENTERED_MARKER = False
 MARKER_LENGTH_UM = 2_500.0
 MARKER_WIDTH_UM = 50.0
 MARKER_ORIENTATION = "Horizontal"
@@ -85,32 +82,50 @@ def seam_marks() -> list[tuple[float, float, str]]:
     safe_um = WAFER_RADIUS_UM - EDGE_BEAD_MM * 1000.0
     half_x, half_y = X_PITCH_UM / 2.0, Y_PITCH_UM / 2.0
     half_mark = MARK_LENGTH_UM / 2.0
+    half_cut = CUT_WIDTH_UM / 2.0
 
     def cell_fits(cx: float, cy: float) -> bool:
         return all(math.hypot(cx + sx * half_x, cy + sy * half_y) <= safe_um
                    for sx in (-1, 1) for sy in (-1, 1))
 
+    primary_depth = math.sqrt(WAFER_RADIUS_UM ** 2 - (PRIMARY_FLAT_LENGTH_UM / 2.0) ** 2)
+    secondary_depth = math.sqrt(WAFER_RADIUS_UM ** 2 - (SECONDARY_FLAT_LENGTH_UM / 2.0) ** 2)
+
+    # Outermost cell centre that fits on each seam.
+    best_x = max((abs(i) * X_PITCH_UM for i in range(-6, 7)
+                  if i != 0 and cell_fits(i * X_PITCH_UM, 0.0)), default=None)
+    best_y = max((abs(j) * Y_PITCH_UM for j in range(-3, 4)
+                  if j != 0 and cell_fits(0.0, j * Y_PITCH_UM)), default=None)
+
     marks: list[tuple[float, float, str]] = []
 
-    # Horizontal seam y = 0: step out along x over cells centred on that seam.
-    # A mark across it is vertical, so it lives in the Vertical master.
-    best = max((abs(i) * X_PITCH_UM for i in range(-6, 7)
-                if i != 0 and cell_fits(i * X_PITCH_UM, 0.0)), default=None)
-    if best is not None:
-        for sign in (-1, 1):
-            marks.append((sign * best, 0.0, "Vertical"))
+    # Horizontal seam y = 0: vertical marks at +/-X (Vertical master).
+    if best_x is not None:
+        if PLACEMENT == "flat":
+            # left (-X) a fixed distance from the secondary flat; right (+X) at the
+            # cell centre plus the approach.
+            marks.append((-(secondary_depth - MARK_FROM_FLAT_UM), 0.0, "Vertical"))
+            marks.append((best_x + EDGE_APPROACH_UM, 0.0, "Vertical"))
+        else:  # symmetric: both at the cell centre plus the (signed) approach
+            for sign in (-1, 1):
+                marks.append((sign * (best_x + EDGE_APPROACH_UM), 0.0, "Vertical"))
 
-    # Vertical seam x = 0: step out along y. A mark across it is horizontal.
-    best = max((abs(j) * Y_PITCH_UM for j in range(-3, 4)
-                if j != 0 and cell_fits(0.0, j * Y_PITCH_UM)), default=None)
-    if best is not None:
-        for sign in (-1, 1):
-            marks.append((0.0, sign * best, "Horizontal"))
+    # Vertical seam x = 0: horizontal marks at 0,+/-Y (Horizontal master).
+    if best_y is not None:
+        if PLACEMENT == "flat":
+            marks.append((0.0, -(primary_depth - MARK_FROM_FLAT_UM), "Horizontal"))
+            marks.append((0.0, best_y + EDGE_APPROACH_UM, "Horizontal"))
+        else:
+            for sign in (-1, 1):
+                marks.append((0.0, sign * (best_y + EDGE_APPROACH_UM), "Horizontal"))
 
-    # Every mark must clear the edge bead along its whole length.
+    # Every mark must clear the edge bead. Use the real footprint: half the mark
+    # length along its long axis, half the cut width across it.
     for x, y, orientation in marks:
-        far = (math.hypot(x, abs(y) + half_mark) if orientation == "Horizontal"
-               else math.hypot(abs(x) + half_mark, y))
+        if orientation == "Horizontal":   # long in x
+            far = math.hypot(abs(x) + half_mark, abs(y) + half_cut)
+        else:                             # vertical, long in y
+            far = math.hypot(abs(x) + half_cut, abs(y) + half_mark)
         if far > safe_um:
             raise SystemExit(f"mark at ({x/1000:.1f},{y/1000:.1f}) reaches "
                              f"{far/1000:.2f} mm, past the {safe_um/1000:.1f} mm safe radius")
@@ -169,7 +184,38 @@ def write_dxf(path: Path, layout, region, cell_name: str) -> None:
 
 
 def main() -> None:
+    global OUTPUT_DIR, CUT_WIDTH_UM, MARK_LENGTH_UM, PLACEMENT
+    global EDGE_APPROACH_UM, MARK_FROM_FLAT_UM, INCLUDE_CENTERED_MARKER
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--out-dir", type=Path, default=OUTPUT_DIR,
+                        help="output masters directory")
+    parser.add_argument("--width-um", type=float, default=CUT_WIDTH_UM,
+                        help="mark line width in um")
+    parser.add_argument("--length-mm", type=float, default=MARK_LENGTH_UM / 1000.0,
+                        help="mark line length in mm")
+    parser.add_argument("--placement", choices=("flat", "symmetric"), default=PLACEMENT,
+                        help="flat: -X/-Y marks a fixed distance from their flats; "
+                             "symmetric: all four at the cell centre + approach")
+    parser.add_argument("--approach-um", type=float, default=EDGE_APPROACH_UM,
+                        help="signed offset from the cell centre; + outboard, - inboard")
+    parser.add_argument("--mark-from-flat-um", type=float, default=MARK_FROM_FLAT_UM,
+                        help="distance from the flat for the flat-facing marks (flat placement)")
+    parser.add_argument("--marker", action="store_true",
+                        help="add the centered plus marker")
+    args = parser.parse_args()
+
+    OUTPUT_DIR = args.out_dir
+    CUT_WIDTH_UM = args.width_um
+    MARK_LENGTH_UM = args.length_mm * 1000.0
+    PLACEMENT = args.placement
+    EDGE_APPROACH_UM = args.approach_um
+    MARK_FROM_FLAT_UM = args.mark_from_flat_um
+    INCLUDE_CENTERED_MARKER = args.marker
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"Placement {PLACEMENT}; width {CUT_WIDTH_UM:g} um; length {MARK_LENGTH_UM/1000:g} mm; "
+          f"approach {EDGE_APPROACH_UM:g} um -> {OUTPUT_DIR}")
     print("Seam-crossing marks (centre -> the two stations that must meet there):")
     for x, y, kind in seam_marks():
         seam = "y = 0" if kind == "Vertical" else "x = 0"
@@ -181,7 +227,7 @@ def main() -> None:
         region = pya.Region()
         for box in mark_boxes(layout, orientation):
             region.insert(box)
-        if orientation == MARKER_ORIENTATION:
+        if INCLUDE_CENTERED_MARKER and orientation == MARKER_ORIENTATION:
             region += centered_marker(layout)
         region.merge()
         path = OUTPUT_DIR / f"{MASTER_STEM.format(orientation=orientation)}.dxf"
