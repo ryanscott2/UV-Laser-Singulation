@@ -42,7 +42,7 @@ For each station, import its DXF and set:
 - **Fill:** parallel (hatch), **0.01 mm** spacing — **0°** for horizontal cuts,
   **90°** for vertical cuts.
 - **Mark speed:** 400 mm/s. **Passes:** 1 (mark once). **Loop the job 175×.**
-- **Z / table height:** **0.463 in + jig base thickness (3.000 mm)** ≈ 14.76 mm.
+- **Z / table height:** **0.463 in + jig base thickness (12.500 mm)** ≈ 24.26 mm.
 - **Auto-centering OFF** — the DXF origin is the field center.
 
 Run **P1 → P2 → P3 → P4 in order.** Do both the horizontal (0°) and vertical (90°)

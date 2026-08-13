@@ -399,9 +399,10 @@ Clearances now, in `FusionPinGridJig.py` (these supersede the v2 values in the
   clearance, sized so every wafer -- including undersize, which seats deeper into
   the corner -- clears the arc and datums on its flats.
 
-**Dowel length:** the bore engages `BOSS_HEIGHT + BASE_THICKNESS = 8 mm`, so cut
-each 3/16 in steel dowel to **`13 mm`** and press it flush with the boss top; that
-leaves `5 mm` protruding below the base, matching the v2 printed pins.
+**Dowel length:** the bore runs through the `12.5 mm` base (thickened to `12.5 mm`
+for warp resistance; the raised boss was dropped, so the bore goes through the
+solid slab), so cut each 3/16 in steel dowel to about **`13 mm`** (~8 mm engaged +
+5 mm protruding) to match the v2 printed pins.
 
 ### Calibration impact -- manual recalibration required
 

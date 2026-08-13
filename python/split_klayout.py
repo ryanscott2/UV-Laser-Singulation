@@ -38,18 +38,16 @@ OUTPUT_DIR = r""
 
 # Calibration applied to every output after it is centered on its laser field.
 # Positive X moves all output geometry right; positive Y moves it up.
-# Measured 2026-08-11 on the 081126 alignment test: the exposure sat +3.017 mm in
-# X and -1.286 mm in Y off the wafer flats, so shift every job back by that much.
-# Re-measured after that correction: residual +0.17 mm in X and -0.06 mm in Y, both
-# the same sign as the original error (under-corrected). Correcting the full residual
-# (X -> -3186.7, Y -> +1345.7) overtuned, so split the difference with the first
-# correction and apply half: X by 85 um (-3016.7 -> -3101.7) and Y by 30 um
-# (+1285.7 -> +1315.7).
-# RESET BOTH TO 0 once the print-v2 jig is in use: that jig corrects the same offset
-# in its pin/nest geometry (fusion/FusionPinGrid*Jig NEST_CALIBRATION_*), and
-# leaving this on top would double-correct by ~3 mm.
-GLOBAL_X_OFFSET_UM = -3101.7
-GLOBAL_Y_OFFSET_UM = 1315.7
+# RESET TO 0 on 2026-08-12 now that the print jig carries the calibration in its
+# nest geometry (fusion/FusionPinGrid*Jig NEST_CALIBRATION_*); the software offset
+# must be 0 or the two double-correct by ~3 mm.
+# History: measured 2026-08-11 on the 081126 alignment test the exposure sat
+# +3.017 mm X / -1.286 mm Y off the wafer flats; the software offset was trimmed to
+# -3101.7 / +1315.7 (split-difference) to pull it back. The tightened nest has since
+# invalidated that calibration, so a manual recal is pending -- regenerate the
+# alignment test with these at 0 and re-measure. See CALIBRATION_AND_SLIDING_NEST_NOTES.md.
+GLOBAL_X_OFFSET_UM = 0.0
+GLOBAL_Y_OFFSET_UM = 0.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. This is for correcting one station measured off from its neighbours
@@ -105,11 +103,12 @@ WINDOW_CENTER_Y_UM = 25_400.0
 # field means neighbours overlap by 3.2 mm and that whole band is exposed twice.
 CLIP_MODE = "partition"  # `partition` or `full_window`
 
-# Total overlap across the X=0 and Y=0 stitch lines in partition mode. 200 um
-# extends each neighbouring job 100 um past the nominal seam, which covers the
+# Total overlap across the X=0 and Y=0 stitch lines in partition mode. 400 um
+# extends each neighbouring job 200 um past the nominal seam -- doubled from 200 um
+# to give the tiles more overlap against jig re-seat error, and it still covers the
 # 75-100 um seam mismatch recorded in CALIBRATION_AND_SLIDING_NEST_NOTES.md.
 # Scoring partway through the wafer makes a small double-exposed band harmless.
-STITCH_OVERLAP_UM = 200.0
+STITCH_OVERLAP_UM = 400.0
 
 # Source and output layer. DXF layer "0" normally imports as layer 0/datatype 0.
 SOURCE_LAYER = 0
@@ -547,12 +546,45 @@ def dbu_area_to_mm2(layout, area_dbu: int) -> float:
     return area_dbu * (layout.dbu**2) / 1_000_000.0
 
 
+def write_dxf_r2010(output_path: Path, region, dbu: float) -> None:
+    """Write the cut polygons as the DXF the laser tools expect: AutoCAD 2010
+    (R2010), millimeter units ($INSUNITS = 4), closed LWPOLYLINEs on layer '0'.
+
+    KLayout's DXF writer cannot set the version or the units header, so ezdxf does
+    it. Coordinates are emitted in millimeters (1 DXF unit = 1 mm), matching the
+    source convention.
+    """
+    import ezdxf  # lazy: only DXF output needs it
+
+    doc = ezdxf.new("R2010")
+    doc.header["$INSUNITS"] = 4  # 4 = millimeters
+    msp = doc.modelspace()
+    scale = dbu / 1000.0  # database units -> mm
+    for poly in region.each():
+        rings = [poly.each_point_hull()]
+        for hole in range(poly.holes()):
+            rings.append(poly.each_point_hole(hole))
+        for ring in rings:
+            points = [(p.x * scale, p.y * scale) for p in ring]
+            if points:
+                msp.add_lwpolyline(
+                    points, close=True, dxfattribs={"layer": OUTPUT_LAYER_NAME}
+                )
+    doc.saveas(str(output_path))
+
+
 def write_layout(
     output_path: Path,
     source_layout,
     region,
     cell_name: str,
 ) -> None:
+    if output_path.suffix.lower() == ".dxf":
+        # DXF is the laser format: write it as AutoCAD 2010 with mm units via ezdxf,
+        # which KLayout's DXF writer cannot do. GDS/OAS still go through KLayout.
+        write_dxf_r2010(output_path, region, source_layout.dbu)
+        return
+
     output_layout = pya.Layout()
     output_layout.dbu = source_layout.dbu
     cell = output_layout.create_cell(cell_name)
@@ -563,21 +595,7 @@ def write_layout(
 
     options = pya.SaveLayoutOptions()
     options.set_format_from_filename(str(output_path))
-    if output_path.suffix.lower() == ".dxf":
-        options.dxf_polygon_mode = DXF_POLYGON_MODE
-        # KLayout database/display units are microns; restore 1 mm DXF units.
-        options.scale_factor = 0.001
     output_layout.write(str(output_path), options)
-    if output_path.suffix.lower() == ".dxf":
-        # KLayout encodes numeric layers as names such as L0D0_0. Restore the
-        # literal DXF layer name requested for the laser workflow.
-        generated_name = f"L{OUTPUT_LAYER}D{OUTPUT_DATATYPE}_{OUTPUT_LAYER_NAME}"
-        text = output_path.read_text(encoding="utf-8", errors="strict")
-        output_path.write_text(
-            text.replace(generated_name, OUTPUT_LAYER_NAME),
-            encoding="utf-8",
-            newline="",
-        )
 
 
 def run_center_pass(layout, source_region, source_layers, width_stats, input_file,
