@@ -1,9 +1,0 @@
-{
-  "autodeskProduct": "Fusion360",
-  "type": "script",
-  "author": "",
-  "description": "Builds and exports the parametric single-jig 100 mm wafer indexer.",
-  "version": "1.0.0",
-  "supportedOS": "windows|mac",
-  "editEnabled": true
-}
