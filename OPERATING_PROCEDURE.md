@@ -27,9 +27,10 @@ ready-split files, use `python tools/build_pin_grid_set.py --combined <gds>
 
 1. Set the jig on the table with all four dowels in the grid holes for the first
    position (P1 — see the table below).
-2. Drop the wafer in and push it **forward against the primary flat** (front datum)
-   and **left against the secondary flat** (left datum) so it seats on both flats.
-   The flats fully locate it; do not rely on the arc.
+2. Drop the wafer in and push it **forward against the primary flat** (front datum,
+   sets Y + rotation) and **left against the X-datum pin** at the upper-left of the
+   nest (sets X). The primary flat plus the pin fully locate it; the secondary flat
+   is not used, so any wafer flat type seats the same way.
 3. **Kapton-tape the wafer down** at the perimeter through the two tape gaps
    (180° apart). Tape **on top only, never underneath** — tape under the wafer
    rocks it and shifts focus. Keep tape clear of the scanned area (polyimide

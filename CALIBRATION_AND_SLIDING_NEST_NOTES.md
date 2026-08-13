@@ -1,6 +1,6 @@
 # UV Laser Singulation calibration and sliding-nest notes
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 ## Coordinate convention
 
@@ -426,3 +426,40 @@ Recalibrate as in the 2026-08-11 section (re-measure flat-to-seam distances at e
 station) and reset `NEST_CALIBRATION`; keep the software `GLOBAL_*_OFFSET_UM` at `0`
 while the baked-offset jig is in use. The flat-only datum should make the new
 calibration more repeatable than the arc-limited v2 seat.
+
+## X datuming moved to a single arc pin (2026-08-13)
+
+Superseding the two-flat datum above: the nest now locates the wafer on the
+**primary flat only** (front, `-Y`; still `0.175 mm`, sets Y + rotation) plus **one
+hard pin on the arc** at the **9:30** position (`165 deg` CCW from `+X`, upper-left)
+that sets **X**. The secondary flat is no longer a datum -- the arc wall is opened to
+a loose `0.600 mm` retainer and the pin (an `8 mm` post truncated flat at the hub
+edge, its round face standing proud to the nominal wafer OD) is the sole X contact.
+The operator presses forward onto the flat
+and left onto the pin by hand.
+
+Why: the secondary flat sits at a different clock angle for each SEMI type (100 p/n,
+111 p/n) or is absent, so datuming on it forces a per-type nest. 9:30 is the one arc
+window clear of the secondary flat for **every** type, and it stays clear when the
+wafer is flipped for back-side work -- so one nest covers all types and both faces.
+
+Trade-off: X now references the wafer **OD**, not a flat, so X repeatability tracks
+OD consistency (tens of um within a batch) instead of the flat. Y and rotation are
+unchanged (still the primary flat).
+
+**Calibration impact:** the X seat moves (from the flat to the OD pin), so this again
+**invalidates `NEST_CALIBRATION`**. Re-measure and reset it with the pinned print;
+keep the software `GLOBAL_*_OFFSET_UM` at `0` while the baked-offset jig is in use.
+Y should be essentially unchanged from the 2026-08-12 primary-flat seat.
+
+### Plate reshape is calibration-neutral (2026-08-13)
+
+The plate was then reshaped for weight (a hub over the nest with necked `15 mm` arms
+out to four `r10` bosses, the rectangular corners removed, the pickup tabs deleted,
+and the outer corners filleted), the X pin was fattened to `8 mm` and truncated flat
+at the hub edge, the arc retainer opened `0.500 -> 0.600 mm`, the floor text removed,
+and a `RYAN SCOTT` maker's mark added along the top-left arm. **None of this moves the
+wafer seat:** the nest center, the primary-flat datum (`0.175 mm`), and the 9:30
+X-pin contact (nominal OD at `165 deg`) are all geometrically unchanged. So the recal
+above is the only outstanding calibration action -- this reshape adds no further
+shift, and its expected recal values are unchanged from the pin-datum switch.

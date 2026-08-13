@@ -48,7 +48,7 @@ plus a text log.
 ## Physical sequence
 
 1. Mount the pin-grid jig and seat the wafer at its P0 (center) position: primary
-   flat forward, secondary flat against the nest datum (see ../fusion/FusionPinGridJig).
+   flat forward, left edge seated against the X-datum pin (see ../fusion/FusionPinGridJig).
 2. Confirm the wafer is flat, clean, and fully seated before focusing.
 3. Run a low-power alignment target first; placement calibration lives in the
    pin-grid jig / splitter offset, not here.
