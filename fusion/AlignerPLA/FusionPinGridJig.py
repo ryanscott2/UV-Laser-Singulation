@@ -1,17 +1,4 @@
-"""Build and export the SLA variant of the four-dowel grid-indexed 100 mm wafer jig.
-
-A copy of FusionPinGridJig.py for SLA/resin printing (still with pressed steel
-dowels). The only functional difference is SCALE_FACTOR: a single uniform scale
-applied to the whole solid about the origin (the pin-pattern center) so a resin
-print can be sized to come out on nominal dimensions -- most importantly the
-101.600 mm dowel-pin pitch, which must match the table's 1 inch grid.
-
-Formlabs PreForm already auto-compensates cure shrinkage, so leave SCALE_FACTOR at
-1.000 for the first print, then measure a known span (ideally the dowel-hole pitch,
-nominal 101.600 mm) and set SCALE_FACTOR = nominal / measured to null any residual
-(Formlabs standard/general-purpose resins leave up to ~0.15% XY, ~0.15 mm on the
-pitch). Scaling about the origin corrects the pitch and every feature proportionally.
-"""
+"""Build and export a four-dowel grid-indexed 100 mm wafer jig in Fusion."""
 
 from __future__ import annotations
 
@@ -26,13 +13,6 @@ import adsk.fusion
 # =============================================================================
 # USER-EDITABLE DIMENSIONS (millimeters)
 # =============================================================================
-
-# SLA shrink-compensation scale. A single uniform scale is applied to the whole
-# solid about the origin (the pin-pattern center) at the end of build_model. Leave
-# at 1.000 for the first print -- Formlabs PreForm already compensates cure shrink
-# -- then set SCALE_FACTOR = nominal / measured from a test print (measure the
-# 101.600 mm dowel-hole pitch) to null any residual; > 1.0 grows the model.
-SCALE_FACTOR = 1.000
 
 # Table/grid calibration.
 GRID_PITCH = 25.400
@@ -78,78 +58,64 @@ DOWEL_PROTRUSION = 5.000         # protrusion below the base into the table hole
 # The bore runs through the full 12.5 mm base, so ample engagement is available;
 # ~8 mm is plenty. Cut each dowel to engagement + 5 mm protrusion (e.g. ~13 mm for
 # 8 mm engaged and 5 mm proud below) to match the v2 pins.
-# Bore for the dowel. A standard resin cracked when a dowel was pressed into the
-# old thin boss, so the bore is opened 0.15 mm (4.80 -> 4.95) for a clear slip fit
-# on the 4.7625 mm dowel -- retention is epoxy, not interference. With the boss now
-# gone (bore through the solid base) the wall is solid too, so it is doubly safe.
-DOWEL_HOLE_DIAMETER = 4.950
-PIN_EDGE_FILL = 7.000            # solid material kept radially out from every dowel-hole edge
-BOSS_DIAMETER = DOWEL_HOLE_DIAMETER + 2.0 * PIN_EDGE_FILL  # corner footprint that sets the flush plate edge
+# Bore for the dowel. FDM prints small holes undersize (coarser layers come out a
+# bit smaller), so this is modeled over the 4.7625 mm dowel and dialed in on a
+# printed coupon. 4.85 offsets the undersize; PLA is brittle, so aim for a
+# slip/snug fit retained with epoxy rather than a hard press that splits the wall.
+DOWEL_HOLE_DIAMETER = 4.850
+BOSS_DIAMETER = 20.000            # boss disc: 10 mm radius of material around each dowel hole
+ARM_WIDTH = 15.000                # necked arm hub->boss; kept under the boss diameter for looks
+FILLET_RADIUS = 2.500             # rounds the outer corners where arms meet the hub/bosses
 BOSS_HEIGHT = 0.000              # no raised boss; the thick base gives the engagement and a solid bore wall
 
-# Platform and wafer nest. The plate is a tight bounding box computed in
-# build_model, not centered on the nest: the corner bosses sit flush to the left
-# and rear edges, and the right/front edges come in to the nest wall plus a small
-# margin. There is no perimeter bar -- the 12.5 mm base is stiff enough on its own
-# -- so PLATFORM_NEST_GAP is just the base kept beyond the nest wall where the nest
-# (not a boss) is the outermost feature.
+# Platform and wafer nest. The base is a "spider" built in build_model -- a hub disc
+# over the nest plus four necked arms out to the corner dowel bosses -- not a
+# rectangular plate. PLATFORM_NEST_GAP is the radial margin kept beyond the 3 mm nest
+# wall when sizing that hub: hub_radius = WAFER_DIAMETER/2 + SIDEWALL_THICKNESS +
+# PLATFORM_NEST_GAP.
 PLATFORM_NEST_GAP = 1.000
 BASE_THICKNESS = 12.500          # thick slab to resist warping and give the dowel bore a solid wall
 SIDEWALL_HEIGHT = 2.000          # tall enough to retain a short stack of wafers
 SIDEWALL_THICKNESS = 3.000
 
-# Small pickup tabs centered on the left and right edges, so the plate can be
-# lifted straight off the pins without prying at the wafer or the nest wall. Each is
-# a flange whose top is flush with the base top, leaving the base thickness minus the
-# tab as the undercut to hook under.
-SIDE_TAB_PROTRUSION = 10.000
-SIDE_TAB_LENGTH = 24.000
-SIDE_TAB_HEIGHT = 4.000  # flange thickness at the base top (was tied to the removed bar)
 
 WAFER_DIAMETER = 100.000
 PRIMARY_FLAT_LENGTH = 32.500
 SECONDARY_FLAT_LENGTH = 18.000
-# Nest clearances. The wafer is located purely by its two flats for maximum
-# repeatability, so the flat datums are tight and the arc is deliberately loose
-# enough that it never contacts first:
-#   - PRIMARY_FLAT (front datum) and SECONDARY_DATUM (left datum): 0.175 mm each.
-#   - RADIAL (arc) must exceed the flat-seat diagonal
-#     sqrt(PRIMARY^2 + SECONDARY^2) = 0.175 * sqrt(2) = 0.248 mm, or the front-left
-#     arc jams before both flats seat. 0.500 leaves ~0.25 mm arc clearance when
-#     both flats are home, sized so every wafer (incl. undersize, which seats
-#     deeper into the corner) clears the arc and datums on its flats.
-# NOTE: this tightens the flats from the old v2 fit (0.500 / 0.500 / 0.300), which
-# shifts the wafer seat and INVALIDATES the current NEST_CALIBRATION. A manual
+# Nest datums. The wafer is located by its PRIMARY flat plus ONE hard pin on the
+# arc -- not by the secondary flat -- so a single nest fits every SEMI flat type
+# (the secondary sits at a different clock angle per type, or is absent) and a wafer
+# flipped for back-side work. The operator presses it forward onto the primary-flat
+# bar and left onto the pin by hand:
+#   - PRIMARY_FLAT (front datum), 0.175 mm: sets Y + rotation.
+#   - X_PIN at the 9:30 arc position: sets X. 9:30 (165 deg CCW from +X) is the one
+#     window that stays clear of the secondary flat for all types and both faces. It
+#     presses to the nominal wafer OD, so X now references the OD -- repeatability
+#     tracks OD consistency, not a flat (fine within a wafer batch).
+#   - RADIAL (arc) 0.600 mm: the rest of the wall is a loose retainer, held off the
+#     wafer so the pin alone takes the X contact.
+# NOTE: this replaces the old two-flat datum (v2 fit 0.500 / 0.500 / 0.300) and
+# shifts the wafer seat, so it INVALIDATES the current NEST_CALIBRATION -- a manual
 # recalibration is required with this print; see CALIBRATION_AND_SLIDING_NEST_NOTES.md.
-RADIAL_CLEARANCE = 0.500
-PRIMARY_FLAT_CLEARANCE = 0.175
-SECONDARY_DATUM_CLEARANCE = 0.175
+RADIAL_CLEARANCE = 0.600          # loose arc retainer, opened so the X pin (not the wall) contacts first
+PRIMARY_FLAT_CLEARANCE = 0.175    # front datum: Y + rotation
+X_PIN_ANGLE_DEG = 165.0           # 9:30 upper-left; clear of every type's secondary flat
+X_PIN_DIAMETER = 8.000            # hard X-datum pin; grows outward, inner edge stays at the wafer OD
 
 # Two gaps in the raised lip, 180 degrees apart, so a Kapton tab can run from the
 # platform onto the wafer without having to bridge the 2 mm wall. The wafer is
-# pushed against the secondary flat and taped down; the pocket only locates it,
-# it does not retain it. Both cut the raised wall only -- the solid base stays
-# continuous under the wafer.
+# pushed forward onto the primary flat (and left onto the X pin) and taped down; the
+# nest only locates it, it does not retain it. Both cut the raised wall only -- the
+# solid base stays continuous under the wafer.
 #
 # Both are 15 mm. They stay separate constants so either can be tuned alone.
 PICKUP_GAP_WIDTH = 15.000
 REAR_TAPE_GAP_WIDTH = 15.000
 
-# One engraving on the platform floor: a two-line credit in the top-left corner,
-# just inboard of the top-left dowel boss.
-ANNOTATION_DEPTH = 0.500
-ANNOTATION_TEXT_HEIGHT = 2.500
-ANNOTATION_MARGIN_Y = 5.000
-# Clearance from the top-left dowel boss to the nearest credit glyph. The credit
-# is anchored off the boss edge (not the platform corner) so it stays clear of
-# the boss no matter how the platform is sized.
-LABEL_BOSS_GAP = 3.500
-TITLE_BOX_WIDTH = 40.000
-TITLE_BOX_HEIGHT = 14.000
-TITLE_TEXT = (
-    "DESIGNED BY:\n"
-    "RYAN SCOTT"
-)
+# Maker's name engraved along the top-left arm (the only solid strut with room).
+NAME_TEXT = "RYAN SCOTT"
+NAME_TEXT_HEIGHT = 3.000
+NAME_DEPTH = 0.500
 
 SEGMENTS = 180
 
@@ -189,6 +155,7 @@ def wafer_polygon(
     radial_offset: float = 0.0,
     primary_relief: float = 0.0,
     secondary_relief: float = 0.0,
+    include_secondary_flat: bool = True,
 ):
     radius = WAFER_DIAMETER / 2.0
     primary_depth = math.sqrt(radius**2 - (PRIMARY_FLAT_LENGTH / 2.0) ** 2)
@@ -201,24 +168,84 @@ def wafer_polygon(
         )
         for index in range(SEGMENTS)
     ]
-    # Primary flat faces table front (-Y); secondary flat faces table left (-X).
+    # Primary flat faces table front (-Y); optional secondary flat faces left (-X).
     points = clip_polygon(
         points,
         axis=1,
         threshold=center_y - primary_depth - primary_relief,
         keep_greater=True,
     )
-    points = clip_polygon(
-        points,
-        axis=0,
-        threshold=center_x - secondary_depth - secondary_relief,
-        keep_greater=True,
-    )
+    if include_secondary_flat:
+        points = clip_polygon(
+            points,
+            axis=0,
+            threshold=center_x - secondary_depth - secondary_relief,
+            keep_greater=True,
+        )
     return points
 
 
 def rectangle_points(x: float, y: float, width: float, height: float):
     return [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+
+
+def oriented_rect(p0, p1, width):
+    """A width-wide rectangle centered on the segment from p0 to p1."""
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    length = math.hypot(dx, dy)
+    ux, uy = dx / length, dy / length
+    px, py = -uy * width / 2.0, ux * width / 2.0
+    return [
+        (p0[0] + px, p0[1] + py),
+        (p1[0] + px, p1[1] + py),
+        (p1[0] - px, p1[1] - py),
+        (p0[0] - px, p0[1] - py),
+    ]
+
+
+def half_disc(center_x, center_y, radius, facing_rad, segments=32):
+    """Semicircle of `radius` about the center, bulging toward `facing_rad`.
+
+    The straight side (chord) is the flat back; the round side is the contact face.
+    """
+    start = facing_rad - math.pi / 2.0
+    return [
+        (center_x + radius * math.cos(start + math.pi * i / segments),
+         center_y + radius * math.sin(start + math.pi * i / segments))
+        for i in range(segments + 1)
+    ]
+
+
+def fillet_outer_vertical_edges(component, radius_mm):
+    """Round every vertical (Z-parallel straight) edge of the base body.
+
+    Those are the in-plane outline corners where the arms meet the hub and bosses;
+    filleting them removes the sharp outer edges. Degrades gracefully (tries smaller
+    radii, then skips) if a radius is too large for a notch.
+    """
+    if component.bRepBodies.count == 0:
+        return
+    body = component.bRepBodies.item(0)
+    for radius in (radius_mm, radius_mm * 0.6, radius_mm * 0.3):
+        edges = adsk.core.ObjectCollection.create()
+        for edge in body.edges:
+            geometry = edge.geometry
+            if geometry.curveType != adsk.core.Curve3DTypes.Line3DCurveType:
+                continue
+            start, end = geometry.startPoint, geometry.endPoint
+            if (abs(start.x - end.x) < 1e-6 and abs(start.y - end.y) < 1e-6
+                    and abs(start.z - end.z) > 1e-6):
+                edges.add(edge)
+        if edges.count == 0:
+            return
+        try:
+            fillet_input = component.features.filletFeatures.createInput()
+            fillet_input.addConstantRadiusEdgeSet(
+                edges, adsk.core.ValueInput.createByString(f"{radius} mm"), False)
+            component.features.filletFeatures.add(fillet_input)
+            return
+        except Exception:
+            continue
 
 
 def vertical_capsule_points(center_x, start_center_y, end_center_y, width, segments=28):
@@ -236,6 +263,36 @@ def vertical_capsule_points(center_x, start_center_y, end_center_y, width, segme
             (center_x + radius * math.cos(angle), start_center_y + radius * math.sin(angle))
         )
     return points
+
+
+def engrave_on_path(component, plane, text, p0, p1, height, depth, name):
+    """Recess single-line text running along the segment p0->p1 (a maker's mark).
+
+    Uses fit-on-path so the text follows the diagonal arm. Wrapped so a text-API
+    hiccup never blocks the build -- if it fails the jig still generates, just
+    without the name.
+    """
+    try:
+        sketch = component.sketches.add(plane)
+        sketch.name = f"{name} Sketch"
+        path_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
+            adsk.core.Point3D.create(cm(p0[0]), cm(p0[1]), 0),
+            adsk.core.Point3D.create(cm(p1[0]), cm(p1[1]), 0),
+        )
+        text_input = sketch.sketchTexts.createInput2(text, cm(height))
+        text_input.setAsFitOnPath(path_line, True)
+        sketch_text = sketch.sketchTexts.add(text_input)
+        extrudes = component.features.extrudeFeatures
+        feature_input = extrudes.createInput(
+            sketch_text, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        feature_input.setDistanceExtent(
+            False, adsk.core.ValueInput.createByString(f"-{depth} mm"))
+        feature = extrudes.add(feature_input)
+        feature.name = name
+        sketch.isVisible = False
+        return feature
+    except Exception:
+        return None
 
 
 def offset_plane(component, offset_mm: float, name: str):
@@ -277,42 +334,6 @@ def extrude_profile(component, sketch, distance_mm, operation, name):
     feature_input.setDistanceExtent(
         False,
         adsk.core.ValueInput.createByString(f"{distance_mm} mm"),
-    )
-    feature = extrudes.add(feature_input)
-    feature.name = name
-    sketch.isVisible = False
-    return feature
-
-
-def engrave_text(component, plane, text, x_min, y_min, width, height, text_height, depth, name,
-                 align=None):
-    """Raise multiline sketch text above the platform's top face (additive)."""
-    if align is None:
-        align = adsk.core.HorizontalAlignments.LeftHorizontalAlignment
-    sketch = component.sketches.add(plane)
-    sketch.name = f"{name} Sketch"
-    text_input = sketch.sketchTexts.createInput2(text, cm(text_height))
-    placed = text_input.setAsMultiLine(
-        adsk.core.Point3D.create(cm(x_min), cm(y_min), 0),
-        adsk.core.Point3D.create(cm(x_min + width), cm(y_min + height), 0),
-        align,
-        adsk.core.VerticalAlignments.TopVerticalAlignment,
-        0.0,
-    )
-    if not placed:
-        raise RuntimeError(f"{name}: Fusion rejected the multiline text box")
-    sketch_text = sketch.sketchTexts.add(text_input)
-    if not sketch_text:
-        raise RuntimeError(f"{name}: Fusion could not create sketch text")
-
-    extrudes = component.features.extrudeFeatures
-    feature_input = extrudes.createInput(
-        sketch_text,
-        adsk.fusion.FeatureOperations.JoinFeatureOperation,
-    )
-    feature_input.setDistanceExtent(
-        False,
-        adsk.core.ValueInput.createByString(f"{depth} mm"),
     )
     feature = extrudes.add(feature_input)
     feature.name = name
@@ -370,25 +391,14 @@ def build_model(design):
         "Dowel Boss Top Plane",
     )
 
-    # --- Minimal platform: a tight bounding box, not centered on the nest ---
-    # Each edge sits at whichever is outermost: a corner boss (flush) or the nest
-    # wall plus a small gap. No perimeter bar (the 12.5 mm base is stiff enough), so
-    # the plate packs to the bosses on the left/rear and to the nest wall on the
-    # right/front.
-    _wafer_r = WAFER_DIAMETER / 2.0
-    _primary_depth = math.sqrt(_wafer_r ** 2 - (PRIMARY_FLAT_LENGTH / 2.0) ** 2)
-    _secondary_depth = math.sqrt(_wafer_r ** 2 - (SECONDARY_FLAT_LENGTH / 2.0) ** 2)
-    _boss_reach = OUTER_PIN_PATTERN_SPAN / 2.0 + BOSS_DIAMETER / 2.0
-    _nest_left = NEST_CENTER_X - _secondary_depth - SIDEWALL_THICKNESS
-    _nest_right = NEST_CENTER_X + _wafer_r + SIDEWALL_THICKNESS
-    _nest_rear = NEST_CENTER_Y + _wafer_r + SIDEWALL_THICKNESS
-    _nest_front = NEST_CENTER_Y - _primary_depth - SIDEWALL_THICKNESS
-    platform_left = min(-_boss_reach, _nest_left - PLATFORM_NEST_GAP)
-    platform_right = max(_boss_reach, _nest_right + PLATFORM_NEST_GAP)
-    platform_rear = max(_boss_reach, _nest_rear + PLATFORM_NEST_GAP)
-    platform_front = min(-_boss_reach, _nest_front - PLATFORM_NEST_GAP)
-    platform_size_x = platform_right - platform_left
-    platform_size_y = platform_rear - platform_front
+    # --- Spider base: a hub over the wafer nest with necked arms out to the four
+    # corner bosses. The base must stay solid under the whole nest (the wafer floor
+    # and the 3 mm wall reach the nest radius), so the hub is a disc of that radius
+    # plus a small margin; the old rectangular corners are gone and there are no
+    # pickup tabs.
+    half_span = OUTER_PIN_PATTERN_SPAN / 2.0
+    boss_centers = [(sx * half_span, sy * half_span) for sx in (-1.0, 1.0) for sy in (-1.0, 1.0)]
+    hub_radius = WAFER_DIAMETER / 2.0 + SIDEWALL_THICKNESS + PLATFORM_NEST_GAP
 
     for name, value, comment in (
         ("gridPitch", GRID_PITCH, "Table hole-grid pitch"),
@@ -396,70 +406,55 @@ def build_model(design):
         ("outerPinPatternSpan", OUTER_PIN_PATTERN_SPAN, "Four-space outer pin span"),
         ("dowelDiameter", DOWEL_DIAMETER, "3/16 in steel locating dowel diameter"),
         ("dowelHoleDiameter", DOWEL_HOLE_DIAMETER, "Press-fit bore for the dowel"),
-        ("bossHeight", BOSS_HEIGHT, "Dowel boss height above platform"),
-        ("bossDiameter", BOSS_DIAMETER, "Corner fill footprint diameter"),
-        ("platformSizeX", platform_size_x, "Overall plate width"),
-        ("platformSizeY", platform_size_y, "Overall plate depth"),
+        ("bossDiameter", BOSS_DIAMETER, "Boss disc diameter (10 mm radius) around each dowel"),
+        ("armWidth", ARM_WIDTH, "Necked arm width, hub to boss"),
+        ("hubRadius", hub_radius, "Nest hub radius"),
+        ("filletRadius", FILLET_RADIUS, "Outer-corner fillet radius"),
         ("baseThickness", BASE_THICKNESS, "Wafer platform thickness"),
-        ("sideTabHeight", SIDE_TAB_HEIGHT, "Pickup-tab flange thickness"),
         ("sidewallHeight", SIDEWALL_HEIGHT, "Nest lip height above platform"),
         ("nestOffsetX", NEST_OFFSET_FROM_PIN_CENTER_X, "Nest X from pin-square center"),
         ("nestOffsetY", NEST_OFFSET_FROM_PIN_CENTER_Y, "Nest Y from pin-square center"),
         ("pickupGapWidth", PICKUP_GAP_WIDTH, "Primary-flat pickup opening"),
         ("rearTapeGapWidth", REAR_TAPE_GAP_WIDTH, "Rear tape-access gap in the lip"),
-        ("annotationDepth", ANNOTATION_DEPTH, "Baseplate text engraving depth"),
-        ("annotationTextHeight", ANNOTATION_TEXT_HEIGHT, "Baseplate text height"),
     ):
         add_parameter(design, name, value, comment)
 
-    # The platform supports the wafer and carries all four dowel bosses.
-    platform = rectangle_points(
-        platform_left,
-        platform_front,
-        platform_size_x,
-        platform_size_y,
-    )
-    extrude_polygon(
+    # Hub disc that carries the wafer nest.
+    extrude_profile(
         component,
-        xy_plane,
-        platform,
+        circle_sketch(component, xy_plane, NEST_CENTER_X, NEST_CENTER_Y, 2.0 * hub_radius, "Nest Hub Sketch"),
         BASE_THICKNESS,
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-        "Wafer Platform",
+        "Nest Hub",
     )
-
-    # Pickup tabs, one per side, centered on the nest Y center (the wafer center line). Each is a
-    # SIDE_TAB_HEIGHT-thick flange whose top is flush with the base top, cantilevered
-    # out past the plate edge. The open space below it (base thickness minus the tab)
-    # is the undercut a fingernail or tweezer tip hooks into to lift the plate straight
-    # off its pins, instead of prying against the wafer or the nest wall.
-    platform_left_x = platform_left
-    platform_right_x = platform_right
-    for tab_name, tab_x in (
-        ("Left Pickup Tab", platform_left_x - SIDE_TAB_PROTRUSION),
-        ("Right Pickup Tab", platform_right_x),
-    ):
+    # A necked arm out to each corner boss, then the boss disc around each dowel bore.
+    for index, (boss_x, boss_y) in enumerate(boss_centers):
         extrude_polygon(
             component,
-            wall_plane,
-            rectangle_points(
-                tab_x,
-                NEST_CENTER_Y - SIDE_TAB_LENGTH / 2.0,
-                SIDE_TAB_PROTRUSION,
-                SIDE_TAB_LENGTH,
-            ),
-            -SIDE_TAB_HEIGHT,
+            xy_plane,
+            oriented_rect((NEST_CENTER_X, NEST_CENTER_Y), (boss_x, boss_y), ARM_WIDTH),
+            BASE_THICKNESS,
             adsk.fusion.FeatureOperations.JoinFeatureOperation,
-            tab_name,
+            f"Boss Arm {index + 1}",
         )
+        extrude_profile(
+            component,
+            circle_sketch(component, xy_plane, boss_x, boss_y, BOSS_DIAMETER, f"Boss {index + 1} Sketch"),
+            BASE_THICKNESS,
+            adsk.fusion.FeatureOperations.JoinFeatureOperation,
+            f"Boss {index + 1}",
+        )
+    # Round the outer corners where the arms meet the hub and bosses -- no sharp edges.
+    fillet_outer_vertical_edges(component, FILLET_RADIUS)
 
-    # Raised nest wall; the pocket cut below leaves only the 3 mm wall ring.
+    # Raised nest wall: a plain arc plus the primary-flat bar (no secondary-flat
+    # datum). The pocket cut below leaves the wall ring; the X pin is added after.
     outer = wafer_polygon(
         NEST_CENTER_X,
         NEST_CENTER_Y,
         radial_offset=SIDEWALL_THICKNESS,
         primary_relief=SIDEWALL_THICKNESS,
-        secondary_relief=SIDEWALL_THICKNESS,
+        include_secondary_flat=False,
     )
     extrude_polygon(
         component,
@@ -475,7 +470,7 @@ def build_model(design):
         NEST_CENTER_Y,
         radial_offset=RADIAL_CLEARANCE,
         primary_relief=PRIMARY_FLAT_CLEARANCE,
-        secondary_relief=SECONDARY_DATUM_CLEARANCE,
+        include_secondary_flat=False,
     )
     extrude_polygon(
         component,
@@ -484,6 +479,26 @@ def build_model(design):
         SIDEWALL_HEIGHT + 0.1,
         adsk.fusion.FeatureOperations.CutFeatureOperation,
         "Final Wafer Pocket Clearance",
+    )
+
+    # Hard X-datum pin at the 9:30 arc position (upper-left). The primary flat sets
+    # Y + rotation; pressing the wafer left onto this pin sets X. 9:30 is the one arc
+    # window clear of the secondary flat for every SEMI type and when the wafer is
+    # flipped for back-side. Built after the pocket cut so it stands proud into the
+    # cavity and stops the wafer at its nominal OD.
+    x_pin_angle = math.radians(X_PIN_ANGLE_DEG)
+    x_pin_center_r = WAFER_DIAMETER / 2.0 + X_PIN_DIAMETER / 2.0
+    x_pin_cx = NEST_CENTER_X + x_pin_center_r * math.cos(x_pin_angle)
+    x_pin_cy = NEST_CENTER_Y + x_pin_center_r * math.sin(x_pin_angle)
+    # Only the inner half of the pin (the half facing the wafer): its flat back sits at
+    # the hub edge so nothing overhangs the plate, and the round face contacts the OD.
+    extrude_polygon(
+        component,
+        wall_plane,
+        half_disc(x_pin_cx, x_pin_cy, X_PIN_DIAMETER / 2.0, x_pin_angle + math.pi),
+        SIDEWALL_HEIGHT,
+        adsk.fusion.FeatureOperations.JoinFeatureOperation,
+        f"X Datum Pin ({X_PIN_ANGLE_DEG:g} deg / 9:30, hub-flush)",
     )
 
     # Beveled 15 mm pickup opening through the raised primary-flat wall only.
@@ -587,36 +602,19 @@ def build_model(design):
             f"{boss_name} Dowel Bore",
         )
 
-    # The single engraving: a two-line credit, left-aligned just inboard of the
-    # top-left boss so it stays clear of the boss for any font.
-    boss_inner_edge_x = OUTER_PIN_PATTERN_SPAN / 2.0 - BOSS_DIAMETER / 2.0
-    title_x_min = -boss_inner_edge_x + LABEL_BOSS_GAP
-    engrave_text(
+    # Maker's name engraved along the top-left arm, running from just past the hub
+    # out toward the boss so it reads along the strut.
+    _name_dir = math.atan2(half_span - NEST_CENTER_Y, -half_span - NEST_CENTER_X)
+    engrave_on_path(
         component,
         wall_plane,
-        TITLE_TEXT,
-        title_x_min,
-        platform_rear - ANNOTATION_MARGIN_Y - TITLE_BOX_HEIGHT,
-        TITLE_BOX_WIDTH,
-        TITLE_BOX_HEIGHT,
-        ANNOTATION_TEXT_HEIGHT,
-        ANNOTATION_DEPTH,
-        "Designed By - 0.5 mm Engraving",
+        NAME_TEXT,
+        (NEST_CENTER_X + 56.0 * math.cos(_name_dir), NEST_CENTER_Y + 56.0 * math.sin(_name_dir)),
+        (NEST_CENTER_X + 76.0 * math.cos(_name_dir), NEST_CENTER_Y + 76.0 * math.sin(_name_dir)),
+        NAME_TEXT_HEIGHT,
+        NAME_DEPTH,
+        "Maker Name - Top-Left Arm",
     )
-
-    # SLA shrink compensation: uniformly scale the whole solid about the origin
-    # (the pin-pattern center) so the resin print comes out on nominal dimensions.
-    # Skipped at 1.000 so the default output matches the PLA jig exactly.
-    if abs(SCALE_FACTOR - 1.0) > 1e-9:
-        scale_bodies = adsk.core.ObjectCollection.create()
-        for body in component.bRepBodies:
-            scale_bodies.add(body)
-        scale_input = component.features.scaleFeatures.createInput(
-            scale_bodies,
-            component.originConstructionPoint,
-            adsk.core.ValueInput.createByReal(SCALE_FACTOR),
-        )
-        component.features.scaleFeatures.add(scale_input)
 
     for plane in (
         component.xYConstructionPlane,
@@ -629,11 +627,11 @@ def build_model(design):
 
 def export_design(design, output_directory):
     manager = design.exportManager
-    f3d_path = os.path.join(output_directory, "pin_grid_wafer_jig_sla.f3d")
-    step_path = os.path.join(output_directory, "pin_grid_wafer_jig_sla.step")
+    f3d_path = os.path.join(output_directory, "pin_grid_wafer_jig.f3d")
+    step_path = os.path.join(output_directory, "pin_grid_wafer_jig.step")
     print_directory = os.path.join(os.path.dirname(output_directory), "print-files")
     os.makedirs(print_directory, exist_ok=True)
-    stl_path = os.path.join(print_directory, "pin_grid_wafer_jig_sla.stl")
+    stl_path = os.path.join(print_directory, "pin_grid_wafer_jig.stl")
     if not manager.execute(manager.createFusionArchiveExportOptions(f3d_path)):
         raise RuntimeError("Fusion archive export failed")
     if not manager.execute(manager.createSTEPExportOptions(step_path)):
@@ -663,7 +661,7 @@ def run(_context):
         output_directory = os.path.dirname(os.path.realpath(__file__))
         f3d_path, step_path, stl_path = export_design(design, output_directory)
         ui.messageBox(
-            f"Four-dowel grid wafer jig (SLA) created at scale {SCALE_FACTOR:g}.\n\n"
+            "Four-dowel grid wafer jig created.\n\n"
             f"Fusion archive:\n{f3d_path}\n\n"
             f"STEP file:\n{step_path}\n\n"
             f"High-quality binary STL:\n{stl_path}",
