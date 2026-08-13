@@ -67,42 +67,44 @@ NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y + NEST_CALIBRATION_Y
 # and fewer dowels means fewer holes to line up when seating the plate.
 #
 # The printed body no longer forms the pins. Each corner has a press-fit through
-# hole in a raised boss that takes a 3/16 in (4.7625 mm) steel dowel. Moving the
-# locating surface to ground steel decouples pin precision and wear from the print
-# tolerance: the dowel slip-fits the table's 1/4-20 tapped hole (~4.87 mm crest
-# ID) and press-fits the boss. Retain with a drop of epoxy; the dowel's far end
-# bears in the table hole, so the boss only has to hold it square and captive.
+# bore straight through the thick base that takes a 3/16 in (4.7625 mm) steel
+# dowel. Moving the locating surface to ground steel decouples pin precision and
+# wear from the print tolerance: the dowel slip-fits the table's 1/4-20 tapped
+# hole (~4.87 mm crest ID) and press-fits the bore. Retain with a drop of epoxy;
+# the dowel's far end bears in the table hole, so the bore only has to hold it
+# square and captive.
 DOWEL_DIAMETER = 4.7625          # 3/16 in ground steel dowel
 DOWEL_PROTRUSION = 5.000         # protrusion below the base into the table hole; matches the v2 pins (5 mm)
-# Bore engagement = BOSS_HEIGHT + BASE_THICKNESS = 8 mm, so cut each dowel to
-# 8 + 5 = 13 mm and press it flush with the boss top to leave 5 mm proud below.
-# Bore for the dowel. Resin (MSLA) prints small holes closer to nominal than FDM
-# (light bleed shrinks them a little, but less than FDM's extrusion undersize), so
-# this is dropped from the PLA jig's 4.85 to 4.80 for a snugger fit on the
-# 4.7625 mm dowel. Resin is brittle, so still retain with epoxy rather than a hard
-# press. Dial in on a printed coupon (try 4.70 / 4.75 / 4.80 / 4.85) for your resin.
-DOWEL_HOLE_DIAMETER = 4.800
-BOSS_DIAMETER = 8.500            # ~1.85 mm wall around the bore
-BOSS_HEIGHT = 5.000              # above the platform top; total engagement = base + boss = 8 mm
+# The bore runs through the full 12.5 mm base, so ample engagement is available;
+# ~8 mm is plenty. Cut each dowel to engagement + 5 mm protrusion (e.g. ~13 mm for
+# 8 mm engaged and 5 mm proud below) to match the v2 pins.
+# Bore for the dowel. A standard resin cracked when a dowel was pressed into the
+# old thin boss, so the bore is opened 0.15 mm (4.80 -> 4.95) for a clear slip fit
+# on the 4.7625 mm dowel -- retention is epoxy, not interference. With the boss now
+# gone (bore through the solid base) the wall is solid too, so it is doubly safe.
+DOWEL_HOLE_DIAMETER = 4.950
+PIN_EDGE_FILL = 7.000            # solid material kept radially out from every dowel-hole edge
+BOSS_DIAMETER = DOWEL_HOLE_DIAMETER + 2.0 * PIN_EDGE_FILL  # corner footprint that sets the flush plate edge
+BOSS_HEIGHT = 0.000              # no raised boss; the thick base gives the engagement and a solid bore wall
 
 # Platform and wafer nest. The plate is a tight bounding box computed in
 # build_model, not centered on the nest: the corner bosses sit flush to the left
-# and rear edges (they merge into the perimeter bar there), the right edge holds
-# the top-right station map inside the rim, and the front edge holds the front
-# labels forward of the nest. PLATFORM_NEST_GAP keeps the perimeter bar clear of
-# the raised nest wall on the sides where the nest, not a boss, is outermost.
+# and rear edges, and the right/front edges come in to the nest wall plus a small
+# margin. There is no perimeter bar -- the 12.5 mm base is stiff enough on its own
+# -- so PLATFORM_NEST_GAP is just the base kept beyond the nest wall where the nest
+# (not a boss) is the outermost feature.
 PLATFORM_NEST_GAP = 1.000
-BASE_THICKNESS = 3.000
-OUTER_BAR_WIDTH = 4.000
-OUTER_BAR_HEIGHT = 4.000
-SIDEWALL_HEIGHT = 1.500
+BASE_THICKNESS = 12.500          # thick slab to resist warping and give the dowel bore a solid wall
+SIDEWALL_HEIGHT = 2.000          # tall enough to retain a short stack of wafers
 SIDEWALL_THICKNESS = 3.000
 
 # Small pickup tabs centered on the left and right edges, so the plate can be
-# lifted straight off the pins without prying at the wafer or the nest wall. They
-# start at the top of the platform, leaving a full base-thickness undercut to hook under.
+# lifted straight off the pins without prying at the wafer or the nest wall. Each is
+# a flange whose top is flush with the base top, leaving the base thickness minus the
+# tab as the undercut to hook under.
 SIDE_TAB_PROTRUSION = 10.000
 SIDE_TAB_LENGTH = 24.000
+SIDE_TAB_HEIGHT = 4.000  # flange thickness at the base top (was tied to the removed bar)
 
 WAFER_DIAMETER = 100.000
 PRIMARY_FLAT_LENGTH = 32.500
@@ -124,14 +126,12 @@ PRIMARY_FLAT_CLEARANCE = 0.175
 SECONDARY_DATUM_CLEARANCE = 0.175
 
 # Two gaps in the raised lip, 180 degrees apart, so a Kapton tab can run from the
-# platform onto the wafer without having to bridge the 1.5 mm wall. The wafer is
+# platform onto the wafer without having to bridge the 2 mm wall. The wafer is
 # pushed against the secondary flat and taped down; the pocket only locates it,
-# it does not retain it. Both cut the raised wall only -- the 2 mm support
-# platform stays continuous under the wafer.
+# it does not retain it. Both cut the raised wall only -- the solid base stays
+# continuous under the wafer.
 #
-# Both are 15 mm. They stay separate constants so either can be tuned alone, but
-# PICKUP_GAP_WIDTH additionally drives the outer-bar tweezer notch, so changing
-# it moves that notch too.
+# Both are 15 mm. They stay separate constants so either can be tuned alone.
 PICKUP_GAP_WIDTH = 15.000
 REAR_TAPE_GAP_WIDTH = 15.000
 
@@ -259,17 +259,6 @@ def polygon_sketch(component, plane, points_mm, name: str):
     return sketch
 
 
-def ring_sketch(component, plane, outer_points_mm, inner_points_mm, name: str):
-    sketch = component.sketches.add(plane)
-    sketch.name = name
-    lines = sketch.sketchCurves.sketchLines
-    for loop in (outer_points_mm, inner_points_mm):
-        points = [adsk.core.Point3D.create(cm(x), cm(y), 0) for x, y in loop]
-        for index, point in enumerate(points):
-            lines.addByTwoPoints(point, points[(index + 1) % len(points)])
-    return sketch
-
-
 def circle_sketch(component, plane, center_x, center_y, diameter, name):
     sketch = component.sketches.add(plane)
     sketch.name = name
@@ -341,64 +330,11 @@ def extrude_polygon(component, plane, points_mm, distance_mm, operation, name):
     )
 
 
-def extrude_ring(component, plane, outer_points, inner_points, distance_mm, operation, name):
-    sketch = ring_sketch(component, plane, outer_points, inner_points, f"{name} Sketch")
-    if sketch.profiles.count != 2:
-        raise RuntimeError(f"{name}: expected two profiles, found {sketch.profiles.count}")
-    profiles = [sketch.profiles.item(index) for index in range(sketch.profiles.count)]
-    # With a 4 mm rim around a ~140 mm platform, the annular profile has the
-    # smaller area; the other profile is the large open center.
-    ring_profile = min(profiles, key=lambda profile: profile.areaProperties().area)
-    extrudes = component.features.extrudeFeatures
-    feature_input = extrudes.createInput(ring_profile, operation)
-    feature_input.setDistanceExtent(
-        False,
-        adsk.core.ValueInput.createByString(f"{distance_mm} mm"),
-    )
-    feature = extrudes.add(feature_input)
-    feature.name = name
-    sketch.isVisible = False
-    return feature
-
-
 def loft_polygons(component, first_plane, first_points, second_plane, second_points, operation, name):
     first = polygon_sketch(component, first_plane, first_points, f"{name} Lower Sketch")
     second = polygon_sketch(component, second_plane, second_points, f"{name} Upper Sketch")
     if first.profiles.count != 1 or second.profiles.count != 1:
         raise RuntimeError(f"{name}: expected one profile on each loft plane")
-    loft_input = component.features.loftFeatures.createInput(operation)
-    loft_input.loftSections.add(first.profiles.item(0))
-    loft_input.loftSections.add(second.profiles.item(0))
-    loft_input.isSolid = True
-    feature = component.features.loftFeatures.add(loft_input)
-    feature.name = name
-    first.isVisible = False
-    second.isVisible = False
-    return feature
-
-
-def loft_circles(
-    component,
-    first_plane,
-    first_center,
-    first_diameter,
-    second_plane,
-    second_center,
-    second_diameter,
-    operation,
-    name,
-):
-    first = circle_sketch(
-        component, first_plane, first_center[0], first_center[1], first_diameter, f"{name} Tip"
-    )
-    second = circle_sketch(
-        component,
-        second_plane,
-        second_center[0],
-        second_center[1],
-        second_diameter,
-        f"{name} Shoulder",
-    )
     loft_input = component.features.loftFeatures.createInput(operation)
     loft_input.loftSections.add(first.profiles.item(0))
     loft_input.loftSections.add(second.profiles.item(0))
@@ -428,11 +364,6 @@ def build_model(design):
         BASE_THICKNESS + SIDEWALL_HEIGHT + 0.2,
         "Top of 45 Degree Pickup Bevel",
     )
-    outer_bar_notch_top_plane = offset_plane(
-        component,
-        BASE_THICKNESS + OUTER_BAR_HEIGHT + 0.2,
-        "Top of 45 Degree Outer Bar Notch",
-    )
     boss_top_plane = offset_plane(
         component,
         BASE_THICKNESS + BOSS_HEIGHT,
@@ -440,10 +371,10 @@ def build_model(design):
     )
 
     # --- Minimal platform: a tight bounding box, not centered on the nest ---
-    # Each edge sits at whichever is outermost: a corner boss (flush, merging into
-    # the perimeter bar) or the nest wall plus a bar width and gap. With the labels
-    # removed this packs the plate to the bosses on the left/rear and to the nest
-    # wall on the right/front.
+    # Each edge sits at whichever is outermost: a corner boss (flush) or the nest
+    # wall plus a small gap. No perimeter bar (the 12.5 mm base is stiff enough), so
+    # the plate packs to the bosses on the left/rear and to the nest wall on the
+    # right/front.
     _wafer_r = WAFER_DIAMETER / 2.0
     _primary_depth = math.sqrt(_wafer_r ** 2 - (PRIMARY_FLAT_LENGTH / 2.0) ** 2)
     _secondary_depth = math.sqrt(_wafer_r ** 2 - (SECONDARY_FLAT_LENGTH / 2.0) ** 2)
@@ -452,10 +383,10 @@ def build_model(design):
     _nest_right = NEST_CENTER_X + _wafer_r + SIDEWALL_THICKNESS
     _nest_rear = NEST_CENTER_Y + _wafer_r + SIDEWALL_THICKNESS
     _nest_front = NEST_CENTER_Y - _primary_depth - SIDEWALL_THICKNESS
-    platform_left = min(-_boss_reach, _nest_left - PLATFORM_NEST_GAP - OUTER_BAR_WIDTH)
-    platform_right = max(_boss_reach, _nest_right + PLATFORM_NEST_GAP + OUTER_BAR_WIDTH)
-    platform_rear = max(_boss_reach, _nest_rear + PLATFORM_NEST_GAP + OUTER_BAR_WIDTH)
-    platform_front = min(-_boss_reach, _nest_front - PLATFORM_NEST_GAP - OUTER_BAR_WIDTH)
+    platform_left = min(-_boss_reach, _nest_left - PLATFORM_NEST_GAP)
+    platform_right = max(_boss_reach, _nest_right + PLATFORM_NEST_GAP)
+    platform_rear = max(_boss_reach, _nest_rear + PLATFORM_NEST_GAP)
+    platform_front = min(-_boss_reach, _nest_front - PLATFORM_NEST_GAP)
     platform_size_x = platform_right - platform_left
     platform_size_y = platform_rear - platform_front
 
@@ -466,12 +397,11 @@ def build_model(design):
         ("dowelDiameter", DOWEL_DIAMETER, "3/16 in steel locating dowel diameter"),
         ("dowelHoleDiameter", DOWEL_HOLE_DIAMETER, "Press-fit bore for the dowel"),
         ("bossHeight", BOSS_HEIGHT, "Dowel boss height above platform"),
-        ("bossDiameter", BOSS_DIAMETER, "Dowel boss outer diameter"),
+        ("bossDiameter", BOSS_DIAMETER, "Corner fill footprint diameter"),
         ("platformSizeX", platform_size_x, "Overall plate width"),
         ("platformSizeY", platform_size_y, "Overall plate depth"),
         ("baseThickness", BASE_THICKNESS, "Wafer platform thickness"),
-        ("outerBarWidth", OUTER_BAR_WIDTH, "Perimeter reinforcement width"),
-        ("outerBarHeight", OUTER_BAR_HEIGHT, "Perimeter reinforcement height"),
+        ("sideTabHeight", SIDE_TAB_HEIGHT, "Pickup-tab flange thickness"),
         ("sidewallHeight", SIDEWALL_HEIGHT, "Nest lip height above platform"),
         ("nestOffsetX", NEST_OFFSET_FROM_PIN_CENTER_X, "Nest X from pin-square center"),
         ("nestOffsetY", NEST_OFFSET_FROM_PIN_CENTER_Y, "Nest Y from pin-square center"),
@@ -498,28 +428,11 @@ def build_model(design):
         "Wafer Platform",
     )
 
-    # Continuous 4 x 4 mm perimeter reinforcement above the platform.
-    inner_platform = rectangle_points(
-        platform_left + OUTER_BAR_WIDTH,
-        platform_front + OUTER_BAR_WIDTH,
-        platform_size_x - 2.0 * OUTER_BAR_WIDTH,
-        platform_size_y - 2.0 * OUTER_BAR_WIDTH,
-    )
-    extrude_ring(
-        component,
-        wall_plane,
-        platform,
-        inner_platform,
-        OUTER_BAR_HEIGHT,
-        adsk.fusion.FeatureOperations.JoinFeatureOperation,
-        "4 x 4 mm Perimeter Reinforcement Bar",
-    )
-
-    # Pickup tabs, one per side, centered on the platform's Y center. Extruded
-    # from the top of the platform rather than from the table, so each tab
-    # is cantilevered with a 2 mm gap underneath: that undercut is what a
-    # fingernail or tweezer tip hooks into to lift the plate straight off its
-    # pins, instead of prying against the wafer or the nest wall.
+    # Pickup tabs, one per side, centered on the nest Y center (the wafer center line). Each is a
+    # SIDE_TAB_HEIGHT-thick flange whose top is flush with the base top, cantilevered
+    # out past the plate edge. The open space below it (base thickness minus the tab)
+    # is the undercut a fingernail or tweezer tip hooks into to lift the plate straight
+    # off its pins, instead of prying against the wafer or the nest wall.
     platform_left_x = platform_left
     platform_right_x = platform_right
     for tab_name, tab_x in (
@@ -535,37 +448,10 @@ def build_model(design):
                 SIDE_TAB_PROTRUSION,
                 SIDE_TAB_LENGTH,
             ),
-            OUTER_BAR_HEIGHT,
+            -SIDE_TAB_HEIGHT,
             adsk.fusion.FeatureOperations.JoinFeatureOperation,
             tab_name,
         )
-
-    # Centered tweezer notch aligned to the pickup opening, same width, with
-    # a 45 degree flare through the full 4 mm perimeter bar. The platform
-    # remains continuous.
-    platform_front_y = platform_front
-    outer_notch_bottom = rectangle_points(
-        NEST_CENTER_X - PICKUP_GAP_WIDTH / 2.0,
-        platform_front_y - 0.1,
-        PICKUP_GAP_WIDTH,
-        OUTER_BAR_WIDTH + 0.2,
-    )
-    outer_notch_expansion = OUTER_BAR_HEIGHT + 0.2
-    outer_notch_top = rectangle_points(
-        NEST_CENTER_X - PICKUP_GAP_WIDTH / 2.0 - outer_notch_expansion,
-        platform_front_y - 0.1 - outer_notch_expansion,
-        PICKUP_GAP_WIDTH + 2.0 * outer_notch_expansion,
-        OUTER_BAR_WIDTH + 0.2 + 2.0 * outer_notch_expansion,
-    )
-    loft_polygons(
-        component,
-        wall_plane,
-        outer_notch_bottom,
-        outer_bar_notch_top_plane,
-        outer_notch_top,
-        adsk.fusion.FeatureOperations.CutFeatureOperation,
-        f"{PICKUP_GAP_WIDTH:g} mm Outer Bar Tweezer Notch with 45 Degree Sides",
-    )
 
     # Raised nest wall; the pocket cut below leaves only the 3 mm wall ring.
     outer = wafer_polygon(
@@ -581,7 +467,7 @@ def build_model(design):
         outer,
         SIDEWALL_HEIGHT,
         adsk.fusion.FeatureOperations.JoinFeatureOperation,
-        "1.5 mm Raised Wafer Nest",
+        "2 mm Raised Wafer Nest",
     )
 
     pocket = wafer_polygon(
@@ -600,7 +486,7 @@ def build_model(design):
         "Final Wafer Pocket Clearance",
     )
 
-    # Beveled 20 mm pickup opening through the raised primary-flat wall only.
+    # Beveled 15 mm pickup opening through the raised primary-flat wall only.
     wafer_radius = WAFER_DIAMETER / 2.0
     primary_depth = math.sqrt(wafer_radius**2 - (PRIMARY_FLAT_LENGTH / 2.0) ** 2)
     outer_flat_y = NEST_CENTER_Y - primary_depth - SIDEWALL_THICKNESS
@@ -656,38 +542,11 @@ def build_model(design):
         f"{REAR_TAPE_GAP_WIDTH:g} mm Rear Tape Gap with 45 Degree Bevel",
     )
 
-    # The perimeter bar gets the same 45 degree notch behind the rear tape gap
-    # that it already has behind the pickup opening, so a finger and a tab can
-    # reach the wafer edge from outside the plate. The platform is untouched.
-    platform_rear_y = platform_rear
-    rear_notch_bottom = rectangle_points(
-        NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0,
-        platform_rear_y - OUTER_BAR_WIDTH - 0.1,
-        REAR_TAPE_GAP_WIDTH,
-        OUTER_BAR_WIDTH + 0.2,
-    )
-    rear_notch_top = rectangle_points(
-        NEST_CENTER_X - REAR_TAPE_GAP_WIDTH / 2.0 - outer_notch_expansion,
-        platform_rear_y - OUTER_BAR_WIDTH - 0.1 - outer_notch_expansion,
-        REAR_TAPE_GAP_WIDTH + 2.0 * outer_notch_expansion,
-        OUTER_BAR_WIDTH + 0.2 + 2.0 * outer_notch_expansion,
-    )
-    loft_polygons(
-        component,
-        wall_plane,
-        rear_notch_bottom,
-        outer_bar_notch_top_plane,
-        rear_notch_top,
-        adsk.fusion.FeatureOperations.CutFeatureOperation,
-        f"{REAR_TAPE_GAP_WIDTH:g} mm Rear Outer Bar Notch with 45 Degree Sides",
-    )
-
-    # A raised boss at each corner of the 4 x 4 grid-space square, each with a
-    # press-fit through hole for a 3/16 in steel dowel. The boss joins the platform
-    # (and the outer bar where they meet), giving the bore base + boss = 8 mm of
-    # engagement. The left and rear bosses ride the platform edge and form a small
-    # lobe there, which is harmless. The bore is cut from the boss top straight
-    # down through the base so the dowel drops in from above and protrudes below.
+    # A press-fit through-bore at each corner of the 4 x 4 grid-space square for a
+    # 3/16 in steel dowel, straight through the solid base. No raised boss: the
+    # thick base gives the full engagement and a solid wall, so pressing a pin in
+    # cannot split a thin stub. Setting BOSS_HEIGHT > 0 re-enables a raised boss --
+    # it is joined on first and the bore then runs through boss + base.
     outer_half_span = OUTER_PIN_PATTERN_SPAN / 2.0
     dowel_locations = (
         ("Outer Front Left", -outer_half_span, -outer_half_span),
@@ -696,21 +555,22 @@ def build_model(design):
         ("Outer Rear Right", +outer_half_span, +outer_half_span),
     )
     for boss_name, x, y in dowel_locations:
-        boss = circle_sketch(
-            component,
-            wall_plane,
-            x,
-            y,
-            BOSS_DIAMETER,
-            f"{boss_name} Dowel Boss Sketch",
-        )
-        extrude_profile(
-            component,
-            boss,
-            BOSS_HEIGHT,
-            adsk.fusion.FeatureOperations.JoinFeatureOperation,
-            f"{boss_name} Dowel Boss",
-        )
+        if BOSS_HEIGHT > 0:
+            boss = circle_sketch(
+                component,
+                wall_plane,
+                x,
+                y,
+                BOSS_DIAMETER,
+                f"{boss_name} Dowel Boss Sketch",
+            )
+            extrude_profile(
+                component,
+                boss,
+                BOSS_HEIGHT,
+                adsk.fusion.FeatureOperations.JoinFeatureOperation,
+                f"{boss_name} Dowel Boss",
+            )
         bore = circle_sketch(
             component,
             boss_top_plane,
@@ -762,7 +622,6 @@ def build_model(design):
         component.xYConstructionPlane,
         wall_plane,
         pickup_top_plane,
-        outer_bar_notch_top_plane,
         boss_top_plane,
     ):
         plane.isLightBulbOn = False
