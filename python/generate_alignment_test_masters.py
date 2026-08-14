@@ -15,6 +15,10 @@ grid):
                           + is outboard toward the edge, - is inboard)
   --placement flat      : the two flat-facing marks (-X, -Y) sit --mark-from-flat-um
                           from their flats; the other two at cell centre + approach
+  --placement radial    : all four on one circle of radius (major-flat depth minus
+                          --mark-from-flat-um). The -Y mark then sits that far inside
+                          the major flat and the other three mirror it at the same
+                          radius, an even radial spread about the wafer centre.
 
 Variants used so far (each writes the two production filenames, so build/validate
 work unchanged; then `build_pin_grid_set.py --masters <out-dir> --set <set>`):
@@ -22,6 +26,11 @@ work unchanged; then `build_pin_grid_set.py --masters <out-dir> --set <set>`):
   v1  --width-um 50 --length-mm 5  --placement symmetric --approach-um 0 --marker
   v2  --width-um 20 --length-mm 10 --placement flat      --approach-um 2000
   v3  --width-um 50 --length-mm 10 --placement symmetric --approach-um -3000
+
+  081326 radial seam-test set (50 um x 10 mm marks stepping 1.5 mm inward):
+  v1  --width-um 50 --length-mm 10 --placement radial --mark-from-flat-um 3000
+  v2  --width-um 50 --length-mm 10 --placement radial --mark-from-flat-um 4500
+  v3  --width-um 50 --length-mm 10 --placement radial --mark-from-flat-um 6000
 
 Defaults reproduce v2.
 """
@@ -99,25 +108,37 @@ def seam_marks() -> list[tuple[float, float, str]]:
 
     marks: list[tuple[float, float, str]] = []
 
-    # Horizontal seam y = 0: vertical marks at +/-X (Vertical master).
-    if best_x is not None:
-        if PLACEMENT == "flat":
-            # left (-X) a fixed distance from the secondary flat; right (+X) at the
-            # cell centre plus the approach.
-            marks.append((-(secondary_depth - MARK_FROM_FLAT_UM), 0.0, "Vertical"))
-            marks.append((best_x + EDGE_APPROACH_UM, 0.0, "Vertical"))
-        else:  # symmetric: both at the cell centre plus the (signed) approach
-            for sign in (-1, 1):
-                marks.append((sign * (best_x + EDGE_APPROACH_UM), 0.0, "Vertical"))
+    if PLACEMENT == "radial":
+        # All four marks lie on one circle whose radius is referenced off the major
+        # (-Y) flat: radius = primary_depth - MARK_FROM_FLAT_UM. The -Y mark then sits
+        # MARK_FROM_FLAT_UM inside the major flat and the other three mirror it at the
+        # same radius, an even radial spread that crosses both seams twice. best_x /
+        # best_y (cell-centre placement) are unused here on purpose.
+        radius = primary_depth - MARK_FROM_FLAT_UM
+        marks.append((+radius, 0.0, "Vertical"))    # +X on the y = 0 seam
+        marks.append((-radius, 0.0, "Vertical"))    # -X on the y = 0 seam
+        marks.append((0.0, +radius, "Horizontal"))  # +Y on the x = 0 seam
+        marks.append((0.0, -radius, "Horizontal"))  # -Y, MARK_FROM_FLAT_UM inside major flat
+    else:
+        # Horizontal seam y = 0: vertical marks at +/-X (Vertical master).
+        if best_x is not None:
+            if PLACEMENT == "flat":
+                # left (-X) a fixed distance from the secondary flat; right (+X) at the
+                # cell centre plus the approach.
+                marks.append((-(secondary_depth - MARK_FROM_FLAT_UM), 0.0, "Vertical"))
+                marks.append((best_x + EDGE_APPROACH_UM, 0.0, "Vertical"))
+            else:  # symmetric: both at the cell centre plus the (signed) approach
+                for sign in (-1, 1):
+                    marks.append((sign * (best_x + EDGE_APPROACH_UM), 0.0, "Vertical"))
 
-    # Vertical seam x = 0: horizontal marks at 0,+/-Y (Horizontal master).
-    if best_y is not None:
-        if PLACEMENT == "flat":
-            marks.append((0.0, -(primary_depth - MARK_FROM_FLAT_UM), "Horizontal"))
-            marks.append((0.0, best_y + EDGE_APPROACH_UM, "Horizontal"))
-        else:
-            for sign in (-1, 1):
-                marks.append((0.0, sign * (best_y + EDGE_APPROACH_UM), "Horizontal"))
+        # Vertical seam x = 0: horizontal marks at 0,+/-Y (Horizontal master).
+        if best_y is not None:
+            if PLACEMENT == "flat":
+                marks.append((0.0, -(primary_depth - MARK_FROM_FLAT_UM), "Horizontal"))
+                marks.append((0.0, best_y + EDGE_APPROACH_UM, "Horizontal"))
+            else:
+                for sign in (-1, 1):
+                    marks.append((0.0, sign * (best_y + EDGE_APPROACH_UM), "Horizontal"))
 
     # Every mark must clear the edge bead. Use the real footprint: half the mark
     # length along its long axis, half the cut width across it.
@@ -194,9 +215,11 @@ def main() -> None:
                         help="mark line width in um")
     parser.add_argument("--length-mm", type=float, default=MARK_LENGTH_UM / 1000.0,
                         help="mark line length in mm")
-    parser.add_argument("--placement", choices=("flat", "symmetric"), default=PLACEMENT,
+    parser.add_argument("--placement", choices=("flat", "symmetric", "radial"), default=PLACEMENT,
                         help="flat: -X/-Y marks a fixed distance from their flats; "
-                             "symmetric: all four at the cell centre + approach")
+                             "symmetric: all four at the cell centre + approach; "
+                             "radial: all four on one circle, radius = major-flat depth "
+                             "- mark-from-flat-um")
     parser.add_argument("--approach-um", type=float, default=EDGE_APPROACH_UM,
                         help="signed offset from the cell centre; + outboard, - inboard")
     parser.add_argument("--mark-from-flat-um", type=float, default=MARK_FROM_FLAT_UM,

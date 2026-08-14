@@ -2,9 +2,10 @@
 
 Three independent checks, all of which must pass before a set is exposed:
 
-1. Reconstruction. Each tile is translated back by its own field center and
-   unioned. The result must XOR to exactly zero area against the layer-0 master,
-   which proves no cut geometry was lost, duplicated, or shifted by the split.
+1. Reconstruction. Each tile is translated back by its own field center, with the
+   global and per-station calibration offsets undone, and unioned. The result must
+   XOR to exactly zero area against the layer-0 master, which proves no cut geometry
+   was lost, duplicated, or shifted by the split (independent of calibration).
 2. Field placement. The laser exposes each job with auto-centering OFF, placing
    the DXF origin on the field center. This self-test confirms every tile fits
    inside the qualified field with its origin at the center, so true-coordinate
@@ -192,11 +193,19 @@ def validate(masters_dir: Path, set_dir: Path,
     lines.extend(grid_lines)
     ok &= grid_ok
 
-    # The splitter applies GLOBAL_*_OFFSET_UM to every job as a calibration shift;
-    # undo it here so reconstruction checks the split itself, not the calibration.
+    # The splitter shifts every job by a calibration offset: a common-mode
+    # GLOBAL_*_OFFSET_UM plus a per-station differential WINDOW_OFFSETS_UM nudge.
+    # Undo both here so reconstruction checks the split itself, not the calibration;
+    # otherwise an offset-baked set shows a nonzero XOR that is the intended per-cell
+    # nudge, not lost or shifted geometry. This assumes the module defaults were the
+    # values used at build time, same as the global offset already does.
     ns = runpy.run_path(str(SPLITTER), run_name="pin_grid_validate_offsets")
     global_x_mm = ns["GLOBAL_X_OFFSET_UM"] / 1000.0
     global_y_mm = ns["GLOBAL_Y_OFFSET_UM"] / 1000.0
+    window_offsets_mm = {
+        label: (dx / 1000.0, dy / 1000.0)
+        for label, (dx, dy) in ns["parse_window_offsets"](ns["WINDOW_OFFSETS_UM"]).items()
+    }
 
     for orientation in ORIENTATIONS:
         stem = master_stem.format(orientation=orientation)
@@ -211,12 +220,13 @@ def validate(masters_dir: Path, set_dir: Path,
                 raise RuntimeError(f"No layer 0 in {station.label}/{orientation}.dxf")
             if tile_dbu != dbu:
                 raise RuntimeError(f"{station.label}/{orientation}.dxf has dbu {tile_dbu}, not {dbu}")
-            # Undo the splitter's translation (and its calibration offset) to put
-            # the tile back on the wafer.
+            # Undo the splitter's translation (and its global + per-station
+            # calibration offsets) to put the tile back on the wafer.
+            nudge_x_mm, nudge_y_mm = window_offsets_mm.get(station.label, (0.0, 0.0))
             rebuilt += tile.transformed(
                 pya.Trans(
-                    mm_to_dbu(station.field_center_mm[0] - global_x_mm, dbu),
-                    mm_to_dbu(station.field_center_mm[1] - global_y_mm, dbu),
+                    mm_to_dbu(station.field_center_mm[0] - global_x_mm - nudge_x_mm, dbu),
+                    mm_to_dbu(station.field_center_mm[1] - global_y_mm - nudge_y_mm, dbu),
                 )
             )
 
