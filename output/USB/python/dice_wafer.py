@@ -64,6 +64,14 @@ FREQ_TOLERANCE_KHZ = 0.1
 SPEED_TOLERANCE_MM_S = 10.0
 PROFILE_SPEED_IDX, PROFILE_POWER_IDX, PROFILE_FREQ_IDX = 0, 5, 9
 
+# WinLase marking is ASYNCHRONOUS: MarkAllObj starts a pass and returns; GetBusyStatus
+# polls for completion. So we wait for idle before starting a job (drains any prior
+# job's tail) and after every pass (so a job fully finishes before it is closed and the
+# next one loads -- otherwise closing/loading mid-mark wedges WinLase "busy").
+MARK_POLL_S = 0.02           # GetBusyStatus poll interval
+MARK_SETTLE_S = 0.1          # let a just-issued mark register as busy before we poll for done
+MARK_WAIT_TIMEOUT_S = 120.0  # max wait for one pass (or a job transition) to go idle
+
 
 def _aborted() -> bool:
     """True if a key was pressed (non-blocking), on Windows."""
@@ -103,6 +111,29 @@ class WinLaseMarker:
 
     def ready(self) -> bool:
         return int(self.m.GetBusyStatus(0)) == 0
+
+    def _wait_not_busy(self, abort, timeout_s: float) -> bool:
+        """Poll until WinLase is idle (two consecutive not-busy reads, so a transient 0
+        can't be mistaken for done). Returns True when idle, False if aborted mid-wait.
+        Raises TimeoutError (after TerminateMark) if it never goes idle in time."""
+        t0 = time.time()
+        idle_hits = 0
+        while True:
+            if abort():
+                return False
+            if self.ready():
+                idle_hits += 1
+                if idle_hits >= 2:
+                    return True
+            else:
+                idle_hits = 0
+            if time.time() - t0 > timeout_s:
+                try:
+                    self.m.TerminateMark()
+                except Exception:
+                    pass
+                raise TimeoutError("WinLase stayed busy > %.0f s" % timeout_s)
+            time.sleep(MARK_POLL_S)
 
     def _check_active_params(self, label: str):
         """Read every object's profile in the ACTIVE job and compare to the required
@@ -154,20 +185,23 @@ class WinLaseMarker:
             raise RuntimeError("laser profile check failed at mark time:\n  "
                                + "\n  ".join(problems))
         try:
+            # Make sure the marker is idle before we start -- this also drains the tail
+            # of the previous station's job so loading/closing never collides with a mark.
+            if not self._wait_not_busy(abort, MARK_WAIT_TIMEOUT_S):
+                self.m.TerminateMark()
+                return False
             for i in range(loops):
                 if abort():
                     self.m.TerminateMark()
                     return False
-                t0 = time.time()
-                while not self.ready():
-                    if time.time() - t0 > 30:
-                        self.m.TerminateMark()
-                        raise TimeoutError("WinLase stayed busy >30 s before pass %d" % (i + 1))
-                    time.sleep(0.02)
-                self.m.MarkAllObj(0)   # blocks until this pass finishes
+                self.m.MarkAllObj(0)          # async: starts this pass, returns immediately
+                time.sleep(MARK_SETTLE_S)     # let the mark register as busy before polling
+                if not self._wait_not_busy(abort, MARK_WAIT_TIMEOUT_S):  # wait for THIS pass to finish
+                    self.m.TerminateMark()
+                    return False
         finally:
             try:
-                self.m.CloseJob(job_index)
+                self.m.CloseJob(job_index)    # safe now: the job has fully finished marking
             except Exception:
                 pass
         return True
@@ -376,8 +410,9 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\ninterrupted -- stopping stage and mark.")
         rc = 1
-    except RuntimeError as exc:
-        # A safety check tripped mid-run (e.g. laser profile mismatch). Fail loud.
+    except (RuntimeError, TimeoutError, ValueError) as exc:
+        # A safety/hardware check tripped mid-run (laser-profile mismatch, stage move
+        # timeout, WinLase stuck busy, out-of-envelope target). Abort cleanly, no traceback.
         print("\n*** ABORTED: %s ***" % exc)
         rc = 1
     finally:
