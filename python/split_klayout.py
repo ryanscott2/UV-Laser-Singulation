@@ -41,23 +41,51 @@ OUTPUT_DIR = r""
 # 2026-08-14 RESET TO 0 for the stage-based method: the OptiScan III stage now moves
 # the wafer under a fixed field, so the pinned-jig calibration (the +185.3/+438.0 um
 # global residual and the per-station stitch nudges below) no longer applies. Fresh
-# calibration is pending -- cut a zero-offset alignment test on the stage rig, measure
-# line-to-flat, and set these from that. History: 2026-08-13 pinned-jig recal was
-# +185.3/+438.0 um; 2026-08-12 reset to 0 for the baked-offset jig; 2026-08-11 the
-# 081126 test sat +3.017/-1.286 mm off. See CALIBRATION_AND_SLIDING_NEST_NOTES.md.
-GLOBAL_X_OFFSET_UM = 0.0
-GLOBAL_Y_OFFSET_UM = 0.0
+# 2026-08-14 stage-method calibration from the 081326 v1 radial seam test (zero-offset
+# cut, mark-from-flat 3000 um). Expected line-to-flat: major(-Y) 3.000 mm, minor(-X)
+# 4.898 mm. Measured: major 3.69 mm, minor 1.32 mm. So the pattern landed +0.690 mm in
+# +Y and -3.578 mm in X; correct by shifting the geometry back the other way (+X moves
+# right / away from the -X minor flat; -Y moves down / toward the -Y major flat):
+#   X = 4.898 - 1.320 = +3.578 mm ;  Y = 3.000 - 3.690 = -0.690 mm.
+# 2026-08-14 iteration 2, from the calibrated 081326 v2 cut (radius 42.786, expected
+# minor(-X) line 6.398 mm). Top half measured 6.16 mm, i.e. 0.238 mm too close to the
+# minor flat, so global X += 237.6 -> 3815.2. Y left at -690 (not re-measured this round).
+# 2026-08-14 iteration 3, from the calibrated 081326 v3 cut (radius 41.286, expected
+# minor(-X) line 7.898 mm). Top half measured 7.99 mm, i.e. 0.092 mm too FAR from the
+# minor flat, so global X -= 92.4 -> 3722.8. Global Y stepped 50 um further toward the
+# major flat (-Y): -690 -> -740.
+# 2026-08-14 iteration 4, from the calibrated 081426 v4 cut (radius 39.786, expected
+# minor 9.398 / major 7.500 mm). Major measured 7.50 = spot on (Y converged, unchanged).
+# Minor measured 9.45 = 0.052 mm too far, so global X -= 52.4 -> 3670.4.
+# 2026-08-14 iteration 5, from the calibrated 081426 v5 cut (radius 38.286, expected
+# minor 10.898 / major 9.000 mm). Major measured 9.00 = spot on (Y stays -740). Minor
+# measured 10.83 = 0.068 mm too close, so global X += 67.6 -> 3738.0. Global-X residual
+# is now bouncing in a ~+/-70 um band (-3578 -> -238 -> +92 -> +52 -> -68 across v1..v5),
+# i.e. near the rig's cut-to-cut scatter; further global-X nudges are chasing that noise.
+# History: 2026-08-13 pinned-jig recal was +185.3/+438.0 um; 2026-08-12 reset to 0 for
+# the baked-offset jig; 2026-08-11 the 081126 test sat +3.017/-1.286 mm off. See
+# CALIBRATION_AND_SLIDING_NEST_NOTES.md.
+GLOBAL_X_OFFSET_UM = 3738.0
+GLOBAL_Y_OFFSET_UM = -740.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. Corrects one station measured off from its neighbours without disturbing
 # the others. Override with -rd window_offsets="P1:0,-15;P4:2.5,-18".
 #
-# 2026-08-14 RESET TO 0 with the global offset for the stage method. The old values
-# were the 2026-08-13 stitch bake from the pinned-jig seam steps; re-derive per seam
-# from the first stage cut if the seams need closing.
+# Stage-method stitch nudges. P1 (jig top-left -> bottom-right wafer tile) and P2 (jig
+# top-right -> bottom-left) are the two BOTTOM-wafer tiles; P3/P4 are the TOP reference.
+# 2026-08-14 v2 cut: bottom tiles ~10 um too far +X -> P1/P2 x = -10.
+# 2026-08-14 v3 cut: bottom tiles a further ~10 um too far +X -> P1/P2 x = -20; and the
+# bottom-right tile (P1) also ~10 um too far from the major flat -> P1 y = -10 (toward -Y).
+# 2026-08-14 v4 cut: bottom tiles ~10 um too far +X -> P1/P2 x = -30. (A P2 y=-10 nudge
+# was tried and then reverted, so P2 y stays 0; only P1 keeps a y nudge.)
+# 2026-08-14 v5 cut: seams improving but sub-unity per nudge, so keep stepping: P1/P2
+# x = -40; and P1 dropped a further 10 um toward the major flat -> P1 y = -20.
+# Sign: nudge feeds the output translate directly (+x = right, +y = up), so negatives
+# pull left / toward the major flat.
 WINDOW_OFFSETS_UM = {
-    "P1": (0.0, 0.0),
-    "P2": (0.0, 0.0),
+    "P1": (-40.0, -20.0),
+    "P2": (-40.0, 0.0),
     "P3": (0.0, 0.0),
     "P4": (0.0, 0.0),
 }
