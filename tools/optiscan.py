@@ -48,7 +48,7 @@ from pathlib import Path
 DEFAULT_PORT = "COM5"
 BAUD = 9600
 CR = b"\r"
-MOVE_TIMEOUT_S = 30.0
+MOVE_TIMEOUT_S = 120.0   # generous: the stage is slow, and a full-travel move must not time out
 POLL_S = 0.05
 STATION_KEYS = ("P1", "P2", "P3", "P4")
 
@@ -58,10 +58,12 @@ STATION_KEYS = ("P1", "P2", "P3", "P4")
 # switches remain the physical backstop.
 TRAVEL_X_UM = 126_000
 TRAVEL_Y_UM = 76_000
-# After a move, PS must land within this of the target or we raise. A silently
-# rejected move leaves the stage put (tens of mm off), which this catches before
-# anything downstream (e.g. a laser mark) trusts the position.
-POSITION_TOLERANCE_UM = 1_000
+# After a move, PS must land within this of the target or we raise -- a micron-level
+# placement gate before anything (e.g. a laser mark) trusts the position. The stage
+# reports whole-micron position and lands on the commanded coordinate, so this is
+# tight on purpose. If a good move ever trips it, the error prints the actual offset
+# -- loosen only to what the stage genuinely repeats.
+POSITION_TOLERANCE_UM = 3
 # Ceiling for the interactive jog step, well under full travel.
 MAX_JOG_STEP_UM = 20_000
 
@@ -151,6 +153,40 @@ class _Serial:
                 out += b
         return out.decode("ascii", "replace").strip()
 
+    def drain(self, quiet_s: float = 0.4) -> str:
+        """Read and discard bytes until none arrive for quiet_s.
+
+        Fully consumes multi-line replies (e.g. DATE) whose trailing lines trickle in
+        at 9600 baud after the first line -- reset_input() can't catch those in-transit
+        bytes, but waiting for a quiet gap does. Returns what was drained (for logs).
+        """
+        out = bytearray()
+        if self.backend == "pyserial":
+            old = self._ser.timeout
+            self._ser.timeout = quiet_s
+            try:
+                while True:
+                    chunk = self._ser.read(256)
+                    if not chunk:
+                        break
+                    out += chunk
+            finally:
+                self._ser.timeout = old
+        else:
+            try:
+                prev = self._win32file.GetCommTimeouts(self._h)
+                ms = int(quiet_s * 1000)
+                self._win32file.SetCommTimeouts(self._h, (ms, 0, ms, 0, 1000))
+                while True:
+                    _, chunk = self._win32file.ReadFile(self._h, 256)
+                    if not chunk:
+                        break
+                    out += chunk
+                self._win32file.SetCommTimeouts(self._h, prev)
+            except Exception:
+                pass
+        return bytes(out).decode("ascii", "replace")
+
     def close(self) -> None:
         try:
             if self.backend == "pyserial":
@@ -166,11 +202,17 @@ class OptiScan:
     def __init__(self, port: str = DEFAULT_PORT, baud: int = BAUD):
         self.port = port
         self.io = _Serial(port, baud)
+        self.io.drain(0.5)  # clear any power-on / stale bytes before the handshake
         # Standard mode (poll $), and machine-readable errors ('E,n') so command()
-        # can reliably detect a rejected command. Confirm the link is really talking.
+        # can reliably detect a rejected command.
         self.command("COMP,0")
         self.command("ERROR,0")
-        who = self.command("DATE")
+        # DATE returns a multi-line identity; read the first line, then DRAIN the rest.
+        # Its trailing lines trickle in at 9600 baud and, if left, leak into the next
+        # command's read -- that was the "expected 'R', got '0.15 compiled...'" bug.
+        self.io.write(b"DATE" + CR)
+        who = self.io.read_line()
+        self.io.drain(0.5)
         if not who:
             raise SystemExit(
                 "No reply from %s. Check the COM number (Device Manager > Ports), that "
@@ -240,14 +282,19 @@ class OptiScan:
 
     # -- motion (all guarded by wait_idle) ----------------------------------------
     def wait_idle(self, timeout_s: float = MOVE_TIMEOUT_S) -> None:
-        """Block until $ confirms idle (0). Only a confirmed 0 exits -- an
-        unreadable status keeps polling, so we never assume idle by mistake and
-        move on while the stage is still travelling."""
+        """Block until $ confirms idle. Requires TWO consecutive idle (0) reads, so a
+        single stale/leftover '0' can't be mistaken for a finished move; an unreadable
+        status resets the count, so we never assume idle by mistake."""
         deadline = time.time() + timeout_s
+        idle_hits = 0
         try:
             while True:
                 if self._motion_status() == 0:
-                    return
+                    idle_hits += 1
+                    if idle_hits >= 2:
+                        return
+                else:
+                    idle_hits = 0
                 if time.time() > deadline:
                     self.command("I")  # controlled stop
                     raise TimeoutError("move did not finish within %.0fs; stopped" % timeout_s)

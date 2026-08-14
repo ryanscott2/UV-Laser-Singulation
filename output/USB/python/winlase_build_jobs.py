@@ -15,9 +15,10 @@ signatures:
     AttachToMarker() / ReleaseMarker()
     GetScanCardCount() -> count
     GetLensCalFactor(card, head) -> bits/mm            (converts mm <-> field bits)
-    GetDefaultProfile(profileIndex) -> (Mode, PassCount, MarkSpeed, ... )  [read-only here]
-    NewJob(fileName) -> jobIndex
-    NewVectorGraphic(objName, fileName) -> objIndex    (imports *.dxf directly)
+    GetObjProfile(objIndex, card) -> (MarkSpeed, ..., LaserPower%, ..., FreqKHz, ...)
+    SetObjProfile(objIndex, card, *values)             (only the speed field is written)
+    NewJob(0, fileName) -> jobIndex                      (leading [out] index -> placeholder 0)
+    NewVectorGraphic(0, objName, fileName) -> objIndex   (imports *.dxf directly)
     GetObjRect(objIndex) -> (Left, Top, Right, Bottom) in field bits
     OffsetObj(objIndex, dxBits, dyBits)
     SetObjFill(objIndex, spacingBits, slope1Deg, slope2Deg, style)   style 0 = parallel
@@ -71,6 +72,15 @@ NUM_PASSES = 1
 MARK_SPEED_MM_S = 400.0            # written onto Profile 0 (WinLase default profile is 1000 mm/s);
 SPEED_TOLERANCE_MM_S = 10.0        # ONLY the speed is written -- power/frequency are verified unchanged
 JOB_LOOP_COUNT = 175               # informational only; the real loop count is per set (dice_passes.csv)
+
+# The laser profile the operator confirmed in WinLase (Vector Graphic -> Properties ->
+# Profile): power 100 %, frequency 30 kHz, mark speed 400 mm/s. The build never WRITES
+# power or frequency; it reads them back and REFUSES to save a job whose profile does
+# not match these -- so a job can never be saved with the wrong laser settings.
+EXPECTED_LASER_POWER_PCT = 100.0
+EXPECTED_FREQ_KHZ = 30.0
+POWER_TOLERANCE_PCT = 0.5
+FREQ_TOLERANCE_KHZ = 0.1
 
 ORIENTATIONS = ("Horizontal", "Vertical")
 STATION_FOLDERS = ("P1", "P2", "P3", "P4")
@@ -157,7 +167,7 @@ class WinLaseSession:
 
     def __init__(self) -> None:
         try:
-            from win32com.client import Dispatch, gencache
+            from win32com.client import dynamic
         except ImportError as exc:
             raise SystemExit(
                 "pywin32 is not installed in this venv, so WinLase COM is unavailable.\n"
@@ -165,10 +175,12 @@ class WinLaseSession:
                 "    pip install --no-index --find-links venv\\wheels pywin32\n"
                 "    python venv\\Scripts\\pywin32_postinstall.py -install"
             ) from exc
-        try:
-            self.m = gencache.EnsureDispatch("Winlase.Automate")   # early binding
-        except Exception:
-            self.m = Dispatch("Winlase.Automate")                  # late binding
+        # Late/dynamic binding. A TRAILING [out] param (the usual case -- GetObjRect,
+        # GetObjProfile, GetLensCalFactor, LoadJobFromFile, GetBusyStatus...) auto-returns
+        # as the result or a tuple. A LEADING [out] param (NewJob/NewVectorGraphic put the
+        # new index FIRST, per the manual) is not the retval, so it is passed as a
+        # placeholder 0 and comes back as the return -- see those two calls below.
+        self.m = dynamic.Dispatch("Winlase.Automate")
         self.m.AttachToMarker()
         self.cards = int(self.m.GetScanCardCount())
         if self.cards < 1:
@@ -179,17 +191,7 @@ class WinLaseSession:
         self.bits_per_mm = int(self.m.GetLensCalFactor(0, 0))
         if self.bits_per_mm <= 0:
             raise RuntimeError("GetLensCalFactor returned <= 0; is a lens cal loaded?")
-
-    def print_default_profile(self) -> None:
-        try:
-            p = self.m.GetDefaultProfile(0)
-            # (Mode, PassCount, MarkSpeed[bits/ms], Jumpspeed, ..., Laserpower[%], ..., T1[kHz], ...)
-            speed_mm_s = float(p[2]) / self.bits_per_mm * 1000.0
-            print(f"  default Profile0 (inherited by marks): mark speed "
-                  f"{speed_mm_s:.0f} mm/s, laser power {float(p[7]):.0f} %, "
-                  f"freq {float(p[11]):.2f} kHz  [set in GUI if these are wrong]")
-        except Exception as exc:  # read-only convenience; never fatal
-            print(f"  (could not read default profile: {exc})")
+        self._profile_reported = False  # print the read-back laser profile once per run
 
     def mm_to_bits(self, mm: float) -> int:
         return int(round(mm * self.bits_per_mm))
@@ -198,7 +200,7 @@ class WinLaseSession:
         """Create one job with the H and V graphics; return warning strings."""
         warnings: list[str] = []
         out_path = job["out_path"]
-        job_index = int(self.m.NewJob(str(out_path)))
+        job_index = int(self.m.NewJob(0, str(out_path)))  # leading [out] index -> pass 0 placeholder
 
         for orientation in ORIENTATIONS:
             dxf = job["files"][orientation]
@@ -206,7 +208,7 @@ class WinLaseSession:
             want_cx = self.mm_to_bits((xmin + xmax) / 2.0)
             want_cy = self.mm_to_bits((ymin + ymax) / 2.0)
 
-            obj = int(self.m.NewVectorGraphic(f"{job['folder']}_{orientation}", str(dxf)))
+            obj = int(self.m.NewVectorGraphic(0, f"{job['folder']}_{orientation}", str(dxf)))
 
             left, top, right, bottom = (float(v) for v in self.m.GetObjRect(obj))
             got_cx = (left + right) / 2.0
@@ -256,6 +258,24 @@ class WinLaseSession:
             if abs(got_speed - MARK_SPEED_MM_S) > SPEED_TOLERANCE_MM_S:
                 raise RuntimeError("%s/%s: mark speed is %.0f mm/s after write, not %.0f"
                                    % (job['folder'], orientation, got_speed, MARK_SPEED_MM_S))
+
+            # Absolute safety gate: the job's power/frequency must MATCH the confirmed
+            # WinLase profile (100 %, 30 kHz), not merely be unchanged. Refuse to save
+            # a job with the wrong laser settings.
+            got_power = float(check[5])
+            got_freq = float(check[9])
+            if (abs(got_power - EXPECTED_LASER_POWER_PCT) > POWER_TOLERANCE_PCT
+                    or abs(got_freq - EXPECTED_FREQ_KHZ) > FREQ_TOLERANCE_KHZ):
+                raise RuntimeError(
+                    "%s/%s: laser profile is power %.3f %% / freq %.2f kHz, which does NOT "
+                    "match the required %.0f %% / %.2f kHz -- ABORTING build, no job saved"
+                    % (job['folder'], orientation, got_power, got_freq,
+                       EXPECTED_LASER_POWER_PCT, EXPECTED_FREQ_KHZ))
+            if not self._profile_reported:
+                print("  laser profile read back from the job: power %.1f %%, freq %.2f kHz, "
+                      "mark speed %.0f mm/s  [must match WinLase Properties]"
+                      % (got_power, got_freq, got_speed))
+                self._profile_reported = True
 
             if int(self.m.IsObjOutOfBounds(obj)):
                 warnings.append(
@@ -338,7 +358,9 @@ def main() -> int:
     session = WinLaseSession()
     print(f"\nWinLase attached: {session.cards} scan card(s), lens {session.bits_per_mm} bits/mm "
           f"(field +/-{FIELD_BIT_LIMIT / session.bits_per_mm:.1f} mm).")
-    session.print_default_profile()
+    print(f"  required laser profile: power {EXPECTED_LASER_POWER_PCT:.0f} %, "
+          f"freq {EXPECTED_FREQ_KHZ:.2f} kHz, mark speed {MARK_SPEED_MM_S:.0f} mm/s "
+          f"(each job is read back and verified against this).")
     try:
         if args.verify:
             set_dir, jobs, out_dir = plans[0]

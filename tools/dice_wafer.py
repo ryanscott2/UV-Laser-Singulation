@@ -13,10 +13,17 @@ SAFETY -- this can fire the laser, so it is gated:
   * Default is SIMULATE: real stage moves, but marking is faked (a short dwell).
     Run it this way first to prove the motion and sequencing with NO laser.
   * Pass --arm to actually load and mark jobs through WinLase.
+  * LASER-PROFILE GATE: after arming, before ANY stage motion, every job is read back
+    and its profile checked against the confirmed WinLase settings (power 100 %,
+    frequency 30 kHz, mark speed 400 mm/s). Any mismatch aborts the run -- no motion,
+    no firing. Each job is re-checked once more at mark time. This script never WRITES
+    laser power or frequency; it only reads and verifies them.
   * A countdown precedes the run; pressing a key during the countdown, or between
     stations / between mark passes, aborts (stage controlled-stop `I` + WinLase
     TerminateMark). Mid-pass you cannot interrupt in software -- keep a hand on the
     hardware e-stop. This live-laser path could not be tested off the machine.
+  * After a clean armed run the .wlj job files are deleted (rebuild each run); pass
+    --keep-jobs to keep them.
 
 WinLase note: the WinLase GUI and the COM server can't both hold the marker library,
 so CLOSE the WinLase GUI before an armed run. Python 3.8, no network; serial via
@@ -44,6 +51,19 @@ DEFAULT_PASSES = 175
 DEFAULT_PASSES_FILE = Path(__file__).resolve().parent / "dice_passes.csv"
 DEFAULT_COUNTDOWN_S = 10
 
+# Required laser profile -- must match the WinLase "Vector Graphic -> Properties ->
+# Profile" the operator confirmed: power 100 %, frequency 30 kHz, mark speed 400 mm/s.
+# Before ANY stage motion or firing, every job is read back and checked against these;
+# a mismatch aborts the whole run. GetObjProfile index map (same as winlase_build_jobs):
+# [0] = mark speed (bits/mSec), [5] = laser power %, [9] = T1 frequency (kHz).
+EXPECTED_LASER_POWER_PCT = 100.0
+EXPECTED_FREQ_KHZ = 30.0
+EXPECTED_MARK_SPEED_MM_S = 400.0
+POWER_TOLERANCE_PCT = 0.5
+FREQ_TOLERANCE_KHZ = 0.1
+SPEED_TOLERANCE_MM_S = 10.0
+PROFILE_SPEED_IDX, PROFILE_POWER_IDX, PROFILE_FREQ_IDX = 0, 5, 9
+
 
 def _aborted() -> bool:
     """True if a key was pressed (non-blocking), on Windows."""
@@ -63,7 +83,7 @@ class WinLaseMarker:
 
     def __init__(self):
         try:
-            from win32com.client import Dispatch, gencache
+            from win32com.client import dynamic
         except ImportError as exc:
             raise SystemExit(
                 "pywin32 is not installed in this venv, so WinLase COM is unavailable.\n"
@@ -71,21 +91,68 @@ class WinLaseMarker:
                 "    pip install --no-index --find-links venv\\wheels pywin32\n"
                 "    python venv\\Scripts\\pywin32_postinstall.py -install"
             ) from exc
-        try:
-            self.m = gencache.EnsureDispatch("Winlase.Automate")
-        except Exception:
-            self.m = Dispatch("Winlase.Automate")
+        # Late/dynamic binding on purpose -- see the note in winlase_build_jobs.py:
+        # WinLase's non-retval [out] params break early binding; dynamic auto-returns them.
+        self.m = dynamic.Dispatch("Winlase.Automate")
         self.m.AttachToMarker()
         if int(self.m.GetScanCardCount()) < 1:
             raise SystemExit("WinLase reports no scan card; can't mark. Run on the laser PC.")
+        self.bits_per_mm = int(self.m.GetLensCalFactor(0, 0))
+        if self.bits_per_mm <= 0:
+            raise SystemExit("GetLensCalFactor returned <= 0; is a lens cal loaded?")
 
     def ready(self) -> bool:
         return int(self.m.GetBusyStatus(0)) == 0
+
+    def _check_active_params(self, label: str):
+        """Read every object's profile in the ACTIVE job and compare to the required
+        laser settings. Returns a list of human-readable problem strings (empty = OK)."""
+        problems = []
+        count = int(self.m.GetObjCount())
+        if count < 1:
+            return ["%s: job holds no objects to verify" % label]
+        for obj in range(count):
+            prof = list(self.m.GetObjProfile(obj, 0))
+            power = float(prof[PROFILE_POWER_IDX])
+            freq = float(prof[PROFILE_FREQ_IDX])
+            speed = float(prof[PROFILE_SPEED_IDX]) / self.bits_per_mm * 1000.0
+            if abs(power - EXPECTED_LASER_POWER_PCT) > POWER_TOLERANCE_PCT:
+                problems.append("%s obj %d: laser power %.3f %% (need %.0f %%)"
+                                % (label, obj, power, EXPECTED_LASER_POWER_PCT))
+            if abs(freq - EXPECTED_FREQ_KHZ) > FREQ_TOLERANCE_KHZ:
+                problems.append("%s obj %d: frequency %.2f kHz (need %.2f kHz)"
+                                % (label, obj, freq, EXPECTED_FREQ_KHZ))
+            if abs(speed - EXPECTED_MARK_SPEED_MM_S) > SPEED_TOLERANCE_MM_S:
+                problems.append("%s obj %d: mark speed %.0f mm/s (need %.0f mm/s)"
+                                % (label, obj, speed, EXPECTED_MARK_SPEED_MM_S))
+        return problems
+
+    def verify_job_params(self, wlj: Path):
+        """Load a job read-only, check its laser profile, close it. Returns problems."""
+        idx = int(self.m.LoadJobFromFile(str(wlj.resolve())))
+        try:
+            self.m.SetActiveJob(idx)
+            return self._check_active_params(wlj.name)
+        finally:
+            try:
+                self.m.CloseJob(idx)
+            except Exception:
+                pass
 
     def mark_job(self, wlj: Path, loops: int, abort) -> bool:
         """Load a job and mark it `loops` times. Returns False if aborted."""
         job_index = int(self.m.LoadJobFromFile(str(wlj.resolve())))
         self.m.SetActiveJob(job_index)
+        # Last-instant re-check right before firing (defence in depth on top of the
+        # pre-flight gate): never mark a job whose laser profile is not exactly right.
+        problems = self._check_active_params(wlj.name)
+        if problems:
+            try:
+                self.m.CloseJob(job_index)
+            except Exception:
+                pass
+            raise RuntimeError("laser profile check failed at mark time:\n  "
+                               + "\n  ".join(problems))
         try:
             for i in range(loops):
                 if abort():
@@ -172,6 +239,26 @@ def print_plan(set_dir: Path, plan, passes: int, focus: bool, armed: bool) -> No
             label, pos["x"], pos["y"], z, wlj.name))
 
 
+def delete_jobs(plan) -> None:
+    """Remove the .wlj files this run marked (and the WinLaseJobs folder if it empties).
+    They rebuild each run, so nothing is lost -- this just keeps the set folder clean."""
+    jobs_dir = None
+    removed = 0
+    for _label, _pos, wlj in plan:
+        jobs_dir = wlj.parent
+        try:
+            wlj.unlink()
+            removed += 1
+        except OSError:
+            pass
+    if jobs_dir is not None:
+        try:
+            jobs_dir.rmdir()  # only removes it if now empty
+        except OSError:
+            pass
+    print("cleaned up %d job file(s); rebuild for the next run." % removed)
+
+
 # ------------------------------------------------------------------------- run
 def countdown(seconds: int, should_abort) -> bool:
     """Abortable countdown. Returns True to proceed, False if aborted."""
@@ -203,6 +290,9 @@ def main() -> int:
     p.add_argument("--focus", action="store_true", help="set Z from taught positions (needs motor)")
     p.add_argument("--countdown", type=int, default=DEFAULT_COUNTDOWN_S)
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
+    p.add_argument("--keep-jobs", action="store_true",
+                   help="keep the .wlj files after an armed run (default: delete them, "
+                        "so they regenerate fresh on the next build -- no clutter)")
     p.add_argument("--list", action="store_true", help="print the plan and exit (no motion)")
     p.add_argument("--yes", action="store_true",
                    help="skip the 'type DICE' arm prompt (the UI confirms instead)")
@@ -231,6 +321,22 @@ def main() -> int:
         if not marker.ready():
             marker.close()
             raise SystemExit("WinLase busy at start; aborting.")
+        # Pre-flight laser gate: read every job back and confirm the profile matches the
+        # confirmed WinLase settings BEFORE any stage motion or firing. Abort otherwise.
+        print("\nverifying laser profile in every job (need power %.0f %%, freq %.2f kHz, "
+              "speed %.0f mm/s) ..." % (EXPECTED_LASER_POWER_PCT, EXPECTED_FREQ_KHZ,
+                                        EXPECTED_MARK_SPEED_MM_S))
+        problems = []
+        for _label, _pos, wlj in plan:
+            problems.extend(marker.verify_job_params(wlj))
+        if problems:
+            marker.close()
+            print("*** ABORTING: laser parameters do not match the confirmed profile ***")
+            for pr in problems:
+                print("  " + pr)
+            print("Fix the profile in WinLase and rebuild the jobs; no motion, no firing.")
+            return 1
+        print("  OK -- all jobs match. Safe to arm.")
 
     stage = OptiScan(args.port)
     print("stage connected on %s: %s" % (stage.port, stage.identity))
@@ -238,10 +344,11 @@ def main() -> int:
     def abort() -> bool:
         return _aborted() or (args.stop_flag is not None and args.stop_flag.exists())
 
+    rc = 0
+    completed = False
     try:
         if not countdown(args.countdown, abort):
             return 1
-        completed = False
         for label, pos, wlj in plan:
             print("\n[%s] move -> X=%d Y=%d" % (label, pos["x"], pos["y"]))
             stage.goto(pos["x"], pos["y"])
@@ -268,6 +375,11 @@ def main() -> int:
             stage.goto(0, 0)
     except KeyboardInterrupt:
         print("\ninterrupted -- stopping stage and mark.")
+        rc = 1
+    except RuntimeError as exc:
+        # A safety check tripped mid-run (e.g. laser profile mismatch). Fail loud.
+        print("\n*** ABORTED: %s ***" % exc)
+        rc = 1
     finally:
         try:
             stage.stop()
@@ -277,7 +389,10 @@ def main() -> int:
         if marker is not None:
             marker.stop()
             marker.close()
-    return 0
+    # Ephemeral jobs: after a clean armed run, delete the .wlj so they never clutter.
+    if completed and args.arm and not args.keep_jobs:
+        delete_jobs(plan)
+    return rc
 
 
 if __name__ == "__main__":

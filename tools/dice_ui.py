@@ -74,8 +74,13 @@ class App:
         self.set_combo.grid(row=1, column=1, sticky="we", padx=4, pady=(6, 0))
         self.set_combo.bind("<<ComboboxSelected>>", lambda e: self._show_passes())
         ttk.Button(top, text="Refresh", command=self.refresh_sets).grid(row=1, column=2, pady=(6, 0))
-        self.passes_lbl = ttk.Label(top, text="")
-        self.passes_lbl.grid(row=2, column=1, sticky="w", padx=4)
+        ttk.Label(top, text="Passes/station:").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.passes_var = tk.StringVar(value=str(DEFAULT_PASSES))
+        self.passes_spin = ttk.Spinbox(top, from_=1, to=100000, width=10,
+                                       textvariable=self.passes_var)
+        self.passes_spin.grid(row=2, column=1, sticky="w", padx=4, pady=(6, 0))
+        ttk.Label(top, text="(pre-filled from dice_passes.csv; change to override this run)",
+                  foreground="#666").grid(row=3, column=1, sticky="w", padx=4)
         top.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(root, padding=(8, 4))
@@ -137,8 +142,21 @@ class App:
         return Path(self.root_var.get()) / name
 
     def _show_passes(self):
+        """Pre-fill the passes box from the CSV when the selected set changes."""
         s = self.set_var.get()
-        self.passes_lbl.config(text=("passes/station: %d" % passes_for(s)) if s else "")
+        if s:
+            self.passes_var.set(str(passes_for(s)))
+
+    def _passes_value(self):
+        """Validated passes count from the box, or None (with a warning) if invalid."""
+        try:
+            n = int(self.passes_var.get())
+        except (ValueError, tk.TclError):
+            n = 0
+        if n < 1:
+            messagebox.showwarning("Wafer Dicer", "Passes/station must be a whole number >= 1.")
+            return None
+        return n
 
     # -- subprocess plumbing ----------------------------------------------------
     def _run(self, argv):
@@ -183,6 +201,7 @@ class App:
         self.busy = busy
         for b in self.buttons.values():
             b.config(state="disabled" if busy else "normal")
+        self.passes_spin.config(state="disabled" if busy else "normal")
 
     def log(self, text):
         self.log_txt.configure(state="normal")
@@ -213,21 +232,29 @@ class App:
 
     def dry_run(self):
         s = self.selected_set()
-        if s:
-            self._run([DICE, s, "--yes", "--stop-flag", STOP_FLAG])
+        if not s:
+            return
+        n = self._passes_value()
+        if n is None:
+            return
+        self._run([DICE, s, "--passes", n, "--yes", "--stop-flag", STOP_FLAG])
 
     def dice(self):
         s = self.selected_set()
         if not s:
             return
+        n = self._passes_value()
+        if n is None:
+            return
         if not messagebox.askyesno(
                 "ARM THE LASER",
                 "Fire the laser and dice:\n\n    %s\n    %d passes/station\n\n"
                 "Close the WinLase GUI first, and keep a hand on the e-stop.\n\nProceed?"
-                % (s.name, passes_for(s.name)), icon="warning", default="no"):
+                % (s.name, n), icon="warning", default="no"):
             self.log("dice cancelled.")
             return
-        self._run([DICE, s, "--arm", "--home-after", "--yes", "--stop-flag", STOP_FLAG])
+        self._run([DICE, s, "--arm", "--home-after", "--yes", "--passes", n,
+                   "--stop-flag", STOP_FLAG])
 
     def stop(self):
         try:
