@@ -157,10 +157,17 @@ class WinLaseSession:
 
     def __init__(self) -> None:
         try:
-            from win32com.client import gencache
+            from win32com.client import Dispatch, gencache
+        except ImportError as exc:
+            raise SystemExit(
+                "pywin32 is not installed in this venv, so WinLase COM is unavailable.\n"
+                "Install it offline (wheels are in venv\\wheels), then re-run:\n"
+                "    pip install --no-index --find-links venv\\wheels pywin32\n"
+                "    python venv\\Scripts\\pywin32_postinstall.py -install"
+            ) from exc
+        try:
             self.m = gencache.EnsureDispatch("Winlase.Automate")   # early binding
         except Exception:
-            from win32com.client import Dispatch
             self.m = Dispatch("Winlase.Automate")                  # late binding
         self.m.AttachToMarker()
         self.cards = int(self.m.GetScanCardCount())

@@ -63,10 +63,17 @@ class WinLaseMarker:
 
     def __init__(self):
         try:
-            from win32com.client import gencache
+            from win32com.client import Dispatch, gencache
+        except ImportError as exc:
+            raise SystemExit(
+                "pywin32 is not installed in this venv, so WinLase COM is unavailable.\n"
+                "Install it offline (wheels are in venv\\wheels), then re-run:\n"
+                "    pip install --no-index --find-links venv\\wheels pywin32\n"
+                "    python venv\\Scripts\\pywin32_postinstall.py -install"
+            ) from exc
+        try:
             self.m = gencache.EnsureDispatch("Winlase.Automate")
         except Exception:
-            from win32com.client import Dispatch
             self.m = Dispatch("Winlase.Automate")
         self.m.AttachToMarker()
         if int(self.m.GetScanCardCount()) < 1:
@@ -166,15 +173,15 @@ def print_plan(set_dir: Path, plan, passes: int, focus: bool, armed: bool) -> No
 
 
 # ------------------------------------------------------------------------- run
-def countdown(seconds: int) -> bool:
+def countdown(seconds: int, should_abort) -> bool:
     """Abortable countdown. Returns True to proceed, False if aborted."""
-    print("\nStarting in %d s -- press any key to ABORT." % seconds)
+    print("\nStarting in %d s -- press any key (or the UI Stop) to ABORT." % seconds)
     for n in range(seconds, 0, -1):
         sys.stdout.write("\r  %2d ... " % n)
         sys.stdout.flush()
         end = time.time() + 1.0
         while time.time() < end:
-            if _aborted():
+            if should_abort():
                 print("\naborted at countdown.")
                 return False
             time.sleep(0.05)
@@ -197,6 +204,10 @@ def main() -> int:
     p.add_argument("--countdown", type=int, default=DEFAULT_COUNTDOWN_S)
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
     p.add_argument("--list", action="store_true", help="print the plan and exit (no motion)")
+    p.add_argument("--yes", action="store_true",
+                   help="skip the 'type DICE' arm prompt (the UI confirms instead)")
+    p.add_argument("--stop-flag", type=Path, default=None,
+                   help="do a controlled stop if this file appears -- how the UI signals Stop")
     args = p.parse_args()
 
     if args.passes is not None:
@@ -213,7 +224,7 @@ def main() -> int:
     marker = None
     if args.arm:
         print("\n*** ARMED: the laser will fire. Close the WinLase GUI. Hand on e-stop. ***")
-        if input('type "DICE" to arm: ').strip() != "DICE":
+        if not args.yes and input('type "DICE" to arm: ').strip() != "DICE":
             print("not armed; exiting.")
             return 1
         marker = WinLaseMarker()
@@ -225,10 +236,10 @@ def main() -> int:
     print("stage connected on %s: %s" % (stage.port, stage.identity))
 
     def abort() -> bool:
-        return _aborted()
+        return _aborted() or (args.stop_flag is not None and args.stop_flag.exists())
 
     try:
-        if not countdown(args.countdown):
+        if not countdown(args.countdown, abort):
             return 1
         completed = False
         for label, pos, wlj in plan:
