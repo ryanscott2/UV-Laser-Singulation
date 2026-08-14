@@ -1,0 +1,8 @@
+# Mark passes per station, per pattern set. dice_wafer.py reads this file
+# (it must sit next to the scripts). Matched by the set FOLDER name; any set
+# not listed uses the 'default' row. Override for one run: dice_wafer.py <set> --passes N
+set,passes
+081326_AlignmentTest,50
+081326_AlignmentTest_v2,50
+081326_AlignmentTest_v3,50
+default,175
