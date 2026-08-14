@@ -56,6 +56,25 @@ WHAT'S ON THIS USB
  step that marks - the GUI and the automation can't share the laser.
 
 ---------------------------------------------------------------------
+ WHAT TO POINT AT  -  <set> is a SLICED SET FOLDER, not a single DXF
+---------------------------------------------------------------------
+ The wafer pattern is sliced (on the CAD/design PC) into a SET FOLDER with
+ one subfolder per station - that whole folder is what you point at:
+
+     <set>\P1\Horizontal.dxf   <set>\P1\Vertical.dxf
+     <set>\P2\...   P3\...   P4\...
+     <set>\Master\  ,  position_manifest.csv        (bookkeeping)
+
+ Copy the whole set folder onto the laser PC. BOTH winlase_build_jobs.py
+ and dice_wafer.py take the SET FOLDER as their argument - never a single
+ DXF, and not the individual P1..P4 folders. winlase_build_jobs then adds a
+ <set>\WinLaseJobs\ folder with the four .wlj it builds (one per station,
+ H + V combined). Example:
+
+     python winlase_build_jobs.py "C:\...\DXFs\081326_AlignmentTest_v2"
+     python dice_wafer.py         "C:\...\DXFs\081326_AlignmentTest_v2" --arm --home-after
+
+---------------------------------------------------------------------
  DICING A WAFER
 ---------------------------------------------------------------------
  1. Build the WinLase jobs for the pattern set (once per set):

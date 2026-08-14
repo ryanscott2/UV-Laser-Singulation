@@ -43,9 +43,11 @@ never downloads or marks.
 NOT automated (do these in the GUI, once per job, per OPERATING_PROCEDURE.md sec 3):
   - Job loop 175x  (a run-time execution setting, not stored geometry)
   - Z / table height, jig re-seat between stations, and the actual mark.
-The mark speed is set to 400 mm/s on Profile 0; laser power and frequency are left as
-WinLase's current default profile (this script prints that profile so you can confirm
-it) -- it writes only the speed, never power/frequency.
+This script sets the mark speed to 400 mm/s (the WinLase default profile is 1000 mm/s)
+by writing ONLY the speed field of Profile 0: it reads the profile, changes the speed,
+writes it back, then reads it again and verifies laser power and frequency are unchanged
+(aborting the build if not). It never sets laser power or frequency itself; those, the
+delays, and jump settings all come from WinLase's default profile.
 
 Usage:
     python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2
@@ -66,7 +68,8 @@ FILL_SPACING_MM = 0.01
 FILL_STYLE_PARALLEL = 0            # SetObjFill style: 0 = parallel lines
 FILL_ANGLE_DEG = {"Horizontal": 0, "Vertical": 90}   # 0 deg for H cuts, 90 for V
 NUM_PASSES = 1
-MARK_SPEED_MM_S = 400.0            # baked onto Profile 0; laser power/frequency left as-is
+MARK_SPEED_MM_S = 400.0            # written onto Profile 0 (WinLase default profile is 1000 mm/s);
+SPEED_TOLERANCE_MM_S = 10.0        # ONLY the speed is written -- power/frequency are verified unchanged
 JOB_LOOP_COUNT = 175               # informational only; the real loop count is per set (dice_passes.csv)
 
 ORIENTATIONS = ("Horizontal", "Vertical")
@@ -226,11 +229,26 @@ class WinLaseSession:
             self.m.SetObjMarkFillFlag(obj, 1)
             self.m.SetObjMarkOutlineFlag(obj, 0)
             self.m.SetObjNumPasses(obj, NUM_PASSES)
-            # Set ONLY the mark speed on Profile 0, preserving the object's other
-            # profile values (laser power, frequency, delays) via read-modify-write.
-            prof = list(self.m.GetObjProfile(obj, 0))
-            prof[0] = MARK_SPEED_MM_S / 1000.0 * self.bits_per_mm  # mm/s -> bits/mSec
-            self.m.SetObjProfile(obj, 0, *prof)
+            # Force the mark speed to 400 mm/s (the WinLase default profile is 1000).
+            # Write ONLY the speed: read Profile 0, change just the speed field, write
+            # it back (laser power, frequency, and delays are echoed unchanged), then
+            # read again and VERIFY power (index 5) and frequency/T1 (index 9) did not
+            # move. A corrupt round-trip aborts the build rather than alter the laser.
+            before = list(self.m.GetObjProfile(obj, 0))
+            after = list(before)
+            after[0] = MARK_SPEED_MM_S / 1000.0 * self.bits_per_mm  # mm/s -> bits/mSec
+            self.m.SetObjProfile(obj, 0, *after)
+            check = list(self.m.GetObjProfile(obj, 0))
+            if (abs(float(check[5]) - float(before[5])) > 1e-3
+                    or abs(float(check[9]) - float(before[9])) > 1e-3):
+                raise RuntimeError(
+                    "%s/%s: profile write moved power/frequency (power %s->%s %%, "
+                    "freq %s->%s kHz) -- ABORTING build, no job saved"
+                    % (job['folder'], orientation, before[5], check[5], before[9], check[9]))
+            got_speed = float(check[0]) / self.bits_per_mm * 1000.0
+            if abs(got_speed - MARK_SPEED_MM_S) > SPEED_TOLERANCE_MM_S:
+                raise RuntimeError("%s/%s: mark speed is %.0f mm/s after write, not %.0f"
+                                   % (job['folder'], orientation, got_speed, MARK_SPEED_MM_S))
 
             if int(self.m.IsObjOutOfBounds(obj)):
                 warnings.append(

@@ -38,40 +38,28 @@ OUTPUT_DIR = r""
 
 # Calibration applied to every output after it is centered on its laser field.
 # Positive X moves all output geometry right; positive Y moves it up.
-# 2026-08-13 recal on the pinned jig (flat-standoff alignment test): the exposure sat
-# low-left of nominal -- mean line-to-flat shortfall -0.438 mm major (Y) / -0.185 mm
-# minor (X) -- so the offset is set +438 / +185 um to pull it back. This is the
-# RESIDUAL on top of the jig's baked NEST_CALIBRATION (not the old ~3 mm full offset),
-# so it does not double-correct. Major Y excludes the v1 bottom line (same mark that
-# gave the 317 um stitch outlier); minor X averages all three. VERIFY on the next cut:
-# standoffs should grow toward nominal; if they shrink instead, flip the signs.
-# History: 2026-08-12 reset to 0 for the baked-offset jig; 2026-08-11 the 081126 test
-# sat +3.017/-1.286 mm off (trimmed -3101.7/+1315.7, since superseded).
-# See CALIBRATION_AND_SLIDING_NEST_NOTES.md.
-GLOBAL_X_OFFSET_UM = 185.3
-GLOBAL_Y_OFFSET_UM = 438.0
+# 2026-08-14 RESET TO 0 for the stage-based method: the OptiScan III stage now moves
+# the wafer under a fixed field, so the pinned-jig calibration (the +185.3/+438.0 um
+# global residual and the per-station stitch nudges below) no longer applies. Fresh
+# calibration is pending -- cut a zero-offset alignment test on the stage rig, measure
+# line-to-flat, and set these from that. History: 2026-08-13 pinned-jig recal was
+# +185.3/+438.0 um; 2026-08-12 reset to 0 for the baked-offset jig; 2026-08-11 the
+# 081126 test sat +3.017/-1.286 mm off. See CALIBRATION_AND_SLIDING_NEST_NOTES.md.
+GLOBAL_X_OFFSET_UM = 0.0
+GLOBAL_Y_OFFSET_UM = 0.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. Corrects one station measured off from its neighbours without disturbing
 # the others. Override with -rd window_offsets="P1:0,-15;P4:2.5,-18".
 #
-# 2026-08-13 stitch bake from the seam step measurements (see
-# CALIBRATION_AND_SLIDING_NEST_NOTES.md). Each station owns one wafer quadrant and
-# borders two seams; its dx closes the X seam, its dy the Y seam. Averaged good
-# steps (outliers thrown: Bottom-v1 317, Right-v3 70): Bottom Y 144.5, Top Y 91.3,
-# Left X 70.7, Right X 15.0 um. Each step is split half-and-half between its two
-# tiles, so the set is purely differential (sums to 0,0) and does NOT move the
-# common-mode global offset above. SIGN: only the Bottom seam direction is
-# unambiguous ("left below right" -> P2 low); Top/Left/Right assume the same
-# handedness (vertical-seam left tile low, horizontal-seam bottom tile left).
-# VERIFY each seam on the next cut: if a seam grew instead of closing, negate that
-# axis on its two stations -- Bottom=dy(P1,P2), Top=dy(P3,P4), Left=dx(P2,P3),
-# Right=dx(P1,P4).
+# 2026-08-14 RESET TO 0 with the global offset for the stage method. The old values
+# were the 2026-08-13 stitch bake from the pinned-jig seam steps; re-derive per seam
+# from the first stage cut if the seams need closing.
 WINDOW_OFFSETS_UM = {
-    "P1": (7.50, -72.25),    # bottom-right: dx<-Right seam, dy<-Bottom seam
-    "P2": (35.35, 72.25),    # bottom-left:  dx<-Left seam,  dy<-Bottom seam
-    "P3": (-35.35, 45.65),   # top-left:     dx<-Left seam,  dy<-Top seam
-    "P4": (-7.50, -45.65),   # top-right:    dx<-Right seam, dy<-Top seam
+    "P1": (0.0, 0.0),
+    "P2": (0.0, 0.0),
+    "P3": (0.0, 0.0),
+    "P4": (0.0, 0.0),
 }
 
 # Optional edge bead: inset the cut geometry from the wafer edge before windowing,
