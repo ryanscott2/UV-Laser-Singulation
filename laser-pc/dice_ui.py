@@ -81,6 +81,11 @@ class App:
         self.passes_spin.grid(row=2, column=1, sticky="w", padx=4, pady=(6, 0))
         ttk.Label(top, text="(pre-filled from dice_passes.csv; change to override this run)",
                   foreground="#666").grid(row=3, column=1, sticky="w", padx=4)
+        ttk.Label(top, text="Est. time:").grid(row=4, column=0, sticky="w", pady=(6, 0))
+        self.eta_var = tk.StringVar(value="--")
+        ttk.Label(top, textvariable=self.eta_var, foreground="#2d7d46",
+                  font=("Segoe UI", 9, "bold")).grid(row=4, column=1, sticky="w",
+                                                      padx=4, pady=(6, 0))
         top.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(root, padding=(8, 4))
@@ -168,6 +173,7 @@ class App:
         except OSError:
             pass
         self._set_busy(True)
+        self.eta_var.set("--")
         cmd = [PYCON, "-u"] + [str(a) for a in argv]
         self.log("\n$ " + " ".join(cmd[2:]))
 
@@ -193,6 +199,8 @@ class App:
                     self.log("[exit %s]" % item[1])
                     self._set_busy(False)
                 else:
+                    if isinstance(item, str) and item.startswith("[eta] "):
+                        self.eta_var.set(item[6:].strip())
                     self.log(item)
         except queue.Empty:
             pass
