@@ -310,7 +310,7 @@ stitch alone, so the declared field is free to be larger than the window.
   both masters, the field-placement self-test confirms every tile's layer-0
   geometry fits within `+/-30 mm` (the usable field) of the origin with the origin
   at the field center, and all eight DXFs are byte-identical to the files they replaced.
-- One production splitter only: `python/split_klayout.py`. The
+- One production splitter only: `slicing/split_klayout.py`. The
   byte-identical `split_klayout_four_windows_pin_grid.py` duplicate was removed
   on 2026-08-08.
 
@@ -337,7 +337,7 @@ half applied: X by `85 um` (`-3016.7 -> -3101.7`) and Y by `30 um`
 The same offset is corrected two ways, and only ONE may be active at a time:
 
 - **Software (current jig):** `GLOBAL_X_OFFSET_UM = -3101.7`,
-  `GLOBAL_Y_OFFSET_UM = +1315.7` in `python/split_klayout.py`, applied
+  `GLOBAL_Y_OFFSET_UM = +1315.7` in `slicing/split_klayout.py`, applied
   to every job after it is centered on its field. The `081126_FullDice_v3` set is
   built with these split-difference values; the earlier `081126` and
   `081126_AlignmentTest_v2` sets carry the original `-3016.7 / +1285.7` they were
@@ -372,7 +372,7 @@ Other 2026-08-11 changes:
 - Combining orientations into one `Combined.dxf` per station was tried and
   **removed** (it did not expose well); sets are separate `Horizontal.dxf` /
   `Vertical.dxf` per station again.
-- Marker-free full dice: `python/generate_100mm_10x30mm_masters_nomarker.py` reuses
+- Marker-free full dice: `slicing/generate_100mm_10x30mm_masters_nomarker.py` reuses
   the base 10x30 generator's geometry but omits the centered plus marker, writing
   masters to `dxf/100mm_10x30mm_Masters_NoMarker`. Full-dice test set
   `output/DXFs/081126_FullDice_v3` (10x30 mm production dice, no alignment marker)
@@ -463,3 +463,61 @@ wafer seat:** the nest center, the primary-flat datum (`0.175 mm`), and the 9:30
 X-pin contact (nominal OD at `165 deg`) are all geometrically unchanged. So the recal
 above is the only outstanding calibration action -- this reshape adds no further
 shift, and its expected recal values are unchanged from the pin-datum switch.
+
+## Global offset baked from the flat-standoff recal (2026-08-13)
+
+First calibration cut on the pinned jig. Line-to-flat standoffs (v1/v2/v3, center of
+line to wafer edge) measured vs nominal; Delta = measured - nominal:
+
+- Major (Y, primary flat): v1 `-0.726`, v2 `-0.550`, v3 `-0.326` mm. v1 dropped -- its
+  bottom line is the same mark that gave the 317 um stitch outlier. Mean(v2,v3) = `-0.438`.
+- Minor (X, secondary flat): v1 `-0.203`, v2 `-0.180`, v3 `-0.173` mm. Mean = `-0.185`.
+
+All negative = the exposure landed short of the flats (low and left). Correction is
+`-Delta`, so `GLOBAL_*_OFFSET_UM` in `slicing/split_klayout.py` is set **+185.3 X /
++438.0 Y** (positive X right, positive Y up -- away from the flats). This is the
+residual on top of the jig's baked `NEST_CALIBRATION`, not the full offset, so it does
+not double-correct.
+
+Per-station stitch (`WINDOW_OFFSETS_UM`) is baked separately -- see below. It is
+differential (tile-to-tile) and independent of this common-mode global offset.
+VERIFY the global on the next cut: the standoffs should grow toward nominal; if they
+shrink, flip the signs.
+
+## Per-station stitch baked into WINDOW_OFFSETS_UM (2026-08-13)
+
+Seam step measurements at the four arms of the `+` seam (x=0 vertical, y=0
+horizontal), read on the three nested line sets (outermost v2, middle v1, inner v3):
+
+| Seam (arm) | Tiles | Axis | v1 | v2 | v3 | Avg used |
+|---|---|---|---:|---:|---:|---:|
+| Bottom (x=0, y<0) | P2 \| P1 | Y | ~~317~~ | 120 | 169 | **144.5** |
+| Top (x=0, y>0) | P3 \| P4 | Y | 118 | 73 | 83 | **91.3** |
+| Left (y=0, x<0) | P2 \| P3 | X | 65 | 92 | 55 | **70.7** |
+| Right (y=0, x>0) | P1 \| P4 | X | 15 | 15 | ~~70~~ | **15.0** |
+
+Two within-seam outliers thrown: Bottom v1 `317` (2.6x its neighbours, same bottom
+mark flagged in the global recal) and Right v3 `70` (4.7x the other two). The
+per-seam spread that remains (e.g. Bottom 120 vs 169) is per-field rotation/scale,
+which a per-station translation cannot remove -- the average is the best translation
+fix and the residual rotation stays.
+
+Each station owns one quadrant and borders two seams; its `dx` closes its X seam and
+`dy` closes its Y seam. Every seam step is split half-and-half between its two tiles,
+so the set is purely differential (sums to `0,0`) and does not move the common-mode
+global offset:
+
+| Station | Quadrant | dx (um) | dy (um) |
+|---|---|---:|---:|
+| P1 | bottom-right | +7.50 | -72.25 |
+| P2 | bottom-left | +35.35 | +72.25 |
+| P3 | top-left | -35.35 | +45.65 |
+| P4 | top-right | -7.50 | -45.65 |
+
+**Sign caveat:** only the Bottom seam direction is unambiguous from the wording
+("left below right" => P2 low). Top/Left/Right were reported without a clear
+left/right or top/bottom tile identity, so they assume the same handedness as Bottom
+(vertical-seam left tile sits low; horizontal-seam bottom tile sits left). VERIFY each
+seam independently on the next cut: if a seam grew instead of closing, negate that
+axis on its two stations -- Bottom = `dy` of (P1,P2), Top = `dy` of (P3,P4),
+Left = `dx` of (P2,P3), Right = `dx` of (P1,P4).

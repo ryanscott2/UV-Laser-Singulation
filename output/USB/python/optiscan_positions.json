@@ -1,0 +1,13 @@
+{
+  "port": "COM5",
+  "units": "microns",
+  "reference_center": { "x": 5590, "y": -18450 },
+  "stations": {
+    "P1": { "x": -19810, "y": -43850 },
+    "P2": { "x": 30990, "y": -43850 },
+    "P3": { "x": 30990, "y": 6950 },
+    "P4": { "x": -19810, "y": 6950 }
+  },
+  "derivation": "2026-08-14: empirical axis directions from the stage itself -- +X_stage = RIGHT (table +X) and +Y_stage = FRONT (table -Y); BOTH inverted from the original '+x left,+y up' assumption, so X and Y are each negated vs the first geometric guess. Jig moved forward 1 pin, bottom-left at C2/R3: wafer center table(96.19,109.35), field center table(101.78,127.80). Verified each station lands on its DXF quadrant: P1=bottom-right, P2=bottom-left, P3=top-left, P4=top-right.",
+  "notes": "Jig at C2/R3. P2/P3 now need X=+30990 (earlier runs only reached +19810); X travel is 126 mm so it should be fine, but if a move trips at an X limit we shift the jig one column. Verify tolerance 3 um. Slicer global offset reset to 0 for the stage method."
+}

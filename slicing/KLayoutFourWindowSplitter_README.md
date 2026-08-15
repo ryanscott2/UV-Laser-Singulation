@@ -1,0 +1,153 @@
+# Four-window KLayout cutline splitter
+
+`split_klayout.py` reads wafer-centered cut geometry from layer 0
+and writes laser-centered jobs. It supports DXF, GDS, and OAS input through
+KLayout. DXF input and output use millimeters; configuration values use microns.
+
+This is the single production splitter and carries the 54 mm pin-grid profile.
+An identical copy previously existed as `split_klayout_four_windows_pin_grid.py`;
+it has been removed, so edit this file only.
+
+It runs in one of two modes (`-rd mode=...`). `four_windows` (default) is the
+production four-station split documented below. `center_pass` instead clips one
+centered score job (see [CenterPassWorkflow_README.md](CenterPassWorkflow_README.md));
+both modes share the `GLOBAL_*_OFFSET_UM` calibration and every helper in the file.
+
+## Important variables
+
+Edit these near the top of the script:
+
+- `INPUT_FILE`
+- `OUTPUT_DIR`
+- `GLOBAL_X_OFFSET_UM`
+- `GLOBAL_Y_OFFSET_UM`
+- `MAX_CUT_WIDTH_UM` (default `50.0`)
+- `STITCH_OVERLAP_UM`
+- `CLIP_MODE`
+- `ALLOW_GEOMETRY_OUTSIDE_FIELDS` (default `False`)
+
+Positive global X moves cut geometry right in every output. Positive global Y
+moves it up. The global offsets do not alter the source file.
+
+Native DXF/KLayout paths wider than `MAX_CUT_WIDTH_UM` are narrowed around
+their existing centerlines before the four jobs are clipped. The default cap is
+`50 um`; thinner paths are unchanged. Closed filled contours are polygons, not
+paths, so their dimensions are preserved. The split log and manifest record how
+many native paths were capped.
+
+The default pin-grid `partition` mode uses `200 um` total stitch overlap: each
+neighboring job extends `100 um` across X=0 and Y=0, which covers the 75-100 um
+seam mismatch in the calibration notes.
+
+`CLIP_MODE` matters at the production settings. `partition` gives each quadrant one
+owner and adds the stitch, so a window is `2 x 25,400 + 200 = 51,000 um`.
+`full_window` takes the whole `54,000 um` declared field instead, which overlaps
+neighbours by `3,200 um` and exposes that entire band twice.
+
+## Enforced window geometry
+
+The window size is derived from the pitch and the stitch, not from the field, so
+the declared field is free to be larger than the window. Every run checks:
+
+1. The declared field must be at least as wide as a partition window,
+   `2 * WINDOW_CENTER_UM + STITCH_OVERLAP_UM`, or geometry would fall outside the
+   window the laser is told to expose. At a 54,000 um field the stitch may go up to
+   `3,200 um`. Both window centers must also match, or the four windows are not a
+   symmetric 2 x 2 tiling.
+2. Each emitted window is asserted square, of the expected size, symmetric about
+   its own field center once translated, and within the declared field.
+3. Geometry outside all four windows is measured before clipping and stops the
+   run, reporting the lost area and its bounds. Override with
+   `-rd allow_geometry_outside_fields=1` when clipping it away is intended.
+
+The split log and manifest record all three, plus any job that came out empty.
+
+## Window mapping
+
+Jobs are named for the **jig station** that produces them. P1-P4 name the jig
+station, numbered clockwise from the table's top-left (P1 top-left, P2
+top-right, P3 bottom-right, P4 bottom-left).
+
+Indexing the jig moves the wafer, not the laser, so both axes invert and each
+station exposes the diagonally opposite wafer quadrant:
+
+| Job | Jig station | Window center in wafer coordinates | Owned quadrant |
+| --- | --- | ---: | --- |
+| `P1_jig_top_left` | top-left | +25,400 um X; -25,400 um Y | right / bottom |
+| `P2_jig_top_right` | top-right | -25,400 um X; -25,400 um Y | left / bottom |
+| `P3_jig_bottom_right` | bottom-right | -25,400 um X; +25,400 um Y | left / top |
+| `P4_jig_bottom_left` | bottom-left | +25,400 um X; +25,400 um Y | right / top |
+
+Each output is translated so its own laser-field center is `(0, 0)`. A manifest
+CSV records the jig station, exposed wafer area, clip box, translation, polygon
+count, and output bounding box for every job.
+
+## Run from PowerShell
+
+Use KLayout's headless executable:
+
+```powershell
+& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\slicing\split_klayout.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output" -rd "global_x_um=0" -rd "global_y_um=0" -rd "max_cut_width_um=50"
+```
+
+Run it from the repository root. The `-rd` values override the editable defaults
+without modifying the script.
+
+This script has no `argv` parsing of its own: overrides arrive through
+`globals()`, which is KLayout's `-rd` mechanism. To drive it from plain Python
+with the standalone `klayout` wheel, use the build tool, which injects those
+same values and then assembles the labeled folder structure:
+
+```bash
+python slicing/build_pin_grid_set.py
+```
+
+## Generated 100 mm dicing masters
+
+`generate_100mm_10x30mm_masters.py` uses one top-level edge-bead setting in
+millimeters:
+
+```python
+EDGE_BEAD_MM = 2.000
+```
+
+The same value is applied inward from the circular edge, primary flat, and
+secondary flat. It can also be overridden with `-rd edge_bead_mm=...`.
+
+## Outputs
+
+- Four files named `P1_jig_top_left` through `P4_jig_bottom_left`
+- A `window_manifest.csv`
+- A `split_log.txt`
+
+DXF outputs contain closed `LWPOLYLINE` cut polygons on literal layer `0` and
+retain the source convention of 1 drawing unit = 1 mm.
+
+Jobs are placed by their true coordinates with the laser's auto-centering OFF,
+so the DXF origin lands on the field center exactly as written. All cut geometry
+lives on layer `0`; there are no registration anchors and no declared header
+extents.
+
+The production field is `54 x 54 mm` and each job occupies `51 x 51 mm` of it,
+centred, leaving `1.5 mm` of clear field on every side. A centred 54 mm job retains
+`3 mm` margin to every edge of the `60 mm` usable field.
+
+## The removed original-jig profile
+
+For the record, since the archived sets under `output/` were built with it.
+
+The original printed four-position jig needed its own profile, because the directly
+measured `(0, 0)` cross showed its four physical laser-window centers were the
+nominal `+/-25 mm` grid shifted in wafer coordinates by `X = -3.982 mm` and
+`Y = +1.678 mm`. That profile moved both the clipping windows and their output
+translations by those amounts, on a 60 mm field.
+
+It was deleted on 2026-08-08 along with the jig it compensated: with the pin-grid
+jig those offsets are simply wrong, and a splitter that silently misplaces geometry
+by 4 mm is not worth keeping on disk. Recover it from git history if the archived
+sets ever need rebuilding.
+
+It emitted the superseded `P1_right_top` .. `P4_left_bottom` names, keyed to the
+exposed wafer quadrant rather than the jig station. Those names appear in the
+archived old-jig build logs, whose delivered folders were renamed to `DXF11` ..
+`DXF22` by hand at the time.

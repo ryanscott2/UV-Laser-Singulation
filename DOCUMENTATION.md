@@ -71,9 +71,9 @@ current one. It remains in git history if the archived sets ever need rebuilding
 
 ## Requirements
 
-- Python 3.11+ and the standalone KLayout wheel, which is all `tools/` needs.
+- Python 3.11+ and the standalone KLayout wheel, which is all `slicing/` needs.
   Developed against `klayout` 0.30.9.
-- Optionally the KLayout application, to run the macros in `python/` from its GUI
+- Optionally the KLayout application, to run the macros in `slicing/` from its GUI
   or headless executable instead.
 - Autodesk Fusion, only to regenerate the jig CAD and STLs. The scripts in
   `fusion/` use the Fusion API and cannot run outside it.
@@ -82,8 +82,9 @@ current one. It remains in git history if the archived sets ever need rebuilding
 
 Worth knowing before choosing a license for this repository:
 
-- **KLayout is GPL-3.0-or-later.** Every script in `python/` and `tools/` imports
-  its API (`pya`, or `klayout.db` from the wheel). If you distribute this code
+- **KLayout is GPL-3.0-or-later.** Every script in `slicing/` imports
+  its API (`pya`, or `klayout.db` from the wheel); the `laser-pc/` app does not
+  (it uses pyserial + pywin32). If you distribute this code
   under a license of your own, look at how that interacts with the GPL before
   assuming a permissive license is available to you.
 - **The Autodesk Fusion API is proprietary.** The scripts in `fusion/` import
@@ -123,7 +124,7 @@ forward of the pin-pattern center.
 Verify all of it from the table geometry rather than trusting this table:
 
 ```bash
-python tools/pin_grid_layout.py
+python slicing/pin_grid_layout.py
 ```
 
 ### The old scheme
@@ -140,12 +141,12 @@ recorded seam measurements name those folders.
 ## Pipeline
 
 ```
-dxf/100mm_10x30mm_Masters/          python/generate_100mm_10x30mm_masters.py
+dxf/100mm_10x30mm_Masters/          slicing/generate_100mm_10x30mm_masters.py
   Horizontal_master.dxf                 50 um cuts on a 10 x 30 mm grid, clipped
   Vertical_master.dxf                   2 mm inside the edge and both flats
         |
-        |  python/split_klayout.py
-        |  driven by tools/build_pin_grid_set.py
+        |  slicing/split_klayout.py
+        |  driven by slicing/build_pin_grid_set.py
         v
 output/DXFs/<set>/P1..P4/           four 51 mm windows in a 54 mm declared field,
   Horizontal.dxf  Vertical.dxf       each centered on (0,0), 0.2 mm stitch overlap
@@ -219,7 +220,7 @@ The split log records all three, including the source and dropped areas.
 
 ### Validation
 
-`tools/validate_pin_grid_set.py` runs two independent checks and exits non-zero if
+`slicing/validate_pin_grid_set.py` runs two independent checks and exits non-zero if
 either fails:
 
 1. **Reconstruction.** Each tile is translated back by its own field center and
@@ -282,7 +283,7 @@ crests both matter at that scale.
 
 ## Slicing an arbitrary pattern
 
-The production path (`tools/build_pin_grid_set.py`) is wired to the 100 mm masters.
+The production path (`slicing/build_pin_grid_set.py`) is wired to the 100 mm masters.
 To slice something else, pick which layer holds the cutlines and what width they
 should be.
 
@@ -294,7 +295,7 @@ customer layouts often do, drawn as connected street networks or die-outline
 frames — `build_pin_grid_set.py` can split it in one step:
 
 ```bash
-python tools/build_pin_grid_set.py --combined wafer.gds --cut-layer 7 --set output/DXFs/MySet
+python slicing/build_pin_grid_set.py --combined wafer.gds --cut-layer 7 --set output/DXFs/MySet
 ```
 
 It reads the cut layer, decomposes it into axis-aligned rectangles, and sorts each
@@ -311,7 +312,7 @@ the build prints.
 ### Desktop window
 
 ```bash
-python tools/slicer_app.py
+python slicing/slicer_app.py
 ```
 
 PySide6 + QML, using Qt's own `FluentWinUI3` style pinned to dark.
@@ -365,7 +366,7 @@ geometry relative to the field center.
 edge before slicing — the same safe region the master generator uses — and the
 dashed guide ring follows the value entered. `0` leaves the geometry untouched.
 
-**Datasets** are named settings, kept in `tools/.ui_datasets.json` as
+**Datasets** are named settings, kept in `slicing/.ui_datasets.json` as
 `{name: {settings}}`. Save, reload and delete them from the header.
 
 ### Command line
@@ -373,11 +374,11 @@ dashed guide ring follows the value entered. `0` leaves the geometry untouched.
 The same options without the window:
 
 ```bash
-python tools/run_splitter.py --input wafer.dxf --list-layers
+python slicing/run_splitter.py --input wafer.dxf --list-layers
 ```
 
 ```bash
-python tools/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40 --width-mode force --output jobs/
+python slicing/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40 --width-mode force --output jobs/
 ```
 
 Add `--allow-outside`, `--global-x/--global-y`,
@@ -411,14 +412,15 @@ geometry. Not implemented; raise it if you want it.
 
 ## Running the KLayout macros directly
 
-The macros in `python/` read their overrides out of `globals()`, which is
+The KLayout macros in `slicing/` read their overrides out of `globals()`, which is
 KLayout's `-rd` mechanism. They have no `argv` parsing, so plain
-`python script.py` cannot be parameterized; that is what `tools/` is for.
+`python script.py` cannot be parameterized; that is what the wrapper scripts
+(`run_splitter.py`, `build_pin_grid_set.py`) in `slicing/` are for.
 
 From the repository root, with KLayout's headless executable:
 
 ```powershell
-& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\python\split_klayout.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output"
+& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\slicing\split_klayout.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output"
 ```
 
 Or from the KLayout GUI with **File > Run Script**, after editing `INPUT_FILE` and
@@ -429,16 +431,16 @@ Or from the KLayout GUI with **File > Run Script**, after editing `INPUT_FILE` a
 Not everything checked in is reproducible from the current scripts. What is what:
 
 - `dxf/100mm_10x30mm_Masters/` is generated. Re-running
-  `python/generate_100mm_10x30mm_masters.py` with
+  `slicing/generate_100mm_10x30mm_masters.py` with
   `-rd output_dir=dxf/100mm_10x30mm_Masters` reproduces both DXFs byte-for-byte.
 - `dxf/080526_HorizDicev2.dxf` and `dxf/080526_VertDicev2.dxf` are the earlier
   hand-drawn reference drawings the toolchain was first developed against. They are
   inputs, not generated, and no script produces them.
-- `python/examples/` was produced by earlier revisions of the splitter and the
+- `slicing/examples/` was produced by earlier revisions of the splitter and the
   center-pass script, at a 60 mm field with zero stitch overlap and an older
   manifest schema. It is illustrative output only: the current scripts will not
   reproduce those files, and their `validation_report.txt` metrics come from a
-  checker that no longer exists in this repository. `tools/validate_pin_grid_set.py`
+  checker that no longer exists in this repository. `slicing/validate_pin_grid_set.py`
   is the current one.
 - `fusion/FusionSingleJig` builds against the **corrected** measured zero cross:
   it computes `EDGE_DERIVED_CENTER_Y` for reference but sets
@@ -454,18 +456,18 @@ Not everything checked in is reproducible from the current scripts. What is what
 Every figure on this page is generated, not drawn:
 
 ```bash
-python tools/make_figures.py
+python slicing/make_figures.py
 ```
 
 Cut geometry is read out of the master DXFs and station geometry comes from
-`tools/pin_grid_layout.py`. Regenerate after changing either of those and the
+`slicing/pin_grid_layout.py`. Regenerate after changing either of those and the
 figures follow. Cut features are `50 um` wide on a `100 mm` wafer, so they are
 stroked to stay visible; everything else is to scale except the seam zoom, which
 is labelled as such.
 
 ## Reference
 
-- [Four-window splitter](python/KLayoutFourWindowSplitter_README.md) — every setting and the full window mapping
-- [Center-pass workflow](python/CenterPassWorkflow_README.md) — the single centered scoring job
+- [Four-window splitter](slicing/KLayoutFourWindowSplitter_README.md) — every setting and the full window mapping
+- [Center-pass workflow](slicing/CenterPassWorkflow_README.md) — the single centered scoring job
 - [Generated job sets](output/README.md) — what each set is and which labeling it uses
 - [Pin-grid jig](fusion/FusionPinGridJig/README.md) — dimensions, tolerances, hole map

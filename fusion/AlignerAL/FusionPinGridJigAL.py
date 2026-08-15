@@ -5,8 +5,8 @@ aluminum plate rather than 3D printing. The differences from the printed jigs:
 
   - Base is a flat plate 7 mm thick. Its outline is not a fixed square: it is the tight
     bounding box of the real features (dowel bores + pocket walls) plus PLATE_EDGE_MARGIN
-    (5 mm) per side, so no material is wasted. The nest is offset from the dowel pattern,
-    so it is a rectangle, not centered on the origin. The printed "spider" is gone.
+    (5 mm) per side, so no material is wasted. The wafer is centered on the dowel
+    pattern, so the plate comes out nearly centered on the origin. The "spider" is gone.
   - The wafer nest is a POCKET milled POCKET_DEPTH (2 mm) into the plate top, not
     raised walls: the wafer drops into the pocket and rests on its floor, with the
     surrounding rim standing proud. 7 mm plate - 2 mm pocket leaves a solid 5 mm
@@ -14,22 +14,23 @@ aluminum plate rather than 3D printing. The differences from the printed jigs:
   - The wafer is located by only two things: the pocket FRONT wall (the primary flat,
     Y + rotation) and a square X-datum block on the upper-left wall whose slightly-
     rounded corner touches the wafer OD at the 9:30 position (X) -- the same contact
-    point the SLA locating pin used. The side/rear walls are held clear (sides
-    symmetric so the wafer stays centered left-right); the wafer is taped down.
+    point the SLA locating pin used. The side and rear walls are held clear; the wafer
+    is centered on the pin pattern and taped down.
   - Two access reliefs, milled at pocket depth, run from the pocket out to the plate
     edge at front-center and rear-center for finger / tape access to the recessed
     wafer. The front one also splits the primary-flat datum into two end pads.
   - Dowel bores are reamed to a true 3/16 in (4.7625 mm), line-to-line with the
     ground steel dowels, for a location / light-press fit in aluminum (retain with a
-    drop of epoxy). The front-right dowel would fall inside the pocket, so that
-    pocket corner is left un-milled (clipped) to keep the bore in full 7 mm metal.
+    drop of epoxy). With the wafer centered, the two rear dowels fall inside the pocket,
+    so those corners are left un-milled (clipped) to keep the bores in full 7 mm metal.
   - No engraved maker's mark.
 
 A machined part is cut to nominal on the mill, so there is no cure-shrink to
 compensate -- leave SCALE_FACTOR at 1.000 (kept only as a general nominal/measured
-trim). NEST_CALIBRATION is inherited from the printed jigs as a STARTING ESTIMATE
-only: this pocket datum reworks where the wafer seats, so the calibration must be
-re-verified on the first cut part and adjusted (see CALIBRATION_AND_SLIDING_NEST_NOTES.md).
+trim). The wafer is now CENTERED on the pin pattern (NEST_CENTER = 0,0), which removes
+the old ~(+10.48, -6.30) mm exposure-landing offset -- so re-derive the exposure
+position in software (GLOBAL_X/Y_OFFSET_UM in slicing/split_klayout.py) or re-center the
+exposure for a centered wafer (see CALIBRATION_AND_SLIDING_NEST_NOTES.md).
 """
 
 from __future__ import annotations
@@ -65,19 +66,17 @@ FIRST_HOLE_EDGE_OFFSET = 12.700
 LASER_ZERO_X = 96.190
 LASER_ZERO_Y = 109.350
 
-# The selected low/high grid rectangles have mean centers of X=88.900 mm and
-# Y=114.300 mm. These offsets place the four exposure centers at +/-25.4 mm.
-NEST_OFFSET_FROM_PIN_CENTER_X = +7.290
-NEST_OFFSET_FROM_PIN_CENTER_Y = -4.950
-# Print-v2 machine-offset correction. The 081126 alignment test measured the
-# exposure landing off the wafer flats; after the re-measure and offset trims the
-# best-known value is +3.187 mm X, -1.346 mm Y. Shifting the nest by that much
-# relative to the pins makes a fixed, field-centered exposure land correctly, so
-# the DXFs no longer need the software offset. IMPORTANT: once a jig printed from
-# this is in use, reset GLOBAL_X/Y_OFFSET_UM to 0 in python/split_klayout.py, or
-# the DXF and the jig double-correct.
-NEST_CALIBRATION_X = +3.187
-NEST_CALIBRATION_Y = -1.346
+# Wafer nest CENTERED on the pin pattern: the wafer center coincides with the middle
+# of the four dowels (the origin, 0,0). The nest used to be offset from the pins
+# (+7.290, -4.950 design offset plus a +3.187, -1.346 machine-offset calibration,
+# ~(+10.48, -6.30) mm total) so a fixed, field-centered exposure landed on the wafer.
+# Per request the wafer is now centered on the pins, which REMOVES that shift -- so a
+# fixed exposure no longer lands where it did. Re-introduce the equivalent offset in
+# software (GLOBAL_X/Y_OFFSET_UM in slicing/split_klayout.py) or re-center the exposure.
+NEST_OFFSET_FROM_PIN_CENTER_X = 0.0
+NEST_OFFSET_FROM_PIN_CENTER_Y = 0.0
+NEST_CALIBRATION_X = 0.0
+NEST_CALIBRATION_Y = 0.0
 NEST_CENTER_X = NEST_OFFSET_FROM_PIN_CENTER_X + NEST_CALIBRATION_X
 NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y + NEST_CALIBRATION_Y
 
@@ -90,9 +89,9 @@ NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y + NEST_CALIBRATION_Y
 # aluminum, so pin precision and wear are decoupled from the plate's machined
 # tolerance: the dowel slip-fits the table's 1/4-20 tapped hole (~4.87 mm crest ID)
 # and locates in the plate bore. The dowel's far end bears in the table hole, so the
-# bore only has to hold it square and captive; retain with a drop of epoxy. The
-# front-right dowel would otherwise fall inside the wafer pocket, so that pocket
-# corner is left un-milled (clipped in build_model) to keep the bore in full metal.
+# bore only has to hold it square and captive; retain with a drop of epoxy. With the
+# wafer centered on the pins, the two rear dowels fall inside the wafer pocket, so
+# those corners are left un-milled (clipped in build_model) to keep the bores solid.
 DOWEL_DIAMETER = 4.7625          # 3/16 in ground steel dowel
 DOWEL_PROTRUSION = 5.000         # protrusion below the plate into the table hole; matches the v2 pins (5 mm)
 # The bore runs through the full 7 mm plate. Cut each dowel to plate thickness +
@@ -106,8 +105,8 @@ FILLET_RADIUS = 2.500             # rounds the four vertical corner edges of the
 # Base plate. The outline is NOT a fixed square: build_model computes it as the tight
 # bounding box of the real features -- the dowel-bore outer edges and the milled pocket
 # walls -- grown by PLATE_EDGE_MARGIN on every side, so the plate carries no wasted
-# material. Because the nest is offset from the dowel pattern, this comes out a
-# rectangle, not centered on the origin. The plate is 7 mm thick so that after the 2 mm
+# material. The wafer is centered on the dowel pattern, so the plate comes out a
+# rectangle nearly centered on the origin. The plate is 7 mm thick so that after the 2 mm
 # nest pocket is milled in, a solid 5 mm floor remains under the wafer.
 PLATE_EDGE_MARGIN = 5.000        # solid margin from each plate edge to the nearest feature
 BASE_THICKNESS = 7.000           # 7 mm aluminum plate (2 mm pocket + 5 mm floor)
@@ -152,8 +151,8 @@ X_DATUM_CORNER_RADIUS = 1.000     # slightly-rounded contact corner, tangent to 
 # flat wall) and one rear-center, both centered on the wafer and running all the way
 # out to the plate edge. They give finger / tape access to the recessed wafer, and
 # the front one splits the primary-flat datum into two end pads (good rotation
-# control). Centered on the wafer (NEST_CENTER_X), which sits ~10 mm right of the
-# plate centerline, so the front relief splits the flat symmetrically.
+# control). Centered on the wafer (NEST_CENTER_X, now the origin), so the front relief
+# splits the flat symmetrically.
 NEST_RELIEF_WIDTH = 15.000
 
 
@@ -317,9 +316,9 @@ def build_model(design):
 
     # Base-plate outline: the tight bounding box of the real features -- the dowel-bore
     # outer edges and the pocket step-down walls -- grown by PLATE_EDGE_MARGIN on every
-    # side, so no material is wasted. The nest is offset from the dowel pattern, so this
-    # comes out a rectangle (not a centered square). The access reliefs are open channels
-    # to the edge, so they do not drive the outline.
+    # side, so no material is wasted. The wafer is centered on the dowel pattern, so this
+    # comes out nearly centered on the origin. The access reliefs are open channels to
+    # the edge, so they do not drive the outline.
     dowel_outer = outer_half_span + DOWEL_HOLE_DIAMETER / 2.0
     plate_x_min = min(px_left, -dowel_outer) - PLATE_EDGE_MARGIN
     plate_x_max = max(px_right, dowel_outer) + PLATE_EDGE_MARGIN
@@ -458,22 +457,34 @@ def build_model(design):
         "Left Wall Flush Above X-Datum",
     )
 
-    # --- Clip the front-right pocket corner: refill a block around the front-right
-    # dowel back to full height so its bore stays in solid 7 mm metal. The block
-    # keeps a ~CLIP_WALL wall between the bore and the pocket void; the wafer never
-    # reaches this corner, so leaving it solid is free.
+    # --- Clip any pocket corner that a dowel falls inside: refill a block around that
+    # dowel back to full height so its bore stays in solid metal, keeping a ~clip_wall
+    # wall to the pocket void. The wafer never reaches the pocket corners, so leaving
+    # them solid is free. Which dowels land inside depends on where the wafer sits:
+    # with the wafer centered on the pins, the two REAR dowels fall in the rear corners
+    # (the front pair sit ahead of the primary-flat wall, outside the pocket).
     clip_wall = 3.5
     clip_margin = DOWEL_HOLE_DIAMETER / 2.0 + clip_wall
-    clip_x0 = outer_half_span - clip_margin
-    clip_y1 = -outer_half_span + clip_margin
-    extrude_polygon(
-        component,
-        top_plane,
-        rectangle_points(clip_x0, py_front, px_right - clip_x0, clip_y1 - py_front),
-        -POCKET_DEPTH,
-        adsk.fusion.FeatureOperations.JoinFeatureOperation,
-        "Front-Right Corner Clip (dowel)",
-    )
+    for cx, cy in (
+        (-outer_half_span, -outer_half_span),
+        (+outer_half_span, -outer_half_span),
+        (-outer_half_span, +outer_half_span),
+        (+outer_half_span, +outer_half_span),
+    ):
+        if not (px_left < cx < px_right and py_front < cy < py_rear):
+            continue  # dowel already sits in the solid rim
+        bx0 = (cx - clip_margin) if cx > 0 else px_left
+        bx1 = px_right if cx > 0 else (cx + clip_margin)
+        by0 = (cy - clip_margin) if cy > 0 else py_front
+        by1 = py_rear if cy > 0 else (cy + clip_margin)
+        extrude_polygon(
+            component,
+            top_plane,
+            rectangle_points(bx0, by0, bx1 - bx0, by1 - by0),
+            -POCKET_DEPTH,
+            adsk.fusion.FeatureOperations.JoinFeatureOperation,
+            f"Corner Clip (dowel {cx:+.1f}, {cy:+.1f})",
+        )
 
     # --- Four 3/16 in dowel bores straight through the full 7 mm plate, at the corners
     # of the 4 x 4 grid-space square. Reamed line-to-line with the dowels for a

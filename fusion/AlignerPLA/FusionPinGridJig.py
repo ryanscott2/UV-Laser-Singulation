@@ -26,19 +26,17 @@ FIRST_HOLE_EDGE_OFFSET = 12.700
 LASER_ZERO_X = 96.190
 LASER_ZERO_Y = 109.350
 
-# The selected low/high grid rectangles have mean centers of X=88.900 mm and
-# Y=114.300 mm. These offsets place the four exposure centers at +/-25.4 mm.
-NEST_OFFSET_FROM_PIN_CENTER_X = +7.290
-NEST_OFFSET_FROM_PIN_CENTER_Y = -4.950
-# Print-v2 machine-offset correction. The 081126 alignment test measured the
-# exposure landing off the wafer flats; after the re-measure and offset trims the
-# best-known value is +3.187 mm X, -1.346 mm Y. Shifting the nest by that much
-# relative to the pins makes a fixed, field-centered exposure land correctly, so
-# the DXFs no longer need the software offset. IMPORTANT: once a jig printed from
-# this is in use, reset GLOBAL_X/Y_OFFSET_UM to 0 in python/split_klayout.py, or
-# the DXF and the jig double-correct.
-NEST_CALIBRATION_X = +3.187
-NEST_CALIBRATION_Y = -1.346
+# Wafer nest CENTERED on the pin pattern: the wafer center coincides with the middle
+# of the four dowels (the origin, 0,0). The nest used to be offset from the pins
+# (+7.290, -4.950 design offset plus a +3.187, -1.346 machine-offset calibration,
+# ~(+10.48, -6.30) mm total) so a fixed, field-centered exposure landed on the wafer.
+# Per request the wafer is now centered on the pins, which REMOVES that shift -- so a
+# fixed exposure no longer lands where it did. Re-introduce the equivalent offset in
+# software (GLOBAL_X/Y_OFFSET_UM in slicing/split_klayout.py) or re-center the exposure.
+NEST_OFFSET_FROM_PIN_CENTER_X = 0.0
+NEST_OFFSET_FROM_PIN_CENTER_Y = 0.0
+NEST_CALIBRATION_X = 0.0
+NEST_CALIBRATION_Y = 0.0
 NEST_CENTER_X = NEST_OFFSET_FROM_PIN_CENTER_X + NEST_CALIBRATION_X
 NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y + NEST_CALIBRATION_Y
 
@@ -55,7 +53,7 @@ NEST_CENTER_Y = NEST_OFFSET_FROM_PIN_CENTER_Y + NEST_CALIBRATION_Y
 # square and captive.
 DOWEL_DIAMETER = 4.7625          # 3/16 in ground steel dowel
 DOWEL_PROTRUSION = 5.000         # protrusion below the base into the table hole; matches the v2 pins (5 mm)
-# The bore runs through the full 12.5 mm base, so ample engagement is available;
+# The bore runs through the full 8 mm base, so ample engagement is available;
 # ~8 mm is plenty. Cut each dowel to engagement + 5 mm protrusion (e.g. ~13 mm for
 # 8 mm engaged and 5 mm proud below) to match the v2 pins.
 # Bore for the dowel. FDM prints small holes undersize (coarser layers come out a
@@ -74,7 +72,7 @@ BOSS_HEIGHT = 0.000              # no raised boss; the thick base gives the enga
 # wall when sizing that hub: hub_radius = WAFER_DIAMETER/2 + SIDEWALL_THICKNESS +
 # PLATFORM_NEST_GAP.
 PLATFORM_NEST_GAP = 1.000
-BASE_THICKNESS = 12.500          # thick slab to resist warping and give the dowel bore a solid wall
+BASE_THICKNESS = 8.000           # base slab (4.5 mm thinner than v2); resists warping, solid dowel-bore wall
 SIDEWALL_HEIGHT = 2.000          # tall enough to retain a short stack of wafers
 SIDEWALL_THICKNESS = 3.000
 
