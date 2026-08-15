@@ -12,8 +12,10 @@ profilometer UI uses for its sample library: `{name: {settings...}}`.
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +55,19 @@ QML_IMPORT_MAJOR_VERSION = 1
 
 RUN_SPLITTER = HERE / "run_splitter.py"
 BUILD_SET = HERE / "build_pin_grid_set.py"
+
+
+def _today_mmddyy() -> str:
+    """Today as MMDDYY, matching the repo's file-naming convention."""
+    return datetime.date.today().strftime("%m%d%y")
+
+
+def _dated_name(stem: str) -> str:
+    """Give an output name today's date: swap a leading MMDDYY token if present,
+    else prepend one -- output files carry the run date, not the source GDS's date."""
+    if re.match(r"^\d{6}(_|$)", stem):
+        return _today_mmddyy() + stem[6:]
+    return f"{_today_mmddyy()}_{stem}"
 DATASETS_JSON = HERE / ".ui_datasets.json"
 
 STATION_COLORS = {
@@ -669,7 +684,7 @@ class Bridge(QObject):
             "ok": True,
             "path": str(path),
             "layerRow": LayerModel.best_row(self._entries),
-            "suggestedOutput": path.stem,
+            "suggestedOutput": _dated_name(path.stem),
         }
 
     @Slot(int, result=str)

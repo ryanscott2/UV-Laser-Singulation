@@ -5,7 +5,10 @@ Three independent checks, all of which must pass before a set is exposed:
 1. Reconstruction. Each tile is translated back by its own field center, with the
    global and per-station calibration offsets undone, and unioned. The result must
    XOR to exactly zero area against the layer-0 master, which proves no cut geometry
-   was lost, duplicated, or shifted by the split (independent of calibration).
+   was lost, duplicated, or shifted by the split (independent of calibration). For a
+   width-forced build, pass --cut-width/--width-mode force so the master is normalized
+   to the expected output width first; otherwise the intended narrowing (e.g. 120 um
+   streets cut to 20 um) reads as lost area and the check fails spuriously.
 2. Field placement. The laser exposes each job with auto-centering OFF, placing
    the DXF origin on the field center. This self-test confirms every tile fits
    inside the qualified field with its origin at the center, so true-coordinate
@@ -185,7 +188,9 @@ def check_field_placement(set_dir: Path) -> tuple[list[str], bool]:
 
 
 def validate(masters_dir: Path, set_dir: Path,
-             master_stem: str = MASTER_STEM) -> tuple[list[str], bool]:
+             master_stem: str = MASTER_STEM,
+             cut_width_um: float | None = None,
+             width_mode: str | None = None) -> tuple[list[str], bool]:
     lines: list[str] = []
     ok = True
 
@@ -206,6 +211,15 @@ def validate(masters_dir: Path, set_dir: Path,
         label: (dx / 1000.0, dy / 1000.0)
         for label, (dx, dy) in ns["parse_window_offsets"](ns["WINDOW_OFFSETS_UM"]).items()
     }
+
+    # A width-forced build narrows every filled cut to the expected output width
+    # (e.g. 120 um streets -> 20 um), so the tiles no longer reassemble to the wider
+    # master. Normalize the master to that same width before the XOR so the check
+    # measures placement, not the intended width change. Only 'force' resizes filled
+    # cuts in the splitter, so only 'force' normalizes here -- 'cap' leaves filled
+    # polygons alone, and normalizing them would create a false mismatch.
+    normalize = cut_width_um is not None and width_mode == "force"
+    set_line_widths = ns["set_line_widths"]
 
     for orientation in ORIENTATIONS:
         stem = master_stem.format(orientation=orientation)
@@ -230,11 +244,15 @@ def validate(masters_dir: Path, set_dir: Path,
                 )
             )
 
-        xor_area = (master.merged() ^ rebuilt.merged()).area()
+        master_cmp = master.merged()
+        if normalize:
+            master_cmp = set_line_widths(master_cmp, cut_width_um, "force", dbu).merged()
+        xor_area = (master_cmp ^ rebuilt.merged()).area()
         ok &= xor_area == 0
+        note = f", normalized master to {cut_width_um:g} um" if normalize else ""
         lines.append(
-            f"{orientation}.dxf: master_polygons={master.merged().count()}, "
-            f"reconstructed_polygons={rebuilt.count()}, xor_area_dbu2={xor_area}"
+            f"{orientation}.dxf: master_polygons={master_cmp.count()}, "
+            f"reconstructed_polygons={rebuilt.count()}, xor_area_dbu2={xor_area}{note}"
         )
 
     placement_lines, placement_ok = check_field_placement(set_dir)
@@ -255,10 +273,19 @@ def main() -> int:
     parser.add_argument("--master-stem", dest="master_stem", default=MASTER_STEM,
                         help="master filename stem with an {orientation} field "
                              "(for sets built from a combined source)")
+    parser.add_argument("--cut-width", type=float, default=None,
+                        help="expected output cut width in um. With --width-mode force the master "
+                             "is normalized to this width before the XOR, so a width-forced build "
+                             "(120 um streets cut to 20 um) compares clean instead of reading the "
+                             "removed rim as lost geometry. Default: compare masters as-authored.")
+    parser.add_argument("--width-mode", choices=("cap", "force"), default=None,
+                        help="the build's width mode. Only 'force' resizes filled cuts, so only "
+                             "'force' normalizes the master here; 'cap' and unset leave it as-is.")
     args = parser.parse_args()
 
     os.chdir(REPO_ROOT)
-    lines, ok = validate(args.masters, args.set_dir, args.master_stem)
+    lines, ok = validate(args.masters, args.set_dir, args.master_stem,
+                         cut_width_um=args.cut_width, width_mode=args.width_mode)
 
     report = "\n".join(lines) + "\n"
     print(report, end="")

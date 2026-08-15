@@ -115,7 +115,9 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
             "Author the cuts on two layers and use --masters instead."
         )
 
-    base = source.stem
+    # Name the masters after the set (which carries the run date), not the source
+    # GDS -- output files use today's date, not the date the GDS was authored.
+    base = set_dir.name
     master_stem = f"{base}_{{orientation}}_master"
     staging = set_dir / "BuildLogs" / "combined_source_masters"
     staging.mkdir(parents=True, exist_ok=True)
@@ -204,6 +206,12 @@ def main() -> int:
     if args.offset:
         overrides["window_offsets"] = ";".join(s.replace("=", ":") for s in args.offset)
 
+    # A width-forced build narrows filled cuts, so the validator needs the expected
+    # width to normalize the master before its XOR. Thread it into the printed hint.
+    width_hint = ""
+    if args.width_mode == "force" and args.cut_width is not None:
+        width_hint = f" --cut-width {args.cut_width:g} --width-mode force"
+
     if args.combined is not None:
         if args.cut_layer is None:
             parser.error("--cut-layer is required with --combined")
@@ -211,11 +219,11 @@ def main() -> int:
                               args.set_dir, args.edge_bead, splitter_overrides=overrides)
         source_desc = f"{args.combined} (auto-split combined cut layer)"
         validate_hint = (f"python slicing/validate_pin_grid_set.py --set {args.set_dir} "
-                         f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"")
+                         f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"" + width_hint)
     else:
         build(args.masters, args.set_dir, splitter_overrides=overrides)
         source_desc = str(args.masters)
-        validate_hint = "python slicing/validate_pin_grid_set.py"
+        validate_hint = "python slicing/validate_pin_grid_set.py" + width_hint
 
     print(f"\nBuilt {args.set_dir} from {source_desc}")
     for station in STATIONS:
