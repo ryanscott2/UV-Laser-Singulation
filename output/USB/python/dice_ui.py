@@ -81,14 +81,20 @@ class App:
         self.passes_spin.grid(row=2, column=1, sticky="w", padx=4, pady=(6, 0))
         ttk.Label(top, text="(pre-filled from dice_passes.csv; change to override this run)",
                   foreground="#666").grid(row=3, column=1, sticky="w", padx=4)
+        ttk.Label(top, text="Est. time:").grid(row=4, column=0, sticky="w", pady=(6, 0))
+        self.eta_var = tk.StringVar(value="--")
+        ttk.Label(top, textvariable=self.eta_var, foreground="#2d7d46",
+                  font=("Segoe UI", 9, "bold")).grid(row=4, column=1, sticky="w",
+                                                      padx=4, pady=(6, 0))
         top.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(root, padding=(8, 4))
         btns.pack(fill="x")
         self.buttons = {}
         for i, (name, fn) in enumerate([
-                ("Info", self.info), ("Home", self.home), ("Jog", self.jog),
-                ("Build jobs", self.build), ("Dry run", self.dry_run), ("DICE (arm)", self.dice)]):
+                ("Info", self.info), ("Home", self.home), ("Extract", self.extract),
+                ("Jog", self.jog), ("Build jobs", self.build), ("Dry run", self.dry_run),
+                ("DICE (arm)", self.dice)]):
             b = ttk.Button(btns, text=name, command=fn)
             b.grid(row=0, column=i, padx=3, sticky="we")
             btns.columnconfigure(i, weight=1)
@@ -167,6 +173,7 @@ class App:
         except OSError:
             pass
         self._set_busy(True)
+        self.eta_var.set("--")
         cmd = [PYCON, "-u"] + [str(a) for a in argv]
         self.log("\n$ " + " ".join(cmd[2:]))
 
@@ -192,6 +199,8 @@ class App:
                     self.log("[exit %s]" % item[1])
                     self._set_busy(False)
                 else:
+                    if isinstance(item, str) and item.startswith("[eta] "):
+                        self.eta_var.set(item[6:].strip())
                     self.log(item)
         except queue.Empty:
             pass
@@ -216,6 +225,9 @@ class App:
     def home(self):
         self._run([OPTISCAN, "home", "--yes"])
 
+    def extract(self):
+        self._run([OPTISCAN, "extract", "--yes"])
+
     def jog(self):
         # Keyboard jog needs a real console window (msvcrt), so open one.
         try:
@@ -237,7 +249,7 @@ class App:
         n = self._passes_value()
         if n is None:
             return
-        self._run([DICE, s, "--passes", n, "--yes", "--stop-flag", STOP_FLAG])
+        self._run([DICE, s, "--passes", n, "--yes", "--extract-after", "--stop-flag", STOP_FLAG])
 
     def dice(self):
         s = self.selected_set()
@@ -253,7 +265,7 @@ class App:
                 % (s.name, n), icon="warning", default="no"):
             self.log("dice cancelled.")
             return
-        self._run([DICE, s, "--arm", "--home-after", "--yes", "--passes", n,
+        self._run([DICE, s, "--arm", "--extract-after", "--yes", "--passes", n,
                    "--stop-flag", STOP_FLAG])
 
     def stop(self):

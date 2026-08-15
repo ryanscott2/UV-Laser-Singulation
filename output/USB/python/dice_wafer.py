@@ -5,8 +5,8 @@ focus, then marks that station's pre-built WinLase job. The jig stays put; the s
 indexes the wafer under the fixed field, so stage position i lines up with job i.
 
 Pipeline it ties together:
-  1. tools/winlase_build_jobs.py  -> builds <set>/WinLaseJobs/<set>_P1..P4.wlj
-  2. tools/optiscan.py jog        -> teaches tools/optiscan_positions.json (P1..P4)
+  1. winlase_build_jobs.py  -> builds <set>/WinLaseJobs/<set>_P1..P4.wlj
+  2. optiscan.py jog        -> teaches optiscan_positions.json (P1..P4)
   3. THIS script                  -> move -> (focus) -> mark, P1->P2->P3->P4
 
 SAFETY -- this can fire the laser, so it is gated:
@@ -29,10 +29,10 @@ WinLase note: the WinLase GUI and the COM server can't both hold the marker libr
 so CLOSE the WinLase GUI before an armed run. Python 3.8, no network; serial via
 pyserial-or-pywin32 (see optiscan.py), WinLase via pywin32 (win32com).
 
-    python tools/dice_wafer.py output/DXFs/081326_AlignmentTest_v2                 # SIMULATE
-    python tools/dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --list          # show plan only
-    python tools/dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --arm           # LIVE laser
-    python tools/dice_wafer.py <set> --arm --home-after     # passes from dice_passes.csv (or --passes N)
+    python dice_wafer.py output/DXFs/081326_AlignmentTest_v2                 # SIMULATE
+    python dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --list          # show plan only
+    python dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --arm           # LIVE laser
+    python dice_wafer.py <set> --arm --home-after     # passes from dice_passes.csv (or --passes N)
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ import sys
 import time
 from pathlib import Path
 
-from optiscan import OptiScan  # same tools/ dir
+from optiscan import OptiScan  # same dir
 
 STATION_ORDER = ("P1", "P2", "P3", "P4")
 DEFAULT_PASSES = 175
@@ -71,6 +71,13 @@ PROFILE_SPEED_IDX, PROFILE_POWER_IDX, PROFILE_FREQ_IDX = 0, 5, 9
 MARK_POLL_S = 0.02           # GetBusyStatus poll interval
 MARK_SETTLE_S = 0.1          # let a just-issued mark register as busy before we poll for done
 MARK_WAIT_TIMEOUT_S = 120.0  # max wait for one pass (or a job transition) to go idle
+
+# Time-estimate (ETA): empirical, measured live. Emitted as "[eta] ..." lines that the
+# launcher UI mirrors into its Est. time field. A small per-set cache warm-starts it so a
+# repeat run shows a number from t=0. Cosmetic only -- never affects motion or firing.
+ETA_LOG_INTERVAL_S = 15.0    # min seconds between [eta] progress lines
+DEFAULT_MOVE_S = 8.0         # rough stage-move guess until a real move is timed
+DEFAULT_ETA_CACHE = Path(__file__).resolve().parent / ".dice_eta.json"
 
 
 def _aborted() -> bool:
@@ -170,8 +177,12 @@ class WinLaseMarker:
             except Exception:
                 pass
 
-    def mark_job(self, wlj: Path, loops: int, abort) -> bool:
-        """Load a job and mark it `loops` times. Returns False if aborted."""
+    def mark_job(self, wlj: Path, loops: int, abort, on_pass=None) -> bool:
+        """Load a job and mark it `loops` times. Returns False if aborted.
+
+        `on_pass(i, dt)`, if given, is called after each pass with its index and measured
+        wall-clock seconds (trigger -> idle), for the live time estimate. It is best-effort:
+        an exception in it is swallowed so a cosmetic estimate can never abort a mark."""
         job_index = int(self.m.LoadJobFromFile(str(wlj.resolve())))
         self.m.SetActiveJob(job_index)
         # Last-instant re-check right before firing (defence in depth on top of the
@@ -194,11 +205,17 @@ class WinLaseMarker:
                 if abort():
                     self.m.TerminateMark()
                     return False
+                t_pass = time.time()
                 self.m.MarkAllObj(0)          # async: starts this pass, returns immediately
                 time.sleep(MARK_SETTLE_S)     # let the mark register as busy before polling
                 if not self._wait_not_busy(abort, MARK_WAIT_TIMEOUT_S):  # wait for THIS pass to finish
                     self.m.TerminateMark()
                     return False
+                if on_pass is not None:
+                    try:
+                        on_pass(i, time.time() - t_pass)
+                    except Exception:
+                        pass                  # ETA is cosmetic; never let it break a mark
         finally:
             try:
                 self.m.CloseJob(job_index)    # safe now: the job has fully finished marking
@@ -217,6 +234,190 @@ class WinLaseMarker:
             self.m.ReleaseMarker()
         except Exception:
             pass
+
+
+# ------------------------------------------------------------------ time estimate
+def _fmt_dur(seconds: float) -> str:
+    seconds = int(round(max(0.0, seconds)))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return "%d:%02d:%02d" % (h, m, s) if h else "%d:%02d" % (m, s)
+
+
+def load_eta_cache(path: Path, set_name: str) -> dict:
+    """Warm-start per-pass/move seconds for a set from a prior armed run. Returns {} for
+    a missing, unreadable, or malformed cache -- every shape is validated, so a bad or
+    hand-edited .dice_eta.json can never raise into (and abort) a dicing run."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        entry = data.get(set_name)
+        if not isinstance(entry, dict):
+            return {}
+        warm = {}
+        per_pass = entry.get("per_pass")
+        if isinstance(per_pass, dict):
+            for k, v in per_pass.items():
+                if isinstance(v, (int, float)):
+                    warm[str(k)] = float(v)
+        if isinstance(entry.get("move"), (int, float)):
+            warm["move"] = float(entry["move"])
+        return warm
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def save_eta_cache(path: Path, set_name: str, per_pass: dict, move_s) -> None:
+    """Persist this run's measured pace so the next run of the same set estimates from
+    t=0. Best-effort: any failure is swallowed (an ETA cache is never worth an error)."""
+    try:
+        data = {}
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except ValueError:
+                data = {}
+        if not isinstance(data, dict):   # a valid-but-non-object file must not crash the write
+            data = {}
+        entry = {"per_pass": {k: round(v, 3) for k, v in per_pass.items() if v is not None}}
+        if move_s is not None:
+            entry["move"] = round(move_s, 3)
+        entry["updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        data[set_name] = entry
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+class EtaTracker:
+    """Live, empirical time estimate for a dicing run.
+
+    Every mark pass of a station reloads the same job, so its wall-clock time is
+    near-constant; we measure it (and each stage move) and extrapolate over the
+    remaining passes and stations. No geometry, no machine constants -- just measured
+    pace, refined as the run proceeds, so the estimate captures galvo jumps, fill,
+    settle and poll overhead that a computed model cannot reach. A per-set cache
+    warm-starts it. Estimates are marked '~' and are best-effort.
+    """
+
+    def __init__(self, labels, passes, warm=None, final_move=False, emit=print):
+        self.labels = list(labels)
+        self.passes = int(passes)
+        self.warm = dict(warm or {})
+        self.final_move = bool(final_move)
+        self.emit = emit
+        self.per_pass = {label: [] for label in self.labels}
+        self.moves = []
+        self.run_t0 = None
+        self.cur_idx = 0
+        self.cur_pass = 0
+        self._last_emit = 0.0
+
+    # -- measurement --------------------------------------------------------
+    def start(self):
+        self.run_t0 = time.time()
+
+    def record_move(self, seconds):
+        self.moves.append(float(seconds))
+
+    def on_station_start(self, idx, label):
+        self.cur_idx = idx
+        self.cur_pass = 0
+        self._maybe_emit(force=True)
+
+    def on_pass(self, idx, label, pass_i, dt):
+        self.cur_idx = idx
+        self.cur_pass = pass_i + 1
+        self.per_pass[label].append(float(dt))
+        # Refresh on the first real sample of a station (the estimate sharpens there).
+        self._maybe_emit(force=(len(self.per_pass[label]) == 1))
+
+    # -- estimation ---------------------------------------------------------
+    def _move_est(self):
+        if self.moves:
+            return sum(self.moves) / len(self.moves)
+        return self.warm.get("move", DEFAULT_MOVE_S)
+
+    def _per_pass_est(self, label):
+        vals = self.per_pass.get(label, [])
+        if len(vals) >= 2:
+            return sum(vals[1:]) / len(vals[1:])   # drop the cold-start first pass
+        if len(vals) == 1:
+            return vals[0]
+        if label in self.warm:
+            return self.warm[label]
+        measured = [v for lst in self.per_pass.values() for v in lst]
+        if measured:
+            return sum(measured) / len(measured)
+        warm_vals = [self.warm[l] for l in self.labels if l in self.warm]
+        if warm_vals:
+            return sum(warm_vals) / len(warm_vals)
+        return None
+
+    def _remaining(self):
+        known = True
+        total = 0.0
+        cur = self._per_pass_est(self.labels[self.cur_idx])
+        if cur is None:
+            known, cur = False, 0.0
+        total += max(0, self.passes - self.cur_pass) * cur
+        for idx in range(self.cur_idx + 1, len(self.labels)):
+            est = self._per_pass_est(self.labels[idx])
+            if est is None:
+                known, est = False, 0.0
+            total += self.passes * est
+        remaining_moves = (len(self.labels) - 1 - self.cur_idx) + (1 if self.final_move else 0)
+        total += max(0, remaining_moves) * self._move_est()
+        return total, known
+
+    def per_pass_means(self):
+        out = {}
+        for label in self.labels:
+            vals = self.per_pass[label]
+            if len(vals) >= 2:
+                out[label] = sum(vals[1:]) / len(vals[1:])
+            elif vals:
+                out[label] = vals[0]
+        return out
+
+    def move_mean(self):
+        return (sum(self.moves) / len(self.moves)) if self.moves else None
+
+    # -- output -------------------------------------------------------------
+    def preview(self):
+        total = 0.0
+        for label in self.labels:
+            pp = self.warm.get(label)
+            if pp is None:
+                return
+            total += self.passes * pp
+        moves = len(self.labels) + (1 if self.final_move else 0)
+        total += moves * self._move_est()
+        self.emit("[eta] estimated total ~%s (%d passes/station, from this set's last armed run)"
+                  % (_fmt_dur(total), self.passes))
+
+    def _maybe_emit(self, force):
+        now = time.time()
+        if not force and (now - self._last_emit) < ETA_LOG_INTERVAL_S:
+            return
+        self._last_emit = now
+        elapsed = now - (self.run_t0 or now)
+        remaining, known = self._remaining()
+        done = sum(len(v) for v in self.per_pass.values())
+        total_passes = self.passes * len(self.labels)
+        label = self.labels[self.cur_idx]
+        if known:
+            tail = "remaining ~%s | total ~%s" % (_fmt_dur(remaining), _fmt_dur(elapsed + remaining))
+        else:
+            tail = "remaining estimating..."
+        self.emit("[eta] elapsed %s | %s (%d/%d) pass %d/%d | %d/%d passes | %s"
+                  % (_fmt_dur(elapsed), label, self.cur_idx + 1, len(self.labels),
+                     self.cur_pass, self.passes, done, total_passes, tail))
+
+    def finish(self):
+        elapsed = time.time() - (self.run_t0 or time.time())
+        self.emit("[eta] done | total elapsed %s" % _fmt_dur(elapsed))
 
 
 # --------------------------------------------------------------------- planning
@@ -324,6 +525,8 @@ def main() -> int:
     p.add_argument("--focus", action="store_true", help="set Z from taught positions (needs motor)")
     p.add_argument("--countdown", type=int, default=DEFAULT_COUNTDOWN_S)
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
+    p.add_argument("--extract-after", action="store_true",
+                   help="when done, move the stage to the P3 station (front-right) to unload")
     p.add_argument("--keep-jobs", action="store_true",
                    help="keep the .wlj files after an armed run (default: delete them, "
                         "so they regenerate fresh on the next build -- no clutter)")
@@ -380,20 +583,38 @@ def main() -> int:
 
     rc = 0
     completed = False
+    eta = None
     try:
+        # Time estimate: warm-start from this set's last armed run if we have it. Kept
+        # inside the try so any surprise here still reaches the stage/marker cleanup in
+        # `finally` below rather than leaking open hardware handles.
+        warm = load_eta_cache(DEFAULT_ETA_CACHE, args.set_dir.name)
+        eta = EtaTracker(STATION_ORDER, passes, warm=warm,
+                         final_move=(args.home_after or args.extract_after))
+        if warm:
+            eta.preview()
+        elif not args.arm:
+            print("[eta] no timing history for %s yet -- run --arm once to record it."
+                  % args.set_dir.name)
         if not countdown(args.countdown, abort):
             return 1
-        for label, pos, wlj in plan:
+        eta.start()
+        for idx, (label, pos, wlj) in enumerate(plan):
             print("\n[%s] move -> X=%d Y=%d" % (label, pos["x"], pos["y"]))
+            move_t0 = time.time()
             stage.goto(pos["x"], pos["y"])
             if args.focus and "z" in pos:
                 stage.goto_z(pos["z"])
+            eta.record_move(time.time() - move_t0)
             if abort():
                 print("aborted before marking %s." % label)
                 break
+            eta.on_station_start(idx, label)
             if args.arm:
                 print("[%s] marking %s x%d ..." % (label, wlj.name, passes))
-                if not marker.mark_job(wlj, passes, abort):
+                if not marker.mark_job(
+                        wlj, passes, abort,
+                        on_pass=lambda i, dt, _i=idx, _l=label: eta.on_pass(_i, _l, i, dt)):
                     print("aborted during %s." % label)
                     break
             else:
@@ -403,10 +624,20 @@ def main() -> int:
         else:
             print("\nAll stations complete.")
             completed = True
-        # Only auto-home after a clean run -- never drive the stage right after an abort.
-        if args.home_after and completed:
-            print("returning stage to 0,0 ...")
-            stage.goto(0, 0)
+            eta.finish()
+        # Only move the stage after a CLEAN run -- never drive it right after an abort.
+        if completed:
+            if args.home_after:
+                print("returning stage to 0,0 ...")
+                stage.goto(0, 0)
+            elif args.extract_after:
+                p3 = next((pos for label, pos, _w in plan if label == "P3"), None)
+                if p3 is None:
+                    print("extract requested but P3 is not taught; leaving the stage put.")
+                else:
+                    print("extract: moving stage to P3 (front-right) X=%d Y=%d ..."
+                          % (p3["x"], p3["y"]))
+                    stage.goto(int(p3["x"]), int(p3["y"]))
     except KeyboardInterrupt:
         print("\ninterrupted -- stopping stage and mark.")
         rc = 1
@@ -427,6 +658,10 @@ def main() -> int:
     # Ephemeral jobs: after a clean armed run, delete the .wlj so they never clutter.
     if completed and args.arm and not args.keep_jobs:
         delete_jobs(plan)
+    # Record this run's measured pace so the next run of this set estimates from t=0.
+    if completed and args.arm and eta is not None:
+        save_eta_cache(DEFAULT_ETA_CACHE, args.set_dir.name,
+                       eta.per_pass_means(), eta.move_mean())
     return rc
 
 
