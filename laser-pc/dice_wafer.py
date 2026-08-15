@@ -324,6 +324,8 @@ def main() -> int:
     p.add_argument("--focus", action="store_true", help="set Z from taught positions (needs motor)")
     p.add_argument("--countdown", type=int, default=DEFAULT_COUNTDOWN_S)
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
+    p.add_argument("--extract-after", action="store_true",
+                   help="when done, move the stage to the P3 station (front-right) to unload")
     p.add_argument("--keep-jobs", action="store_true",
                    help="keep the .wlj files after an armed run (default: delete them, "
                         "so they regenerate fresh on the next build -- no clutter)")
@@ -403,10 +405,19 @@ def main() -> int:
         else:
             print("\nAll stations complete.")
             completed = True
-        # Only auto-home after a clean run -- never drive the stage right after an abort.
-        if args.home_after and completed:
-            print("returning stage to 0,0 ...")
-            stage.goto(0, 0)
+        # Only move the stage after a CLEAN run -- never drive it right after an abort.
+        if completed:
+            if args.home_after:
+                print("returning stage to 0,0 ...")
+                stage.goto(0, 0)
+            elif args.extract_after:
+                p3 = next((pos for label, pos, _w in plan if label == "P3"), None)
+                if p3 is None:
+                    print("extract requested but P3 is not taught; leaving the stage put.")
+                else:
+                    print("extract: moving stage to P3 (front-right) X=%d Y=%d ..."
+                          % (p3["x"], p3["y"]))
+                    stage.goto(int(p3["x"]), int(p3["y"]))
     except KeyboardInterrupt:
         print("\ninterrupted -- stopping stage and mark.")
         rc = 1

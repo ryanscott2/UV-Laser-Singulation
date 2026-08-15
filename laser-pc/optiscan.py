@@ -408,6 +408,38 @@ def cmd_home(args) -> int:
     return 0
 
 
+def _station_xy(positions_path: str, station: str):
+    """Read a taught station's X,Y (microns) from the positions JSON."""
+    data = json.loads(Path(positions_path).read_text(encoding="utf-8"))
+    st = data.get("stations", {}).get(station)
+    if not st or "x" not in st or "y" not in st:
+        raise SystemExit("station %s not found in %s -- run `jog` to teach it."
+                         % (station, positions_path))
+    return int(round(float(st["x"]))), int(round(float(st["y"])))
+
+
+def cmd_extract(args) -> int:
+    """Move the stage to a taught station (default P3, front-right) to unload the wafer.
+
+    Goes to an already-taught, in-envelope station rather than driving toward the
+    travel limits, so it can never crash the jig or lens."""
+    x, y = _station_xy(args.positions, args.station)
+    dev = _connect(args)
+    try:
+        cx, cy = dev.stage_position()
+        print("Extract: move stage from X=%d Y=%d to the %s station (front-right) X=%d Y=%d"
+              % (cx, cy, args.station, x, y))
+        if not args.yes and input("proceed? [y/N] ").strip().lower() != "y":
+            print("cancelled")
+            return 1
+        dev.goto(x, y)
+        ax, ay = dev.stage_position()
+        print("extracted to X=%d Y=%d" % (ax, ay))
+    finally:
+        dev.close()
+    return 0
+
+
 def cmd_index(args) -> int:
     dev = _connect(args)
     try:
@@ -535,12 +567,19 @@ def main() -> int:
     h = sub.add_parser("home", help="M: move stage+focus to 0,0,0")
     h.add_argument("--yes", action="store_true")
 
+    ex = sub.add_parser("extract", help="move to a taught station (default P3, front-right) to unload")
+    ex.add_argument("--station", default="P3", help="taught station to go to (default P3)")
+    ex.add_argument("--positions",
+                    default=str(Path(__file__).resolve().parent / "optiscan_positions.json"),
+                    help="taught-positions JSON (default: optiscan_positions.json next to this script)")
+    ex.add_argument("--yes", action="store_true", help="skip the confirm prompt")
+
     ix = sub.add_parser("index", help="SIS/RIS: drive to limits to (re)establish origin")
     ix.add_argument("--restore", action="store_true", help="RIS instead of SIS")
 
     args = p.parse_args()
     handlers = {"info": cmd_info, "jog": cmd_jog, "goto": cmd_goto,
-                "home": cmd_home, "index": cmd_index}
+                "home": cmd_home, "extract": cmd_extract, "index": cmd_index}
     return handlers[args.cmd](args)
 
 
