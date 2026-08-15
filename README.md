@@ -1,11 +1,15 @@
 # UV-Laser-Singulation
 
 Singulate 100 mm silicon wafers on a UV laser whose exposure field is smaller than
-the wafer. Generates the dicing geometry, splits it into four laser-sized jobs,
-and generates the 3D-printed jigs that index the wafer between them.
+the wafer. A sub-micron stepper stage (OptiScan III / Prior) steps the wafer under
+the fixed field in four passes. This repo generates the dicing geometry, splits it
+into the four laser-sized jobs, drives the stage and laser for a one-button run, and
+generates the printed jig that holds the wafer centered on the field.
 
-Geometry is built with [KLayout](https://www.klayout.de/)'s Python API. The jigs
-are built by Autodesk Fusion scripts from the same measured table dimensions.
+Geometry is built with [KLayout](https://www.klayout.de/)'s Python API. The jig is
+built by an Autodesk Fusion script from the measured table dimensions. The stage now
+does the indexing and the jig bakes in its own seating offset, so the software
+placement offsets are zero.
 
 ![One 100 mm wafer split into four 60 x 60 mm fields](docs/figures/wafer_and_fields.svg)
 
@@ -67,6 +71,31 @@ wafer.dxf --list-layers` to see which layers the file has.
 
 The window needs `pip install PySide6`. On Windows, enable long paths first or the
 wheel half-extracts; see [DOCUMENTATION.md](DOCUMENTATION.md#desktop-window).
+
+## Dice on the machine (laser PC)
+
+On the offline laser PC, build the WinLase jobs for a set, teach the four stage
+positions once, then run the one-button dicer — it steps the stage through P1–P4 and
+marks each pass:
+
+```bash
+python laser-pc/winlase_build_jobs.py output/DXFs/<set>   # build the four WinLase jobs
+python laser-pc/optiscan.py jog                           # teach P1..P4 (once)
+python laser-pc/dice_wafer.py output/DXFs/<set>           # SIMULATE: stage moves, no laser
+python laser-pc/dice_wafer.py output/DXFs/<set> --arm     # LIVE: fires the laser
+```
+
+Needs `pip install pyserial pywin32` on the laser PC. It defaults to a dry run (real
+motion, faked marking); `--arm` gates the laser behind a profile check and a
+countdown. See [WINLASE_AUTOMATION_README.md](laser-pc/WINLASE_AUTOMATION_README.md).
+
+## Jig
+
+The wafer sits in a printed jig that registers to the table's front-left corner — an
+L pressed against the two table edges with a rubber-band preload — and holds the wafer
+on the laser field center: [`fusion/AlignerEdgePLA`](fusion/AlignerEdgePLA). The earlier
+`fusion/Aligner{PLA,SLA,AL}` jigs located on the 1-inch bolt grid, back when the jig
+(not the stage) was re-indexed by hand between passes.
 
 ## Layout
 
