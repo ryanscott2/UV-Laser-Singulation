@@ -106,14 +106,22 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
     dbu = layout.dbu
 
     region = sco.read_layer_region(layout, cut_layer[0], cut_layer[1])
-    if edge_bead_mm and edge_bead_mm > 0:
-        region &= sco.safe_wafer_region(layout, edge_bead_mm * 1000.0)
+    # Split the pristine cut network FIRST, so the lossless gate validates the H/V
+    # decomposition of the actual cuts. The edge-bead clip is applied AFTER: clipping
+    # the streets to the wafer arc leaves sub-micron diagonal slivers that would trip
+    # the exact-zero gate (a ~0.02 um^2 rounding residual) even though the split is sound.
     horizontal, vertical = sco.split_horizontal_vertical(region)
     if not sco.lossless(region, horizontal, vertical):
         raise RuntimeError(
             "H/V split lost geometry: the cut layer is not purely axis-aligned. "
             "Author the cuts on two layers and use --masters instead."
         )
+    if edge_bead_mm and edge_bead_mm > 0:
+        safe = sco.safe_wafer_region(layout, edge_bead_mm * 1000.0)
+        horizontal &= safe
+        vertical &= safe
+        horizontal.merge()
+        vertical.merge()
 
     # Name the masters after the set (which carries the run date), not the source
     # GDS -- output files use today's date, not the date the GDS was authored.

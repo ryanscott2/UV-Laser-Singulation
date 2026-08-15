@@ -245,16 +245,27 @@ def _fmt_dur(seconds: float) -> str:
 
 
 def load_eta_cache(path: Path, set_name: str) -> dict:
-    """Warm-start per-pass/move seconds for a set from a prior armed run (empty if none)."""
+    """Warm-start per-pass/move seconds for a set from a prior armed run. Returns {} for
+    a missing, unreadable, or malformed cache -- every shape is validated, so a bad or
+    hand-edited .dice_eta.json can never raise into (and abort) a dicing run."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        if not isinstance(data, dict):
+            return {}
+        entry = data.get(set_name)
+        if not isinstance(entry, dict):
+            return {}
+        warm = {}
+        per_pass = entry.get("per_pass")
+        if isinstance(per_pass, dict):
+            for k, v in per_pass.items():
+                if isinstance(v, (int, float)):
+                    warm[str(k)] = float(v)
+        if isinstance(entry.get("move"), (int, float)):
+            warm["move"] = float(entry["move"])
+        return warm
+    except (OSError, ValueError, TypeError):
         return {}
-    entry = data.get(set_name) or {}
-    warm = {str(k): float(v) for k, v in (entry.get("per_pass") or {}).items()}
-    if isinstance(entry.get("move"), (int, float)):
-        warm["move"] = float(entry["move"])
-    return warm
 
 
 def save_eta_cache(path: Path, set_name: str, per_pass: dict, move_s) -> None:
@@ -267,13 +278,15 @@ def save_eta_cache(path: Path, set_name: str, per_pass: dict, move_s) -> None:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except ValueError:
                 data = {}
+        if not isinstance(data, dict):   # a valid-but-non-object file must not crash the write
+            data = {}
         entry = {"per_pass": {k: round(v, 3) for k, v in per_pass.items() if v is not None}}
         if move_s is not None:
             entry["move"] = round(move_s, 3)
         entry["updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
         data[set_name] = entry
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    except OSError:
+    except (OSError, ValueError, TypeError):
         pass
 
 
@@ -568,19 +581,21 @@ def main() -> int:
     def abort() -> bool:
         return _aborted() or (args.stop_flag is not None and args.stop_flag.exists())
 
-    # Time estimate: warm-start from this set's last armed run if we have it.
-    warm = load_eta_cache(DEFAULT_ETA_CACHE, args.set_dir.name)
-    eta = EtaTracker(STATION_ORDER, passes, warm=warm,
-                     final_move=(args.home_after or args.extract_after))
-    if warm:
-        eta.preview()
-    elif not args.arm:
-        print("[eta] no timing history for %s yet -- run --arm once to record it."
-              % args.set_dir.name)
-
     rc = 0
     completed = False
+    eta = None
     try:
+        # Time estimate: warm-start from this set's last armed run if we have it. Kept
+        # inside the try so any surprise here still reaches the stage/marker cleanup in
+        # `finally` below rather than leaking open hardware handles.
+        warm = load_eta_cache(DEFAULT_ETA_CACHE, args.set_dir.name)
+        eta = EtaTracker(STATION_ORDER, passes, warm=warm,
+                         final_move=(args.home_after or args.extract_after))
+        if warm:
+            eta.preview()
+        elif not args.arm:
+            print("[eta] no timing history for %s yet -- run --arm once to record it."
+                  % args.set_dir.name)
         if not countdown(args.countdown, abort):
             return 1
         eta.start()
@@ -644,7 +659,7 @@ def main() -> int:
     if completed and args.arm and not args.keep_jobs:
         delete_jobs(plan)
     # Record this run's measured pace so the next run of this set estimates from t=0.
-    if completed and args.arm:
+    if completed and args.arm and eta is not None:
         save_eta_cache(DEFAULT_ETA_CACHE, args.set_dir.name,
                        eta.per_pass_means(), eta.move_mean())
     return rc

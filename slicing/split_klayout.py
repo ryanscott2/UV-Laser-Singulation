@@ -102,8 +102,9 @@ GLOBAL_Y_OFFSET_UM = 460.0
 # global is converged -- X on the round edge, Y on the major flat -- so these are pure seam tuning):
 #   P1 left 5 (-112.5 -> -117.5); P2 left+down 15 (-90,0 -> -105,-15); P4 up 15 (-25 -> -10);
 #   P3 unchanged.
+#   2026-08-14: P1 up 15 um (-62.5 -> -47.5).
 WINDOW_OFFSETS_UM = {
-    "P1": (-117.5, -62.5),
+    "P1": (-117.5, -47.5),
     "P2": (-105.0, -15.0),
     "P3": (0.0, -10.0),
     "P4": (0.0, -10.0),

@@ -30,3 +30,8 @@ scratch/
 tmp/
 *_four_windows/
 *_center_pass/
+
+# Laser-PC runtime state (written per run on the laser PC; never committed)
+.dice_stop
+.dice_ui_root
+.dice_eta.json
