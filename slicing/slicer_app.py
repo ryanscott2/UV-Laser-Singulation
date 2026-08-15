@@ -52,6 +52,7 @@ QML_IMPORT_NAME = "Slicer"
 QML_IMPORT_MAJOR_VERSION = 1
 
 RUN_SPLITTER = HERE / "run_splitter.py"
+BUILD_SET = HERE / "build_pin_grid_set.py"
 DATASETS_JSON = HERE / ".ui_datasets.json"
 
 STATION_COLORS = {
@@ -668,7 +669,7 @@ class Bridge(QObject):
             "ok": True,
             "path": str(path),
             "layerRow": LayerModel.best_row(self._entries),
-            "suggestedOutput": f"{path.stem}_four_windows",
+            "suggestedOutput": path.stem,
         }
 
     @Slot(int, result=str)
@@ -730,6 +731,15 @@ class Bridge(QObject):
                              by + float(ui.get("y", 0.0) or 0.0))
         return result
 
+    def _cut_layer_from(self, params) -> str:
+        """Numeric 'layer/datatype' for build_pin_grid_set, resolved from the
+        selected layer even when the UI selector is a layer name."""
+        sel = str(params.get("layer", "")).strip()
+        for entry in self._entries:
+            if getattr(entry, "selector", None) == sel:
+                return f"{entry.layer}/{entry.datatype}"
+        return sel
+
     def _preview_done(self, preview, error: str) -> None:
         self._set_busy(False)
         if error:
@@ -752,37 +762,73 @@ class Bridge(QObject):
             self._set_status("Choose a source file first.")
             return
 
+        mode = str(params.get("mode", "four-window"))
         cal_x, cal_y = self._calibrated_offset()
-        arguments = [
-            str(RUN_SPLITTER),
-            "--input", str(path),
-            "--cut-width", str(params.get("cutWidth", 50.0)),
-            "--width-mode", str(params.get("widthMode", "cap")),
-            "--clip-mode", str(params.get("clipMode", "partition")),
-            "--global-x", str(cal_x + float(params.get("globalX", 0.0) or 0.0)),
-            "--global-y", str(cal_y + float(params.get("globalY", 0.0) or 0.0)),
-            "--edge-bead", str(params.get("edgeBead", 0.0) or 0.0),
-            "--extension", str(params.get("extension", ".dxf")),
-            "--mode", str(params.get("mode", "four-window")),
-            "--score-diameter", str(float(params.get("scoreDiameter", 75.0) or 75.0) * 1000.0),
-            "--score-shape", str(params.get("scoreShape", "circle")),
-        ]
+        global_x = cal_x + float(params.get("globalX", 0.0) or 0.0)
+        global_y = cal_y + float(params.get("globalY", 0.0) or 0.0)
+        stitch = f"{self._stitch_from(params):g}"
+        # _offsets_from already merges baked + UI; emit all four so a single UI entry
+        # can never zero the baked nudges on the stations you did not touch.
+        offsets = [f"{label}={x:g},{y:g}"
+                   for label, (x, y) in self._offsets_from(params).items()]
         output = str(params.get("output", "")).strip()
-        if output:
-            # A bare name lands under the repo's output/ folder; a full path wins.
-            if not os.path.isabs(output):
-                output = str(REPO_ROOT / "output" / output)
-            arguments += ["--output", output]
-        layer = str(params.get("layer", "")).strip()
-        if layer:
-            arguments += ["--layer", layer]
-        if bool(params.get("allowOutside", False)):
-            arguments.append("--allow-outside")
-        arguments += ["--stitch", f"{self._stitch_from(params):g}"]
-        # Emit all four stations: _offsets_from already merges baked + UI, and sending the
-        # complete set stops a single UI entry from zeroing the baked nudges on the others.
-        for label, (x, y) in self._offsets_from(params).items():
-            arguments += ["--offset", f"{label}={x:g},{y:g}"]
+
+        if mode == "center-pass":
+            # A single centered score pass: the splitter writes this one file directly.
+            arguments = [
+                str(RUN_SPLITTER),
+                "--input", str(path),
+                "--cut-width", str(params.get("cutWidth", 50.0)),
+                "--width-mode", str(params.get("widthMode", "cap")),
+                "--clip-mode", str(params.get("clipMode", "partition")),
+                "--global-x", str(global_x),
+                "--global-y", str(global_y),
+                "--edge-bead", str(params.get("edgeBead", 0.0) or 0.0),
+                "--extension", str(params.get("extension", ".dxf")),
+                "--mode", mode,
+                "--score-diameter", str(float(params.get("scoreDiameter", 75.0) or 75.0) * 1000.0),
+                "--score-shape", str(params.get("scoreShape", "circle")),
+                "--stitch", stitch,
+            ]
+            if output:
+                # A bare name lands under the repo's output/ folder; a full path wins.
+                if not os.path.isabs(output):
+                    output = str(REPO_ROOT / "output" / output)
+                arguments += ["--output", output]
+            layer = str(params.get("layer", "")).strip()
+            if layer:
+                arguments += ["--layer", layer]
+            if bool(params.get("allowOutside", False)):
+                arguments.append("--allow-outside")
+            for spec in offsets:
+                arguments += ["--offset", spec]
+        else:
+            # Four-window dice: build the production layout the laser UI reads --
+            # output/DXFs/<set>/P1..P4/{Horizontal,Vertical}.dxf, with the cut layer
+            # auto-split into a horizontal and a vertical pass per station.
+            cut_layer = self._cut_layer_from(params)
+            if not cut_layer:
+                self._set_status("Pick the cutline layer first.")
+                return
+            set_name = output or path.stem
+            if set_name.endswith("_four_windows"):
+                set_name = set_name[: -len("_four_windows")]
+            set_dir = (set_name if os.path.isabs(set_name)
+                       else str(REPO_ROOT / "output" / "DXFs" / set_name))
+            arguments = [
+                str(BUILD_SET),
+                "--combined", str(path),
+                "--cut-layer", cut_layer,
+                "--set", set_dir,
+                "--cut-width", str(params.get("cutWidth", 50.0)),
+                "--width-mode", str(params.get("widthMode", "cap")),
+                "--global-x", str(global_x),
+                "--global-y", str(global_y),
+                "--stitch", stitch,
+                "--edge-bead", str(params.get("edgeBead", 0.0) or 0.0),
+            ]
+            for spec in offsets:
+                arguments += ["--offset", spec]
 
         self.logCleared.emit()
         self.logAppended.emit("> " + " ".join(arguments[1:]) + "\n\n")

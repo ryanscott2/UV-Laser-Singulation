@@ -40,7 +40,8 @@ ORIENTATIONS = ("Horizontal", "Vertical")
 MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 
 
-def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM) -> None:
+def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM,
+          splitter_overrides: dict | None = None) -> None:
     for orientation in ORIENTATIONS:
         stem = master_stem.format(orientation=orientation)
         master = masters_dir / f"{stem}.dxf"
@@ -51,11 +52,10 @@ def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM) -> N
         # tiles are moved out below so BuildLogs keeps only the records.
         staging = set_dir / "BuildLogs" / orientation
         staging.mkdir(parents=True, exist_ok=True)
-        runpy.run_path(
-            str(SPLITTER),
-            init_globals={"input": str(master), "output_dir": str(staging)},
-            run_name="__main__",
-        )
+        init_globals = {"input": str(master), "output_dir": str(staging)}
+        if splitter_overrides:
+            init_globals.update(splitter_overrides)
+        runpy.run_path(str(SPLITTER), init_globals=init_globals, run_name="__main__")
 
         for station in STATIONS:
             tile = staging / f"{stem}_{station.splitter_job}.dxf"
@@ -89,7 +89,7 @@ def parse_cut_layer(spec: str) -> tuple[int, int]:
 
 
 def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
-                   edge_bead_mm: float) -> str:
+                   edge_bead_mm: float, splitter_overrides: dict | None = None) -> str:
     """Front end for a single source whose cut layer holds both orientations.
 
     Reads the cut layer, optionally insets it by an edge bead, splits it into
@@ -125,7 +125,7 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
     print(f"Combined layer {cut_layer[0]}/{cut_layer[1]}: split into "
           f"H ({horizontal.count()} polys) + V ({vertical.count()} polys)"
           + (f", inset {edge_bead_mm:g} mm edge bead" if edge_bead_mm > 0 else ""))
-    build(staging, set_dir, master_stem=master_stem)
+    build(staging, set_dir, master_stem=master_stem, splitter_overrides=splitter_overrides)
     return master_stem
 
 
@@ -173,21 +173,47 @@ def main() -> int:
                         help="cut-lines layer for --combined, e.g. 5 or 5/0")
     parser.add_argument("--edge-bead", type=float, default=0.0,
                         help="mm to inset the cuts from the wafer edge before splitting (0 = none)")
+    # Optional splitter overrides. Omitted => the splitter's baked calibration/settings.
+    parser.add_argument("--cut-width", type=float, default=None,
+                        help="force/cap the cut width in um (default: the splitter's baked value)")
+    parser.add_argument("--width-mode", choices=("cap", "force"), default=None,
+                        help="cap narrows wider cuts only; force sets every cut to --cut-width")
+    parser.add_argument("--global-x", type=float, default=None,
+                        help="global X offset in um (default: the baked calibration)")
+    parser.add_argument("--global-y", type=float, default=None,
+                        help="global Y offset in um (default: the baked calibration)")
+    parser.add_argument("--stitch", type=float, default=None, help="seam overlap in um")
+    parser.add_argument("--offset", action="append", default=[], metavar="LABEL=X,Y",
+                        help="per-station nudge in um on top of the global; repeatable")
     args = parser.parse_args()
 
     # Relative paths keep the generated build logs free of local absolute paths.
     os.chdir(REPO_ROOT)
 
+    overrides: dict = {}
+    if args.cut_width is not None:
+        overrides["max_cut_width_um"] = str(args.cut_width)
+    if args.width_mode is not None:
+        overrides["cut_width_mode"] = args.width_mode
+    if args.global_x is not None:
+        overrides["global_x_um"] = str(args.global_x)
+    if args.global_y is not None:
+        overrides["global_y_um"] = str(args.global_y)
+    if args.stitch is not None:
+        overrides["stitch_overlap_um"] = str(args.stitch)
+    if args.offset:
+        overrides["window_offsets"] = ";".join(s.replace("=", ":") for s in args.offset)
+
     if args.combined is not None:
         if args.cut_layer is None:
             parser.error("--cut-layer is required with --combined")
         stem = build_combined(args.combined, parse_cut_layer(args.cut_layer),
-                              args.set_dir, args.edge_bead)
+                              args.set_dir, args.edge_bead, splitter_overrides=overrides)
         source_desc = f"{args.combined} (auto-split combined cut layer)"
         validate_hint = (f"python slicing/validate_pin_grid_set.py --set {args.set_dir} "
                          f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"")
     else:
-        build(args.masters, args.set_dir)
+        build(args.masters, args.set_dir, splitter_overrides=overrides)
         source_desc = str(args.masters)
         validate_hint = "python slicing/validate_pin_grid_set.py"
 

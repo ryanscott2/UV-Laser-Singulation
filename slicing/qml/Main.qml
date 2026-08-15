@@ -457,7 +457,7 @@ ApplicationWindow {
                             TextField {
                                 Layout.fillWidth: true
                                 text: root.outputPath
-                                placeholderText: "Folder name (saved under output/)"
+                                placeholderText: "Set name (dice sets saved under output/DXFs/)"
                                 font.family: theme.face
                                 font.pixelSize: 12
                                 onEditingFinished: root.outputPath = text
@@ -466,7 +466,7 @@ ApplicationWindow {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: "A plain name is created under the repo's output/ folder; Browse picks any folder."
+                            text: "Four-window dice: a set folder P1..P4/{Horizontal,Vertical}.dxf under output/DXFs/. Center-pass: one file under output/. Browse picks any folder."
                             color: theme.textTertiary
                             font.family: theme.face; font.pixelSize: 11
                             wrapMode: Text.WordWrap
