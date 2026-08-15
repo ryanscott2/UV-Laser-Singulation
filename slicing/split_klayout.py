@@ -65,12 +65,23 @@ OUTPUT_DIR = r""
 # History: 2026-08-13 pinned-jig recal was +185.3/+438.0 um; 2026-08-12 reset to 0 for
 # the baked-offset jig; 2026-08-11 the 081126 test sat +3.017/-1.286 mm off. See
 # CALIBRATION_AND_SLIDING_NEST_NOTES.md.
-# 2026-08-14 FINAL: global (and per-station, below) offsets ZEROED. The stage method
-# plus the baked-offset jig now carry the calibration, so the software offsets are 0
-# and the v1-v6 seam-test sets were regenerated at zero offset. The iteration history
-# above is kept for the record.
-GLOBAL_X_OFFSET_UM = 0.0
-GLOBAL_Y_OFFSET_UM = 0.0
+# 2026-08-14 zeroed for the stage method; then 2026-08-15 re-opened from BACK-SIDE
+# (inverted wafer, secondary flat on the RIGHT) reads of the v6 seam test. Targets:
+# major(-Y) 10.500, minor 12.397 mm.
+#   iter1 (zero offset):   8.95 minor / 9.94 major -> both too close to their flats:
+#          X = -(12.397-8.95)  = -3447 (LEFT; sign flipped vs usual convention, wafer inverted)
+#          Y =  (10.500-9.94)  =  +560 (UP, away from the -Y major flat)
+#   iter2 (at -3447/+560): 11.99 minor / 10.61 major:
+#          X += -(12.397-11.99) = -407  -> -3854 (still a touch too close to the right minor flat)
+#          Y +=  (10.500-10.61) = -110  ->  +450 (overshot; ease back toward the major flat)
+#   iter3 (v5 read): the flat said add -598 -> -4452, but the ROUND-EDGE (OD) reads then showed the
+#          flat was lying -- at X=-3447 (v6) the right mark is only +6 um off its nominal OD distance
+#          (X centered), vs +276 um at -3854 (v5). The minor flat mis-references by ~370 um on this
+#          wafer (flat ~18.4 mm), which drove -3854/-4452 the wrong way.
+#   RECONCILED 2026-08-15: X reverts to -3447 (OD-correct); calibrate X on the round edge, not the
+#          flat. Y held at +460 (the stabler major-flat value) pending a top+bottom OD read.
+GLOBAL_X_OFFSET_UM = -3447.0
+GLOBAL_Y_OFFSET_UM = 460.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. Corrects one station measured off from its neighbours without disturbing
@@ -87,11 +98,15 @@ GLOBAL_Y_OFFSET_UM = 0.0
 # x = -40; and P1 dropped a further 10 um toward the major flat -> P1 y = -20.
 # Sign: nudge feeds the output translate directly (+x = right, +y = up), so negatives
 # pull left / toward the major flat.
+# 2026-08-15 back-side seam nudges (on top of the global), cumulative. Latest (v4 read; the
+# global is converged -- X on the round edge, Y on the major flat -- so these are pure seam tuning):
+#   P1 left 5 (-112.5 -> -117.5); P2 left+down 15 (-90,0 -> -105,-15); P4 up 15 (-25 -> -10);
+#   P3 unchanged.
 WINDOW_OFFSETS_UM = {
-    "P1": (0.0, 0.0),
-    "P2": (0.0, 0.0),
-    "P3": (0.0, 0.0),
-    "P4": (0.0, 0.0),
+    "P1": (-117.5, -62.5),
+    "P2": (-105.0, -15.0),
+    "P3": (0.0, -10.0),
+    "P4": (0.0, -10.0),
 }
 
 # Optional edge bead: inset the cut geometry from the wafer edge before windowing,

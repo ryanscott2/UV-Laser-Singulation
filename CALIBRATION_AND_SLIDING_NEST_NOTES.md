@@ -521,3 +521,40 @@ left/right or top/bottom tile identity, so they assume the same handedness as Bo
 seam independently on the next cut: if a seam grew instead of closing, negate that
 axis on its two stations -- Bottom = `dy` of (P1,P2), Top = `dy` of (P3,P4),
 Left = `dx` of (P2,P3), Right = `dx` of (P1,P4).
+
+## Back-side (inverted wafer) calibration -- reconciled on the round edge (2026-08-15)
+
+Recalibrated for BACK-SIDE work on the STAGE method (the OptiScan/Prior stepper indexes
+the wafer under the fixed field; `GLOBAL_*_OFFSET_UM` + `WINDOW_OFFSETS_UM` in
+`slicing/split_klayout.py` carry the calibration). Iterated on the v4/v5/v6 radial seam
+tests, all measured on ONE inverted wafer (flipped about the primary-flat axis, so the
+minor flat sits on the RIGHT).
+
+**Key finding: calibrate X on the round edge, not the flat.** The minor (secondary) flat
+mis-referenced by ~`370 um` on the test wafer (flat measured `18.4 mm`), and that drove
+the X global the wrong way across two iterations. The round OD is far cleaner and is
+flip-invariant. Reference rules that held up:
+
+- **X <- round edge (OD).** mark-to-OD target = `50 - radius` mm.
+- **Y <- major (primary) flat.** The `32.5 mm` major flat is stable; target =
+  `47.286 - radius` mm.
+- The OD-vs-major-flat disagreement in Y (~`206 um` here) is **wafer decenter** (OD center
+  above the flat-defined center), NOT a placement error. Do not chase it, and do not chase
+  the minor flat (it carries the flat-length variation).
+
+**X iteration:** flat reads pushed `0 -> -3447 -> -3854 -> -4452`; the round-edge reads
+then showed `-3447` already lands the right mark within `+6 um` of its nominal OD distance
+(vs `+276 um` at `-3854`), so X was reverted to `-3447`.
+
+**Converged calibration (in `slicing/split_klayout.py`):**
+
+- `GLOBAL_X_OFFSET_UM = -3447.0`, `GLOBAL_Y_OFFSET_UM = 460.0`
+- `WINDOW_OFFSETS_UM = { P1: (-117.5, -62.5), P2: (-105, -15), P3: (0, -10), P4: (0, -10) }`
+  (cumulative back-side seam nudges; `+x` right, `+y` up)
+
+**Verification (v4 @ -3447/+460, radius 39.786):** major flat -> mark `7.50` (target
+`7.500` -> Y correct); right OD -> mark `10.19` (target `10.214` -> X correct; the `24 um`
+is OD noise). Global converged; only per-tile seam tuning remains.
+
+**Set state:** v4 is built at the converged values above. v5 and v6 are currently at the
+superseded `-3854/+450` -- rebuild them to `-3447/+460` + the per-tile above to match.
