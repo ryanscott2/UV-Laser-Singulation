@@ -714,12 +714,21 @@ class Bridge(QObject):
 
     @staticmethod
     def _offsets_from(params) -> dict:
-        """Pull the per-station nudges out of the QML params map."""
+        """Per-station nudge = the baked WINDOW_OFFSETS_UM baseline PLUS the UI's per-station
+        entry (additive, matching the 'on top of' label). Always returns all four stations, so
+        the splitter receives the complete set and a UI entry can never zero the baked nudges on
+        the stations you did not touch."""
         stations = ("P1", "P2", "P3", "P4")
+        ns = slicer_preview.splitter_namespace()
+        baked = {str(k): (float(v[0]), float(v[1])) for k, v in ns["WINDOW_OFFSETS_UM"].items()}
         raw = params.get("stationOffsets") or {}
-        return {label: (float((raw.get(label) or {}).get("x", 0.0) or 0.0),
-                        float((raw.get(label) or {}).get("y", 0.0) or 0.0))
-                for label in stations}
+        result = {}
+        for label in stations:
+            bx, by = baked.get(label, (0.0, 0.0))
+            ui = raw.get(label) or {}
+            result[label] = (bx + float(ui.get("x", 0.0) or 0.0),
+                             by + float(ui.get("y", 0.0) or 0.0))
+        return result
 
     def _preview_done(self, preview, error: str) -> None:
         self._set_busy(False)
@@ -770,9 +779,10 @@ class Bridge(QObject):
         if bool(params.get("allowOutside", False)):
             arguments.append("--allow-outside")
         arguments += ["--stitch", f"{self._stitch_from(params):g}"]
+        # Emit all four stations: _offsets_from already merges baked + UI, and sending the
+        # complete set stops a single UI entry from zeroing the baked nudges on the others.
         for label, (x, y) in self._offsets_from(params).items():
-            if x or y:
-                arguments += ["--offset", f"{label}={x:g},{y:g}"]
+            arguments += ["--offset", f"{label}={x:g},{y:g}"]
 
         self.logCleared.emit()
         self.logAppended.emit("> " + " ".join(arguments[1:]) + "\n\n")
