@@ -4,7 +4,7 @@ Every coordinate is derived from the constants the production scripts use, and
 the cut geometry and content bounds are read out of the real DXFs, so the figures
 cannot drift away from what the toolchain actually emits.
 
-    python tools/make_figures.py
+    python slicing/make_figures.py
 
 Writes docs/figures/*.svg. Figures are drawn in millimetres with Y up and the
 viewBox is fitted to the content, so nothing can fall outside the canvas. Cut
@@ -497,7 +497,7 @@ def fig_combined_split():
     exercises the real code path rather than a mock-up.
     """
     import sys as _sys
-    _sys.path.insert(0, str(REPO_ROOT / "python"))
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
     import split_cut_orientation as sco
 
     combined, scale = read_layer(MASTERS / "100mm_wafer_10x30mm_Horizontal_master.dxf")

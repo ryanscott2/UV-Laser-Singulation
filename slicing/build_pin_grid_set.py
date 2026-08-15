@@ -1,6 +1,6 @@
 """Build the four-position pin-grid production set from the master DXFs.
 
-Runs `python/split_klayout.py` once per orientation, then assembles
+Runs `slicing/split_klayout.py` once per orientation, then assembles
 the labeled folder structure the operator uses at the machine:
 
     <set>/P1/Horizontal.dxf   <set>/P1/Vertical.dxf
@@ -16,7 +16,7 @@ has no argv parsing, so this script injects them with `runpy`.
 Everything is done with repository-relative paths so the generated logs stay
 portable. Run `validate_pin_grid_set.py` afterwards.
 
-    python tools/build_pin_grid_set.py
+    python slicing/build_pin_grid_set.py
 """
 
 from __future__ import annotations
@@ -32,7 +32,8 @@ from pathlib import Path
 from pin_grid_layout import STATIONS, hole_label
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SPLITTER = Path("python/split_klayout.py")
+HERE = Path(__file__).resolve().parent
+SPLITTER = HERE / "split_klayout.py"
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
 DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")
@@ -61,7 +62,7 @@ def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM) -> N
             if not tile.is_file():
                 raise FileNotFoundError(
                     f"Splitter did not emit {tile.name}. Its WINDOWS labels and "
-                    "tools/pin_grid_layout.py have drifted apart."
+                    "slicing/pin_grid_layout.py have drifted apart."
                 )
             # Folder names are stable across rebuilds, so overwrite in place
             # rather than removing directories. OneDrive blocks rmdir here.
@@ -97,7 +98,7 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
     """
     import klayout.db as pya  # noqa: E402 - lazy so a masters-only build needs no wheel import here
 
-    sys.path.insert(0, str(REPO_ROOT / "python"))
+    sys.path.insert(0, str(HERE))
     import split_cut_orientation as sco  # noqa: E402
 
     layout = pya.Layout()
@@ -183,12 +184,12 @@ def main() -> int:
         stem = build_combined(args.combined, parse_cut_layer(args.cut_layer),
                               args.set_dir, args.edge_bead)
         source_desc = f"{args.combined} (auto-split combined cut layer)"
-        validate_hint = (f"python tools/validate_pin_grid_set.py --set {args.set_dir} "
+        validate_hint = (f"python slicing/validate_pin_grid_set.py --set {args.set_dir} "
                          f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"")
     else:
         build(args.masters, args.set_dir)
         source_desc = str(args.masters)
-        validate_hint = "python tools/validate_pin_grid_set.py"
+        validate_hint = "python slicing/validate_pin_grid_set.py"
 
     print(f"\nBuilt {args.set_dir} from {source_desc}")
     for station in STATIONS:

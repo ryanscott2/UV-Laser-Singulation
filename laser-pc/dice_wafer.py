@@ -5,8 +5,8 @@ focus, then marks that station's pre-built WinLase job. The jig stays put; the s
 indexes the wafer under the fixed field, so stage position i lines up with job i.
 
 Pipeline it ties together:
-  1. tools/winlase_build_jobs.py  -> builds <set>/WinLaseJobs/<set>_P1..P4.wlj
-  2. tools/optiscan.py jog        -> teaches tools/optiscan_positions.json (P1..P4)
+  1. laser-pc/winlase_build_jobs.py  -> builds <set>/WinLaseJobs/<set>_P1..P4.wlj
+  2. laser-pc/optiscan.py jog        -> teaches laser-pc/optiscan_positions.json (P1..P4)
   3. THIS script                  -> move -> (focus) -> mark, P1->P2->P3->P4
 
 SAFETY -- this can fire the laser, so it is gated:
@@ -29,10 +29,10 @@ WinLase note: the WinLase GUI and the COM server can't both hold the marker libr
 so CLOSE the WinLase GUI before an armed run. Python 3.8, no network; serial via
 pyserial-or-pywin32 (see optiscan.py), WinLase via pywin32 (win32com).
 
-    python tools/dice_wafer.py output/DXFs/081326_AlignmentTest_v2                 # SIMULATE
-    python tools/dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --list          # show plan only
-    python tools/dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --arm           # LIVE laser
-    python tools/dice_wafer.py <set> --arm --home-after     # passes from dice_passes.csv (or --passes N)
+    python laser-pc/dice_wafer.py output/DXFs/081326_AlignmentTest_v2                 # SIMULATE
+    python laser-pc/dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --list          # show plan only
+    python laser-pc/dice_wafer.py output/DXFs/081326_AlignmentTest_v2 --arm           # LIVE laser
+    python laser-pc/dice_wafer.py <set> --arm --home-after     # passes from dice_passes.csv (or --passes N)
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ import sys
 import time
 from pathlib import Path
 
-from optiscan import OptiScan  # same tools/ dir
+from optiscan import OptiScan  # same laser-pc/ dir
 
 STATION_ORDER = ("P1", "P2", "P3", "P4")
 DEFAULT_PASSES = 175

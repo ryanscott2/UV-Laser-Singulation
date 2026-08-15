@@ -6,7 +6,7 @@ fixed and field-centered, so indexing the jig moves the wafer under the beam.
 
 ## 1. Slice the GDS (slicer UI)
 
-1. Launch the UI: `python tools/slicer_app.py`.
+1. Launch the UI: `python slicing/slicer_app.py`.
 2. **Source:** pick the wafer GDS. All cutlines are assumed on one layer — select
    that layer from the list.
 3. **Output:** type a folder name; it lands under `output/<name>`.
@@ -20,7 +20,7 @@ fixed and field-centered, so indexing the jig moves the wafer under the beam.
    `P4_jig_bottom_left.dxf`, plus a manifest and log.
 
 Each station DXF holds both horizontal and vertical cuts. To get them as
-ready-split files, use `python tools/build_pin_grid_set.py --combined <gds>
+ready-split files, use `python slicing/build_pin_grid_set.py --combined <gds>
 --cut-layer <layer>` instead of the UI.
 
 ## 2. Seat and tape the wafer

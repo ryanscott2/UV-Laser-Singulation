@@ -27,10 +27,10 @@ carriage return; the controller answers on one line (multi-line replies end in E
 Runs on Python 3.8, no network. Serial goes through pyserial if present, else
 pywin32 (win32file); one of those must be installed on the laser PC.
 
-    python tools/optiscan.py info                 # comms + who's connected + position
-    python tools/optiscan.py jog                  # interactive jog; record P1..P4
-    python tools/optiscan.py goto --x 25400 --y -25400
-    python tools/optiscan.py home                 # M -> 0,0,0 (asks first)
+    python laser-pc/optiscan.py info                 # comms + who's connected + position
+    python laser-pc/optiscan.py jog                  # interactive jog; record P1..P4
+    python laser-pc/optiscan.py goto --x 25400 --y -25400
+    python laser-pc/optiscan.py home                 # M -> 0,0,0 (asks first)
 
 Safety: `goto`/`home` ask before moving. Nothing homes to the limits unless you run
 `index`/`restore` explicitly -- on this rig a drive-to-limits could crash the jig or
@@ -504,7 +504,7 @@ def cmd_jog(args) -> int:
 
     if positions:
         data = {"port": args.port, "units": "microns", "stations": positions,
-                "note": "recorded with tools/optiscan.py jog"}
+                "note": "recorded with laser-pc/optiscan.py jog"}
         out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         print("\nwrote %d point(s) to %s" % (len(positions), out_path))
         missing = [k for k in STATION_KEYS if k not in positions]

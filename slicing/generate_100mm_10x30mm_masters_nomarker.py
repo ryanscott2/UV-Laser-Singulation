@@ -9,7 +9,7 @@ Run with KLayout or the standalone klayout wheel. Dimensions are microns. Set
 the output directory the same way as the base generator -- either KLayout's
 `-rd output_dir=...` or, driven from Python, runpy `init_globals`:
 
-    python -c "import runpy; runpy.run_path('python/generate_100mm_10x30mm_masters_nomarker.py', \\
+    python -c "import runpy; runpy.run_path('slicing/generate_100mm_10x30mm_masters_nomarker.py', \\
         init_globals={'output_dir': 'dxf/100mm_10x30mm_Masters_NoMarker'}, run_name='__main__')"
 """
 

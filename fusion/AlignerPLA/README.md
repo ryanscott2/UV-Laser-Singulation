@@ -74,7 +74,7 @@ The nest is offset from the dowel-pattern center by `NEST_OFFSET_FROM_PIN_CENTER
 `Y = -1.346 mm`), for an effective nest center of `X = +10.477`, `Y = -6.296 mm`.
 With the laser-zero at `(96.190, 109.350) mm` this places the four exposure centers
 at `+/-25.400 mm` on the wafer. Because the offset is baked into the jig, reset
-`GLOBAL_X/Y_OFFSET_UM` to `0` in `python/split_klayout.py` once a jig from this is in
+`GLOBAL_X/Y_OFFSET_UM` to `0` in `slicing/split_klayout.py` once a jig from this is in
 use, or the DXF and jig will double-correct. For the station-to-quadrant mapping and
 the exposure steps, see `OPERATING_PROCEDURE.md`.
 

@@ -1,11 +1,11 @@
 """Command-line front end for the four-window splitter.
 
 The splitter reads its overrides out of `globals()`, which is KLayout's `-rd`
-mechanism, so `python python/split_klayout.py` cannot be
+mechanism, so `python slicing/split_klayout.py` cannot be
 parameterized on its own. This wraps it with ordinary arguments and needs only
 the standalone `klayout` wheel.
 
-    python tools/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40
+    python slicing/run_splitter.py --input wafer.dxf --layer CUT --cut-width 40
 
 `inspect_layers` is also used by the GUI to populate its layer list.
 """
@@ -20,7 +20,7 @@ from pathlib import Path
 import klayout.db as pya
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SPLITTER = REPO_ROOT / "python" / "split_klayout.py"
+SPLITTER = Path(__file__).resolve().parent / "split_klayout.py"
 DXF_UNIT_UM = 1_000.0
 
 

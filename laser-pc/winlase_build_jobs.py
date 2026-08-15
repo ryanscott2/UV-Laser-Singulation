@@ -51,11 +51,11 @@ writes it back, then reads it again and verifies laser power and frequency are u
 delays, and jump settings all come from WinLase's default profile.
 
 Usage:
-    python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2
-    python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --dry-run
-    python tools/winlase_build_jobs.py <set> --verify   # build P1 in memory, report
+    python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2
+    python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --dry-run
+    python laser-pc/winlase_build_jobs.py <set> --verify   # build P1 in memory, report
                                                          # placement, do not save
-    python tools/winlase_build_jobs.py <setA> <setB> ... # several wafers at once
+    python laser-pc/winlase_build_jobs.py <setA> <setB> ... # several wafers at once
 """
 
 from __future__ import annotations

@@ -19,16 +19,16 @@ Controls). It only **builds and saves** `.wlj` files — it never marks.
 ## Run it
 Off-machine, confirm the plan (no WinLase needed):
 ```bash
-python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --dry-run
+python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --dry-run
 ```
 On the laser PC, verify placement on one job without saving, then build all four:
 ```bash
-python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --verify
-python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2
+python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --verify
+python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2
 ```
 Several wafers at once:
 ```bash
-python tools/winlase_build_jobs.py output/DXFs/081326_AlignmentTest output/DXFs/081326_AlignmentTest_v2 output/DXFs/081326_AlignmentTest_v3
+python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest output/DXFs/081326_AlignmentTest_v2 output/DXFs/081326_AlignmentTest_v3
 ```
 
 `--verify` imports P1 in memory and reports each object's placement delta, a size

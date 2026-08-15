@@ -41,7 +41,7 @@ klayout_app.exe -zz -rx -r split_klayout.py `
   -rd "score_diameter_um=75000" -rd "score_shape=circle"
 ```
 
-Or via the CLI wrapper: `python tools/run_splitter.py --input wafer.dxf --mode
+Or via the CLI wrapper: `python slicing/run_splitter.py --input wafer.dxf --mode
 center-pass --score-diameter 75000`. The output is `<input_name>_center_pass.dxf`
 plus a text log.
 

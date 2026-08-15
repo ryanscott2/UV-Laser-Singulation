@@ -20,7 +20,7 @@ Three independent checks, all of which must pass before a set is exposed:
 Writes `validation_report.txt` into the set and exits non-zero on any failure.
 Needs the standalone `klayout` Python wheel.
 
-    python tools/validate_pin_grid_set.py
+    python slicing/validate_pin_grid_set.py
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import klayout.db as pya
 from pin_grid_layout import GRID_PITCH, STATIONS, USABLE_FIELD_HALF_MM
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SPLITTER = REPO_ROOT / "python" / "split_klayout.py"
+SPLITTER = Path(__file__).resolve().parent / "split_klayout.py"
 DEFAULT_MASTERS = Path("dxf/100mm_10x30mm_Masters")
 DEFAULT_SET = Path("output/DXFs/080826_FourPosDicer_PinGrid54mm")
 ORIENTATIONS = ("Horizontal", "Vertical")

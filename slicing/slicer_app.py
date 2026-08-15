@@ -1,12 +1,12 @@
 """PySide6 + QML front end for the four-window slicer.
 
-    python tools/slicer_app.py [file]
+    python slicing/slicer_app.py [file]
 
 Pick the cutline layer and width, watch the four windows update over the wafer,
 then run. All slicing logic lives in `slicer_preview.py` and `run_splitter.py`;
 this file is presentation and plumbing only.
 
-Named datasets are kept in `tools/.ui_datasets.json`, the same shape the
+Named datasets are kept in `slicing/.ui_datasets.json`, the same shape the
 profilometer UI uses for its sample library: `{name: {settings...}}`.
 """
 
@@ -41,7 +41,8 @@ from PySide6.QtQuick import QQuickPaintedItem  # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "tools"))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 
 import slicer_preview  # noqa: E402
 from make_figures import WAFER_RADIUS, wafer_outline  # noqa: E402
@@ -50,8 +51,8 @@ from run_splitter import inspect_layers  # noqa: E402
 QML_IMPORT_NAME = "Slicer"
 QML_IMPORT_MAJOR_VERSION = 1
 
-RUN_SPLITTER = REPO_ROOT / "tools" / "run_splitter.py"
-DATASETS_JSON = REPO_ROOT / "tools" / ".ui_datasets.json"
+RUN_SPLITTER = HERE / "run_splitter.py"
+DATASETS_JSON = HERE / ".ui_datasets.json"
 
 STATION_COLORS = {
     "P1": "#4cc2ff",
@@ -817,8 +818,8 @@ def main() -> int:
     engine = QQmlApplicationEngine()
     bridge = Bridge()
     engine.rootContext().setContextProperty("bridge", bridge)
-    engine.addImportPath(str(REPO_ROOT / "tools" / "qml"))
-    engine.load(QUrl.fromLocalFile(str(REPO_ROOT / "tools" / "qml" / "Main.qml")))
+    engine.addImportPath(str(HERE / "qml"))
+    engine.load(QUrl.fromLocalFile(str(HERE / "qml" / "Main.qml")))
     if not engine.rootObjects():
         print("Failed to load the QML interface.", file=sys.stderr)
         return 1

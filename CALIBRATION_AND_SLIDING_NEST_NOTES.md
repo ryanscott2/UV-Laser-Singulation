@@ -310,7 +310,7 @@ stitch alone, so the declared field is free to be larger than the window.
   both masters, the field-placement self-test confirms every tile's layer-0
   geometry fits within `+/-30 mm` (the usable field) of the origin with the origin
   at the field center, and all eight DXFs are byte-identical to the files they replaced.
-- One production splitter only: `python/split_klayout.py`. The
+- One production splitter only: `slicing/split_klayout.py`. The
   byte-identical `split_klayout_four_windows_pin_grid.py` duplicate was removed
   on 2026-08-08.
 
@@ -337,7 +337,7 @@ half applied: X by `85 um` (`-3016.7 -> -3101.7`) and Y by `30 um`
 The same offset is corrected two ways, and only ONE may be active at a time:
 
 - **Software (current jig):** `GLOBAL_X_OFFSET_UM = -3101.7`,
-  `GLOBAL_Y_OFFSET_UM = +1315.7` in `python/split_klayout.py`, applied
+  `GLOBAL_Y_OFFSET_UM = +1315.7` in `slicing/split_klayout.py`, applied
   to every job after it is centered on its field. The `081126_FullDice_v3` set is
   built with these split-difference values; the earlier `081126` and
   `081126_AlignmentTest_v2` sets carry the original `-3016.7 / +1285.7` they were
@@ -372,7 +372,7 @@ Other 2026-08-11 changes:
 - Combining orientations into one `Combined.dxf` per station was tried and
   **removed** (it did not expose well); sets are separate `Horizontal.dxf` /
   `Vertical.dxf` per station again.
-- Marker-free full dice: `python/generate_100mm_10x30mm_masters_nomarker.py` reuses
+- Marker-free full dice: `slicing/generate_100mm_10x30mm_masters_nomarker.py` reuses
   the base 10x30 generator's geometry but omits the centered plus marker, writing
   masters to `dxf/100mm_10x30mm_Masters_NoMarker`. Full-dice test set
   `output/DXFs/081126_FullDice_v3` (10x30 mm production dice, no alignment marker)
@@ -474,7 +474,7 @@ line to wafer edge) measured vs nominal; Delta = measured - nominal:
 - Minor (X, secondary flat): v1 `-0.203`, v2 `-0.180`, v3 `-0.173` mm. Mean = `-0.185`.
 
 All negative = the exposure landed short of the flats (low and left). Correction is
-`-Delta`, so `GLOBAL_*_OFFSET_UM` in `python/split_klayout.py` is set **+185.3 X /
+`-Delta`, so `GLOBAL_*_OFFSET_UM` in `slicing/split_klayout.py` is set **+185.3 X /
 +438.0 Y** (positive X right, positive Y up -- away from the flats). This is the
 residual on top of the jig's baked `NEST_CALIBRATION`, not the full offset, so it does
 not double-correct.

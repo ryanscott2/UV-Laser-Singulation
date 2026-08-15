@@ -87,7 +87,7 @@ count, and output bounding box for every job.
 Use KLayout's headless executable:
 
 ```powershell
-& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\python\split_klayout.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output" -rd "global_x_um=0" -rd "global_y_um=0" -rd "max_cut_width_um=50"
+& "$env:APPDATA\KLayout\klayout_vo_app.exe" -zz -rx -r .\slicing\split_klayout.py -rd "input=.\dxf\100mm_10x30mm_Masters\100mm_wafer_10x30mm_Horizontal_master.dxf" -rd "output_dir=.\output\four_window_output" -rd "global_x_um=0" -rd "global_y_um=0" -rd "max_cut_width_um=50"
 ```
 
 Run it from the repository root. The `-rd` values override the editable defaults
@@ -99,7 +99,7 @@ with the standalone `klayout` wheel, use the build tool, which injects those
 same values and then assembles the labeled folder structure:
 
 ```bash
-python tools/build_pin_grid_set.py
+python slicing/build_pin_grid_set.py
 ```
 
 ## Generated 100 mm dicing masters

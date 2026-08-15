@@ -65,8 +65,12 @@ OUTPUT_DIR = r""
 # History: 2026-08-13 pinned-jig recal was +185.3/+438.0 um; 2026-08-12 reset to 0 for
 # the baked-offset jig; 2026-08-11 the 081126 test sat +3.017/-1.286 mm off. See
 # CALIBRATION_AND_SLIDING_NEST_NOTES.md.
-GLOBAL_X_OFFSET_UM = 3738.0
-GLOBAL_Y_OFFSET_UM = -740.0
+# 2026-08-14 FINAL: global (and per-station, below) offsets ZEROED. The stage method
+# plus the baked-offset jig now carry the calibration, so the software offsets are 0
+# and the v1-v6 seam-test sets were regenerated at zero offset. The iteration history
+# above is kept for the record.
+GLOBAL_X_OFFSET_UM = 0.0
+GLOBAL_Y_OFFSET_UM = 0.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. Corrects one station measured off from its neighbours without disturbing
@@ -84,8 +88,8 @@ GLOBAL_Y_OFFSET_UM = -740.0
 # Sign: nudge feeds the output translate directly (+x = right, +y = up), so negatives
 # pull left / toward the major flat.
 WINDOW_OFFSETS_UM = {
-    "P1": (-40.0, -20.0),
-    "P2": (-40.0, 0.0),
+    "P1": (0.0, 0.0),
+    "P2": (0.0, 0.0),
     "P3": (0.0, 0.0),
     "P4": (0.0, 0.0),
 }

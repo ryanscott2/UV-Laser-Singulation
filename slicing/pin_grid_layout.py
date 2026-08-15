@@ -13,7 +13,7 @@ the diagonally opposite wafer quadrant.
 
 Run this file directly to re-derive every number from the table geometry:
 
-    python tools/pin_grid_layout.py
+    python slicing/pin_grid_layout.py
 """
 
 from __future__ import annotations
