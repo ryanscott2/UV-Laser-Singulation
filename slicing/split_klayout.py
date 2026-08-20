@@ -80,8 +80,12 @@ OUTPUT_DIR = r""
 #          wafer (flat ~18.4 mm), which drove -3854/-4452 the wrong way.
 #   RECONCILED 2026-08-15: X reverts to -3447 (OD-correct); calibrate X on the round edge, not the
 #          flat. Y held at +460 (the stabler major-flat value) pending a top+bottom OD read.
-GLOBAL_X_OFFSET_UM = -3447.0
-GLOBAL_Y_OFFSET_UM = 460.0
+# DROPPED 2026-08-20: the converged back-side calibration (was -3447.0 / +460.0) is retired.
+# New jig + new alignment method (RIS re-datum + per-jig P1-P4 re-teach) re-establish
+# placement, so the DXF-baked offsets start at ZERO and are re-tuned per jig. History above
+# is kept for reference. Override at build time with --global-x/--global-y if ever needed.
+GLOBAL_X_OFFSET_UM = 0.0
+GLOBAL_Y_OFFSET_UM = 0.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. Corrects one station measured off from its neighbours without disturbing
@@ -103,11 +107,14 @@ GLOBAL_Y_OFFSET_UM = 460.0
 #   P1 left 5 (-112.5 -> -117.5); P2 left+down 15 (-90,0 -> -105,-15); P4 up 15 (-25 -> -10);
 #   P3 unchanged.
 #   2026-08-14: P1 up 10 um net (-62.5 -> -47.5 -> -52.5).
+# DROPPED 2026-08-20: per-tile seam nudges retired with the converged global (new jig +
+# alignment method). Was P1(-117.5,-52.5) P2(-105,-15) P3(0,-10) P4(0,-10); now zero, to be
+# re-tuned per jig via re-teaching. Override with -rd window_offsets="P1:x,y;..." if needed.
 WINDOW_OFFSETS_UM = {
-    "P1": (-117.5, -52.5),
-    "P2": (-105.0, -15.0),
-    "P3": (0.0, -10.0),
-    "P4": (0.0, -10.0),
+    "P1": (0.0, 0.0),
+    "P2": (0.0, 0.0),
+    "P3": (0.0, 0.0),
+    "P4": (0.0, 0.0),
 }
 
 # Optional edge bead: inset the cut geometry from the wafer edge before windowing,
