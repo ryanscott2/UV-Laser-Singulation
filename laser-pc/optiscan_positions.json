@@ -1,13 +1,28 @@
 {
   "port": "COM5",
   "units": "microns",
-  "reference_center": { "x": 5590, "y": -18450 },
-  "stations": {
-    "P1": { "x": -19810, "y": -43850 },
-    "P2": { "x": 30990, "y": -43850 },
-    "P3": { "x": 30990, "y": 6950 },
-    "P4": { "x": -19810, "y": 6950 }
+  "reference_center": {
+    "x": 88236,
+    "y": -26150
   },
-  "derivation": "2026-08-14: empirical axis directions from the stage itself -- +X_stage = RIGHT (table +X) and +Y_stage = FRONT (table -Y); BOTH inverted from the original '+x left,+y up' assumption, so X and Y are each negated vs the first geometric guess. Jig moved forward 1 pin, bottom-left at C2/R3: wafer center table(96.19,109.35), field center table(101.78,127.80). Verified each station lands on its DXF quadrant: P1=bottom-right, P2=bottom-left, P3=top-left, P4=top-right.",
-  "notes": "Jig at C2/R3. P2/P3 now need X=+30990 (earlier runs only reached +19810); X travel is 126 mm so it should be fine, but if a move trips at an X limit we shift the jig one column. Verify tolerance 3 um. Slicer global offset reset to 0 for the stage method."
+  "stations": {
+    "P1": {
+      "x": 62836,
+      "y": -51550
+    },
+    "P2": {
+      "x": 113636,
+      "y": -51550
+    },
+    "P3": {
+      "x": 113636,
+      "y": -750
+    },
+    "P4": {
+      "x": 62836,
+      "y": -750
+    }
+  },
+  "derivation": "2026-08-20: COMPUTED (not hand-taught) from the post-RIS datum reference (88236, -26150) + the fixed +/-25.4 mm quadrant field-centers, via the backside-mirror transform stage_X=88236-wafer_X, stage_Y=-26150+wafer_Y. For the rotated jig (major flat +X, build --jig-flat right). Reference is rough (~+/-2 mm); refine by marking + measuring the alignment test.",
+  "notes": "P1 top_left, P2 top_right, P3 bottom_right, P4 bottom_left (jig label; exposes opposite quadrant)."
 }
