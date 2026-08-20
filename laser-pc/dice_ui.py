@@ -86,6 +86,14 @@ class App:
         ttk.Label(top, textvariable=self.eta_var, foreground="#2d7d46",
                   font=("Segoe UI", 9, "bold")).grid(row=4, column=1, sticky="w",
                                                       padx=4, pady=(6, 0))
+        ttk.Label(top, text="Re-datum (RIS):").grid(row=5, column=0, sticky="w", pady=(6, 0))
+        self.redatum_var = tk.StringVar(value="move")   # default ON (per-station) for consistent cuts
+        self.redatum_combo = ttk.Combobox(top, textvariable=self.redatum_var, state="readonly",
+                                          width=7, values=["off", "row", "move"])
+        self.redatum_combo.grid(row=5, column=1, sticky="w", padx=4, pady=(6, 0))
+        ttk.Label(top, text="(RIS before every station to hold alignment on the open-loop stage; "
+                            "keep the travel path clear; qualify switch repeatability first)",
+                  foreground="#666").grid(row=6, column=1, sticky="w", padx=4)
         top.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(root, padding=(8, 4))
@@ -211,6 +219,8 @@ class App:
         for b in self.buttons.values():
             b.config(state="disabled" if busy else "normal")
         self.passes_spin.config(state="disabled" if busy else "normal")
+        # readonly combobox re-enables to "readonly", not "normal" (else it turns editable)
+        self.redatum_combo.config(state="disabled" if busy else "readonly")
 
     def log(self, text):
         self.log_txt.configure(state="normal")
@@ -249,7 +259,8 @@ class App:
         n = self._passes_value()
         if n is None:
             return
-        self._run([DICE, s, "--passes", n, "--yes", "--extract-after", "--stop-flag", STOP_FLAG])
+        self._run([DICE, s, "--passes", n, "--yes", "--extract-after",
+                   "--redatum", (self.redatum_var.get() or "off"), "--stop-flag", STOP_FLAG])
 
     def dice(self):
         s = self.selected_set()
@@ -266,7 +277,7 @@ class App:
             self.log("dice cancelled.")
             return
         self._run([DICE, s, "--arm", "--extract-after", "--yes", "--passes", n,
-                   "--stop-flag", STOP_FLAG])
+                   "--redatum", (self.redatum_var.get() or "off"), "--stop-flag", STOP_FLAG])
 
     def stop(self):
         try:
