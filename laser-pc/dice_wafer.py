@@ -523,6 +523,13 @@ def main() -> int:
                    help="CSV of 'set,passes' rows (default: dice_passes.csv next to this script)")
     p.add_argument("--arm", action="store_true", help="ACTUALLY fire the laser (default: simulate)")
     p.add_argument("--focus", action="store_true", help="set Z from taught positions (needs motor)")
+    p.add_argument("--redatum", choices=["off", "row", "move"], default="off",
+                   help="re-establish the stage datum with RIS to stop an open-loop run from "
+                        "accumulating drift: 'move'=before every station, 'row'=before the first "
+                        "station only (dicing is a flat P1..P4 list, no rows), 'off'=never "
+                        "(default). RIS drives to the hard limits, so keep the full-travel path "
+                        "clear; only as accurate as the limit-switch repeatability -- qualify "
+                        "that first. Runs in dry-run too (stage-only, no laser).")
     p.add_argument("--countdown", type=int, default=DEFAULT_COUNTDOWN_S)
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
     p.add_argument("--extract-after", action="store_true",
@@ -600,6 +607,22 @@ def main() -> int:
             return 1
         eta.start()
         for idx, (label, pos, wlj) in enumerate(plan):
+            # Optional re-datum (RIS) to stop the open-loop stage accumulating drift across
+            # stations: 'move' before every station, 'row' before the first only (the plan is
+            # a flat P1..P4 list -- no row grouping). RIS drives to the hard limits (path must
+            # be clear); a failure is a controlled stop -- never fire on an unverified datum.
+            if args.redatum == "move" or (args.redatum == "row" and idx == 0):
+                print("[redatum] RIS before %s (restoring index at the hard limits) ..." % label)
+                try:
+                    rx, ry = stage.redatum()
+                except (RuntimeError, TimeoutError, ValueError) as exc:
+                    print("*** re-datum (RIS) FAILED before %s: %s -- controlled stop, "
+                          "not firing. ***" % (label, exc))
+                    break
+                print("[redatum] datum restored; stage reads X=%d Y=%d" % (rx, ry))
+                if abort():
+                    print("aborted after re-datum, before moving to %s." % label)
+                    break
             print("\n[%s] move -> X=%d Y=%d" % (label, pos["x"], pos["y"]))
             move_t0 = time.time()
             stage.goto(pos["x"], pos["y"])
