@@ -197,6 +197,10 @@ def main() -> int:
                              "(flat -Y=0, +X=90, +Y=180, -X=270), applied BEFORE the H/V split so "
                              "orientations reclassify and street pitch rotates with the jig. "
                              "--combined only; re-teach P1-P4 for the rotated jig.")
+    parser.add_argument("--jig-flat", choices=("front", "right", "back", "left"), default=None,
+                        help="convenience for --rotation from the wafer-flat direction on the "
+                             "stage: front(-Y)=0, right(+X)=90, back(+Y)=180, left(-X)=270. "
+                             "Overrides --rotation when given.")
     # Optional splitter overrides. Omitted => the splitter's baked calibration/settings.
     parser.add_argument("--cut-width", type=float, default=None,
                         help="force/cap the cut width in um (default: the splitter's baked value)")
@@ -213,6 +217,10 @@ def main() -> int:
 
     # Relative paths keep the generated build logs free of local absolute paths.
     os.chdir(REPO_ROOT)
+
+    # --jig-flat maps the wafer-flat direction to a rotation and overrides --rotation.
+    jig_flat_deg = {"front": 0, "right": 90, "back": 180, "left": 270}
+    rotation_deg = jig_flat_deg[args.jig_flat] if args.jig_flat else int(args.rotation)
 
     overrides: dict = {}
     if args.cut_width is not None:
@@ -238,15 +246,15 @@ def main() -> int:
         if args.cut_layer is None:
             parser.error("--cut-layer is required with --combined")
         stem = build_combined(args.combined, parse_cut_layer(args.cut_layer),
-                              args.set_dir, args.edge_bead, rotation_deg=int(args.rotation),
+                              args.set_dir, args.edge_bead, rotation_deg=rotation_deg,
                               splitter_overrides=overrides)
         source_desc = f"{args.combined} (auto-split combined cut layer)"
         validate_hint = (f"python slicing/validate_pin_grid_set.py --set {args.set_dir} "
                          f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"" + width_hint)
     else:
-        if int(args.rotation) != 0:
-            parser.error("--rotation is only supported with --combined (pre-split masters can't be "
-                         "reclassified); regenerate rotated masters or use --combined.")
+        if rotation_deg != 0:
+            parser.error("--rotation/--jig-flat is only supported with --combined (pre-split "
+                         "masters can't be reclassified); regenerate rotated masters or use --combined.")
         build(args.masters, args.set_dir, splitter_overrides=overrides)
         source_desc = str(args.masters)
         validate_hint = "python slicing/validate_pin_grid_set.py" + width_hint
