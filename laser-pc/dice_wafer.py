@@ -22,8 +22,8 @@ SAFETY -- this can fire the laser, so it is gated:
     stations / between mark passes, aborts (stage controlled-stop `I` + WinLase
     TerminateMark). Mid-pass you cannot interrupt in software -- keep a hand on the
     hardware e-stop. This live-laser path could not be tested off the machine.
-  * After a clean armed run the .wlj job files are deleted (rebuild each run); pass
-    --keep-jobs to keep them.
+  * The built .wlj job files are KEPT after a run, so a set can be re-marked without
+    rebuilding through WinLase; pass --delete-jobs to remove them after a clean armed run.
 
 WinLase note: the WinLase GUI and the COM server can't both hold the marker library,
 so CLOSE the WinLase GUI before an armed run. Python 3.8, no network; serial via
@@ -539,9 +539,10 @@ def main() -> int:
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
     p.add_argument("--extract-after", action="store_true",
                    help="when done, move the stage to the P3 station (front-right) to unload")
-    p.add_argument("--keep-jobs", action="store_true",
-                   help="keep the .wlj files after an armed run (default: delete them, "
-                        "so they regenerate fresh on the next build -- no clutter)")
+    p.add_argument("--delete-jobs", action="store_true",
+                   help="delete the .wlj files after a clean armed run (default: KEEP them, "
+                        "so a set can be re-marked without rebuilding through WinLase)")
+    p.add_argument("--keep-jobs", action="store_true", help=argparse.SUPPRESS)  # deprecated no-op: keeping is the default now
     p.add_argument("--list", action="store_true", help="print the plan and exit (no motion)")
     p.add_argument("--yes", action="store_true",
                    help="skip the 'type DICE' arm prompt (the UI confirms instead)")
@@ -697,8 +698,9 @@ def main() -> int:
         if marker is not None:
             marker.stop()
             marker.close()
-    # Ephemeral jobs: after a clean armed run, delete the .wlj so they never clutter.
-    if completed and args.arm and not args.keep_jobs:
+    # Jobs are KEPT by default so a set can be re-marked without a rebuild; only a clean
+    # armed run with an explicit --delete-jobs removes them (--keep-jobs is a legacy no-op).
+    if completed and args.arm and args.delete_jobs:
         delete_jobs(plan)
     # Record this run's measured pace so the next run of this set estimates from t=0.
     if completed and args.arm and eta is not None:
