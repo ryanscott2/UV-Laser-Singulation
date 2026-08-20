@@ -103,7 +103,17 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
     import split_cut_orientation as sco  # noqa: E402
 
     layout = pya.Layout()
-    layout.read(str(source))
+    # DXF drawing units are millimeters by this repo's convention (see split_klayout.py's
+    # INPUT_DXF_UNIT_UM = 1000, "1 unit = 1 mm = 1000 um"). KLayout's default DXF unit is NOT
+    # mm, so a DXF source read WITHOUT dxf_unit comes in 1000x too small -- collapsing an
+    # mm-scale pattern into a few um at the origin (every window then clips all of it). GDS/OAS
+    # carry their own units and are read as-is.
+    if source.suffix.lower() == ".dxf":
+        load_options = pya.LoadLayoutOptions()
+        load_options.dxf_unit = 1000.0
+        layout.read(str(source), load_options)
+    else:
+        layout.read(str(source))
     dbu = layout.dbu
 
     region = sco.read_layer_region(layout, cut_layer[0], cut_layer[1])
