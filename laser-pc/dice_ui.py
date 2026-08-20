@@ -27,6 +27,11 @@ STOP_FLAG = HERE / ".dice_stop"        # UI writes this on STOP; dice_wafer poll
 ROOT_MEMO = HERE / ".dice_ui_root"     # remembers the last DXF folder
 DEFAULT_PASSES = 175
 CREATE_NEW_CONSOLE = 0x00000010
+# Usable stage window (absolute um) after the 2026-08 re-datum: X[16236,138529] Y[-52210,0]
+# (hard stops X[16236,143529] Y[-57210,0] with 5 mm trimmed on +X and -Y). Dicing has no
+# calibration file, so it's hardcoded here; keep it in sync with the exposure
+# exposure_calibration.json reachable_um. Home -> window center, Extract -> +X/+Y corner.
+REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -52210, "y_max": 0}
 
 
 def is_set_dir(p: Path) -> bool:
@@ -233,10 +238,18 @@ class App:
         self._run([OPTISCAN, "info"])
 
     def home(self):
-        self._run([OPTISCAN, "home", "--yes"])
+        """Send the stage to the CENTER of the usable window. Raw stage 0,0 is unreachable
+        on the re-datumed rig (left of the +X clamp), so Home parks at the window center."""
+        x = int(round((REACHABLE_UM["x_min"] + REACHABLE_UM["x_max"]) / 2))
+        y = int(round((REACHABLE_UM["y_min"] + REACHABLE_UM["y_max"]) / 2))
+        self.log("[home] -> window center X=%d Y=%d" % (x, y))
+        self._run([OPTISCAN, "goto", "--x", x, "--y", y, "--yes"])
 
     def extract(self):
-        self._run([OPTISCAN, "extract", "--yes"])
+        """Send the stage to the +X/+Y corner of the usable window (for load/unload)."""
+        x, y = REACHABLE_UM["x_max"], REACHABLE_UM["y_max"]
+        self.log("[extract] -> +X/+Y corner X=%d Y=%d" % (x, y))
+        self._run([OPTISCAN, "goto", "--x", x, "--y", y, "--yes"])
 
     def jog(self):
         # Keyboard jog needs a real console window (msvcrt), so open one.

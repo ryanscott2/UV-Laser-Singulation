@@ -48,6 +48,11 @@ from optiscan import OptiScan  # same laser-pc/ dir
 
 STATION_ORDER = ("P1", "P2", "P3", "P4")
 DEFAULT_PASSES = 175
+# Usable stage window (absolute um) after the 2026-08 re-datum; keep in sync with
+# dice_ui.REACHABLE_UM and the exposure exposure_calibration.json reachable_um. Used to reject
+# stale / out-of-datum taught stations BEFORE any motion (a stale old-datum P1 has negative X,
+# unreachable on this datum -> the stage silently fails to move X).
+REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -52210, "y_max": 0}
 DEFAULT_PASSES_FILE = Path(__file__).resolve().parent / "dice_passes.csv"
 DEFAULT_COUNTDOWN_S = 10
 
@@ -554,6 +559,20 @@ def main() -> int:
     print_plan(args.set_dir, plan, passes, args.focus, args.arm)
     if args.list:
         return 0
+
+    # Pre-flight reachability: refuse if any TAUGHT station is outside the usable stage window.
+    # Catches stale positions from a prior datum (e.g. old P1 with negative X, unreachable on
+    # the re-datumed rig) that otherwise fail silently as "X won't move". Re-teach for this datum.
+    R = REACHABLE_UM
+    oob = [(label, pos["x"], pos["y"]) for label, pos, _w in plan
+           if not (R["x_min"] <= pos["x"] <= R["x_max"] and R["y_min"] <= pos["y"] <= R["y_max"])]
+    if oob:
+        print("\n*** REFUSING TO RUN: taught station(s) outside the usable stage window "
+              "X[%d,%d] Y[%d,%d]. Re-teach P1-P4 for this datum: `python optiscan.py jog`. ***"
+              % (R["x_min"], R["x_max"], R["y_min"], R["y_max"]))
+        for label, x, y in oob:
+            print("    %s taught at X=%d Y=%d (out of window)" % (label, x, y))
+        return 1
 
     marker = None
     if args.arm:
