@@ -89,7 +89,8 @@ def parse_cut_layer(spec: str) -> tuple[int, int]:
 
 
 def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
-                   edge_bead_mm: float, splitter_overrides: dict | None = None) -> str:
+                   edge_bead_mm: float, rotation_deg: int = 0,
+                   splitter_overrides: dict | None = None) -> str:
     """Front end for a single source whose cut layer holds both orientations.
 
     Reads the cut layer, optionally insets it by an edge bead, splits it into
@@ -106,6 +107,12 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
     dbu = layout.dbu
 
     region = sco.read_layer_region(layout, cut_layer[0], cut_layer[1])
+    # Rotate the cut geometry to the physical wafer-flat orientation BEFORE splitting, so the
+    # H/V classification and street pitch follow the jig (k*90 CCW about the wafer center /
+    # origin; exact via pya.Trans). flat -Y=0, +X=90, +Y=180, -X=270. Re-teach P1-P4 to match.
+    rot_k = int(round(rotation_deg / 90.0)) % 4
+    if rot_k:
+        region.transform(pya.Trans(rot_k))
     # Split the pristine cut network FIRST, so the lossless gate validates the H/V
     # decomposition of the actual cuts. The edge-bead clip is applied AFTER: clipping
     # the streets to the wafer arc leaves sub-micron diagonal slivers that would trip
@@ -118,6 +125,8 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
         )
     if edge_bead_mm and edge_bead_mm > 0:
         safe = sco.safe_wafer_region(layout, edge_bead_mm * 1000.0)
+        if rot_k:
+            safe.transform(pya.Trans(rot_k))  # keep the wafer arc/flats aligned with the rotated cuts
         horizontal &= safe
         vertical &= safe
         horizontal.merge()
@@ -183,6 +192,11 @@ def main() -> int:
                         help="cut-lines layer for --combined, e.g. 5 or 5/0")
     parser.add_argument("--edge-bead", type=float, default=0.0,
                         help="mm to inset the cuts from the wafer edge before splitting (0 = none)")
+    parser.add_argument("--rotation", choices=("0", "90", "180", "270"), default="0",
+                        help="rotate the cut geometry to match the physical wafer flat "
+                             "(flat -Y=0, +X=90, +Y=180, -X=270), applied BEFORE the H/V split so "
+                             "orientations reclassify and street pitch rotates with the jig. "
+                             "--combined only; re-teach P1-P4 for the rotated jig.")
     # Optional splitter overrides. Omitted => the splitter's baked calibration/settings.
     parser.add_argument("--cut-width", type=float, default=None,
                         help="force/cap the cut width in um (default: the splitter's baked value)")
@@ -224,11 +238,15 @@ def main() -> int:
         if args.cut_layer is None:
             parser.error("--cut-layer is required with --combined")
         stem = build_combined(args.combined, parse_cut_layer(args.cut_layer),
-                              args.set_dir, args.edge_bead, splitter_overrides=overrides)
+                              args.set_dir, args.edge_bead, rotation_deg=int(args.rotation),
+                              splitter_overrides=overrides)
         source_desc = f"{args.combined} (auto-split combined cut layer)"
         validate_hint = (f"python slicing/validate_pin_grid_set.py --set {args.set_dir} "
                          f"--masters {args.set_dir / 'Master'} --master-stem \"{stem}\"" + width_hint)
     else:
+        if int(args.rotation) != 0:
+            parser.error("--rotation is only supported with --combined (pre-split masters can't be "
+                         "reclassified); regenerate rotated masters or use --combined.")
         build(args.masters, args.set_dir, splitter_overrides=overrides)
         source_desc = str(args.masters)
         validate_hint = "python slicing/validate_pin_grid_set.py" + width_hint
