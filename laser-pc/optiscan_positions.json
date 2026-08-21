@@ -2,27 +2,27 @@
   "port": "COM5",
   "units": "microns",
   "reference_center": {
-    "x": 84907,
-    "y": -19254
+    "x": 84433,
+    "y": -18830
   },
   "stations": {
     "P1": {
-      "x": 59507,
-      "y": -37254
+      "x": 59033,
+      "y": -36830
     },
     "P2": {
-      "x": 110307,
-      "y": -37254
+      "x": 109833,
+      "y": -36830
     },
     "P3": {
-      "x": 110307,
-      "y": -1254
+      "x": 109833,
+      "y": -830
     },
     "P4": {
-      "x": 59507,
-      "y": -1254
+      "x": 59033,
+      "y": -830
     }
   },
-  "derivation": "2026-08-20 DIALED-IN baseline, v4-refined. 0 deg nest (front+left; 182 mm on front, 157 mm on left), shimmed ~9.5 mm forward to center the wafer in the pipe-limited Y travel. Calibration lives in the TAUGHT STATIONS (slicer GLOBAL offset = 0). Stations = reference +/- (25400 X, 18000 Y) via stage_X=ref_x-wafer_X (backside X mirror), stage_Y=ref_y+wafer_Y. Reference refined from the v4 true-center solve: pattern center was (+0.474 X, +0.424 Y) mm off the wafer center (both ROUND edges at 50.0 mm; the minor flat mis-references 0.59 mm and is ignored). Applied +474 X / -424 Y to the reference (X uses +delta for the mirror, Y uses -delta): (84433,-18830) -> (84907,-19254). On-wafer placement repeats sub-micron; measurement read scatter ~10-20 um; the ~0.1 mm residual is the wafer-diameter tolerance (only +X/+Y round reads available -- read -X/-Y marks to round edges to cancel it).",
+  "derivation": "2026-08-20 DIALED-IN baseline. 0 deg nest (front+left; 182 mm on front, 157 mm on left), shimmed ~9.5 mm forward to center the wafer in the pipe-limited Y travel. Calibration lives in the TAUGHT STATIONS (slicer GLOBAL offset = 0). Stations = reference +/- (25400 X, 18000 Y) via stage_X=ref_x-wafer_X (backside X mirror), stage_Y=ref_y+wafer_Y. Reference from two v6 iterations: X 84433 (from the -X round-edge read; the +X minor flat mis-references ~0.7 mm), Y -18830. NOTE: a v4 solve suggested +474 X / -424 Y -> (84907,-19254) but it was NOT applied (only two round-edge reads -> +/-0.1 mm wafer-diameter uncertainty). Superseded by the 082126 radial-45 test (four round-edge reads, diameter cancels); apply that correction to THIS (84433,-18830) baseline. On-wafer placement repeats sub-micron; read scatter ~10-20 um.",
   "notes": "P1 top_left, P2 top_right, P3 bottom_right, P4 bottom_left (jig label; exposes opposite quadrant). Full-range +/-18 mm Y tiling fits with ~1 mm margin off both the pipe (-38140) and the front (0). DXFs: build with --window-center-y 18000 --field 66000 --clip-mode full_window --global 0."
 }
