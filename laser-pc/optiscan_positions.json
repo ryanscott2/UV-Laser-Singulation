@@ -2,27 +2,27 @@
   "port": "COM5",
   "units": "microns",
   "reference_center": {
-    "x": 88236,
-    "y": -26150
+    "x": 84433,
+    "y": -18830
   },
   "stations": {
     "P1": {
-      "x": 62836,
-      "y": -51550
+      "x": 59033,
+      "y": -36830
     },
     "P2": {
-      "x": 113636,
-      "y": -51550
+      "x": 109833,
+      "y": -36830
     },
     "P3": {
-      "x": 113636,
-      "y": -750
+      "x": 109833,
+      "y": -830
     },
     "P4": {
-      "x": 62836,
-      "y": -750
+      "x": 59033,
+      "y": -830
     }
   },
-  "derivation": "2026-08-20: COMPUTED (not hand-taught) from the post-RIS datum reference (88236, -26150) + the fixed +/-25.4 mm quadrant field-centers, via the backside-mirror transform stage_X=88236-wafer_X, stage_Y=-26150+wafer_Y. For the rotated jig (major flat +X, build --jig-flat right). Reference is rough (~+/-2 mm); refine by marking + measuring the alignment test.",
-  "notes": "P1 top_left, P2 top_right, P3 bottom_right, P4 bottom_left (jig label; exposes opposite quadrant)."
+  "derivation": "2026-08-20 DIALED-IN baseline. 0 deg nest (front+left; 182 mm on front, 157 mm on left), shimmed ~9.5 mm forward to center the wafer in the pipe-limited Y travel. Calibration lives in the TAUGHT STATIONS (slicer GLOBAL offset = 0). Stations = reference +/- (25400 X, 18000 Y) via stage_X=ref_x-wafer_X (backside X mirror), stage_Y=ref_y+wafer_Y. Reference from two v6 iterations: X 84433 (from the -X round-edge read; the +X minor flat mis-references ~0.7 mm -- do NOT calibrate off it), Y -18830 (shim + major-flat/-Y-round reads). On-wafer placement repeats sub-micron; measurement read scatter is ~10-20 um.",
+  "notes": "P1 top_left, P2 top_right, P3 bottom_right, P4 bottom_left (jig label; exposes opposite quadrant). Full-range +/-18 mm Y tiling fits with ~1 mm margin off both the pipe (-38140) and the front (0). DXFs: build with --window-center-y 18000 --field 66000 --clip-mode full_window --global 0."
 }
