@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 from pathlib import Path
 
 # --- Settings from OPERATING_PROCEDURE.md section 3 -------------------------------
@@ -70,7 +71,10 @@ FILL_SPACING_MM = 0.01
 # reverted from bidirectional -- at the slow 100 mm/s cut, clean unidirectional lines are
 # preferred over the small bidirectional line-registration error.
 FILL_STYLE_PARALLEL = 0
-FILL_ANGLE_DEG = {"Horizontal": 0, "Vertical": 90}   # 0 deg for H cuts, 90 for V
+# The fill angle now follows each mark's own geometry (see cut_angle_deg): the hatch runs
+# ALONG the cut line, so a diagonal mark cuts smoothly. This per-orientation map is only the
+# fallback when a DXF's geometry can't be read (H cuts -> 0 deg, V -> 90). Range is [-90, +90].
+FILL_ANGLE_DEG = {"Horizontal": 0, "Vertical": 90}
 NUM_PASSES = 1
 MARK_SPEED_MM_S = 100.0            # written onto Profile 0 (WinLase default is 1000; 100 = slow/deep cut);
 SPEED_TOLERANCE_MM_S = 10.0        # ONLY the speed is written -- power/frequency are verified unchanged
@@ -125,6 +129,64 @@ def dxf_bounds_mm(path: Path) -> tuple[float, float, float, float]:
     if not xs or not ys:
         raise ValueError(f"No LWPOLYLINE vertices found in {path}")
     return min(xs), min(ys), max(xs), max(ys)
+
+
+def _entity_polylines_mm(path: Path) -> list[list[tuple[float, float]]]:
+    """Vertices grouped per LWPOLYLINE in ENTITIES, so edges never span two marks."""
+    lines = [ln.strip() for ln in path.read_text(errors="strict").splitlines()]
+    pairs = list(zip(lines[0::2], lines[1::2]))
+    polys: list[list[tuple[float, float]]] = []
+    cur: list[tuple[float, float]] | None = None
+    pending_x: float | None = None
+    in_entities = False
+    for code, value in pairs:
+        if value == "ENTITIES":
+            in_entities = True
+            continue
+        if in_entities and value == "ENDSEC":
+            break
+        if not in_entities:
+            continue
+        if code == "0":                       # entity boundary
+            cur = [] if value == "LWPOLYLINE" else None
+            if cur is not None:
+                polys.append(cur)
+            pending_x = None
+        elif cur is not None and code == "10":
+            pending_x = float(value)
+        elif cur is not None and code == "20" and pending_x is not None:
+            cur.append((pending_x, float(value)))
+            pending_x = None
+    return [p for p in polys if p]
+
+
+def cut_angle_deg(path: Path) -> float | None:
+    """Fill/scan angle that runs ALONG the cut, from the longest edge in the file.
+
+    Each mark is a thin rectangle; its longest edge is the cut direction, so the fill
+    hatch should run at that angle (parallel = smooth cut, not cross-hatched). A line's
+    direction is defined mod 180, and WinLase fill angles are [-90, +90], so the result
+    is folded into that range (e.g. a 135 deg line -> -45). Returns None if empty.
+    Works for any orientation: horizontal -> 0, vertical -> 90, diagonal -> +/-45.
+    """
+    best_len = 0.0
+    best_ang = None
+    for verts in _entity_polylines_mm(path):
+        if len(verts) > 1 and verts[0] == verts[-1]:
+            verts = verts[:-1]                # drop a duplicated closing vertex
+        n = len(verts)
+        for i in range(n):
+            (x1, y1), (x2, y2) = verts[i], verts[(i + 1) % n]
+            d = (x2 - x1) ** 2 + (y2 - y1) ** 2
+            if d > best_len:
+                best_len = d
+                best_ang = math.degrees(math.atan2(y2 - y1, x2 - x1))
+    if best_ang is None:
+        return None
+    a = best_ang % 180.0                      # [0, 180)
+    if a > 90.0:
+        a -= 180.0                            # fold to (-90, +90]
+    return a
 
 
 # --- Job discovery ----------------------------------------------------------------
@@ -207,7 +269,13 @@ class WinLaseSession:
 
         for orientation in ORIENTATIONS:
             dxf = job["files"][orientation]
-            xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+            try:
+                xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+            except ValueError:
+                # An orientation with no geometry (e.g. a diagonal mark that lives
+                # entirely in the other master) is expected -- skip it, don't crash.
+                warnings.append(f"{job['folder']}/{orientation}: no geometry, skipped (empty)")
+                continue
             want_cx = self.mm_to_bits((xmin + xmax) / 2.0)
             want_cy = self.mm_to_bits((ymin + ymax) / 2.0)
 
@@ -236,7 +304,13 @@ class WinLaseSession:
                     f"{job['folder']}/{orientation}: 0.01 mm rounds below 1 bit at "
                     f"{self.bits_per_mm} bits/mm; fill spacing set to 1 bit"
                 )
-            angle = FILL_ANGLE_DEG[orientation]
+            # Fill angle follows the cut line itself (longest edge), so a diagonal mark
+            # scans along its length for a smooth cut instead of being cross-hatched.
+            # Falls back to the per-master default (H=0, V=90) if geometry is unreadable.
+            angle = cut_angle_deg(dxf)
+            if angle is None:
+                angle = FILL_ANGLE_DEG[orientation]
+            angle = max(-90.0, min(90.0, angle))   # WinLase fill range is [-90, +90]
             self.m.SetObjFill(obj, spacing_bits, angle, angle, FILL_STYLE_PARALLEL)
             self.m.SetObjMarkFillFlag(obj, 1)
             self.m.SetObjMarkOutlineFlag(obj, 0)
@@ -288,8 +362,12 @@ class WinLaseSession:
                 )
 
         count = int(self.m.GetObjCount())
-        if count != len(ORIENTATIONS):
-            warnings.append(f"{job['folder']}: job holds {count} objects, expected {len(ORIENTATIONS)}")
+        if count == 0:
+            warnings.append(f"{job['folder']}: job holds NO objects (both orientations empty) -- "
+                            "nothing to mark")
+        elif count > len(ORIENTATIONS):
+            warnings.append(f"{job['folder']}: job holds {count} objects, expected at most "
+                            f"{len(ORIENTATIONS)}")
 
         if save:
             self.m.SaveJobToFile(str(out_path), APP_VERSION, _today(), APP_NAME, COMPANY)
@@ -316,9 +394,15 @@ def print_plan(set_dir: Path, jobs: list[dict], out_dir: Path) -> None:
         print(f"  {job['name']}.wlj{tag}")
         for orientation in ORIENTATIONS:
             dxf = job["files"][orientation]
-            xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+            try:
+                xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+            except ValueError:
+                print(f"     {orientation:10} (empty, skipped)")
+                continue
             cx, cy = (xmin + xmax) / 2.0, (ymin + ymax) / 2.0
-            print(f"     {orientation:10} fill {FILL_ANGLE_DEG[orientation]:>2} deg @ "
+            ang = cut_angle_deg(dxf)
+            ang = FILL_ANGLE_DEG[orientation] if ang is None else ang
+            print(f"     {orientation:10} fill {ang:+5.1f} deg @ "
                   f"{FILL_SPACING_MM} mm, {NUM_PASSES} pass  |  bbox "
                   f"[{xmin:.3f},{ymin:.3f}]..[{xmax:.3f},{ymax:.3f}] mm, center "
                   f"({cx:+.3f},{cy:+.3f}) mm")
