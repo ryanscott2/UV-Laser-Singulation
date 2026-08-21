@@ -40,17 +40,55 @@ ORIENTATIONS = ("Horizontal", "Vertical")
 MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 
 
-def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM,
-          splitter_overrides: dict | None = None) -> None:
-    for orientation in ORIENTATIONS:
-        stem = master_stem.format(orientation=orientation)
-        master = masters_dir / f"{stem}.dxf"
-        if not master.is_file():
-            raise FileNotFoundError(f"Master not found: {master}")
+def angle_label(a: float) -> str:
+    """Filename stem for a pass angle in [-90, +90]: +45.0, -45.0, +0.0, +90.0.
 
-        # The splitter writes the four tiles plus its log and manifest here; the
-        # tiles are moved out below so BuildLogs keeps only the records.
-        staging = set_dir / "BuildLogs" / orientation
+    The laser PC reads this back with float(path.stem) to set the fill angle, so the
+    format must round-trip. One pass angle per file.
+    """
+    return f"{float(a) + 0.0:+.1f}"
+
+
+def _master_angle_label(stem: str) -> str:
+    """Pass-angle label for a master DXF, from an explicit angle token (e.g.
+    `<base>_+45.0_master`) or a legacy Horizontal/Vertical name (-> +0.0 / +90.0)."""
+    core = stem[:-7] if stem.endswith("_master") else stem
+    token = core.rsplit("_", 1)[-1]
+    try:
+        return angle_label(float(token))
+    except ValueError:
+        if "Horizontal" in stem:
+            return angle_label(0.0)
+        if "Vertical" in stem:
+            return angle_label(90.0)
+    raise ValueError(f"cannot read a pass angle from master name '{stem}'")
+
+
+def _dxf_nonempty(path: Path) -> bool:
+    """True if the DXF has at least one ENTITIES vertex (dependency-free)."""
+    lines = [ln.strip() for ln in path.read_text(errors="strict").splitlines()]
+    in_entities = False
+    for code, value in zip(lines[0::2], lines[1::2]):
+        if value == "ENTITIES":
+            in_entities = True
+            continue
+        if in_entities and value == "ENDSEC":
+            break
+        if in_entities and code == "10":
+            return True
+    return False
+
+
+def _tile_masters(master_paths, set_dir: Path, splitter_overrides: dict | None) -> None:
+    """Tile each (label, master) into <set>/P{n}/<label>.dxf via split_klayout.
+
+    A station tile with no geometry (a pass angle whose cuts miss that quadrant) is
+    skipped, so each station folder holds only the angles that actually mark there --
+    one pass angle per file, named by the angle.
+    """
+    for label, master in master_paths:
+        stem = master.stem
+        staging = set_dir / "BuildLogs" / label
         staging.mkdir(parents=True, exist_ok=True)
         init_globals = {"input": str(master), "output_dir": str(staging)}
         if splitter_overrides:
@@ -64,18 +102,40 @@ def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM,
                     f"Splitter did not emit {tile.name}. Its WINDOWS labels and "
                     "slicing/pin_grid_layout.py have drifted apart."
                 )
-            # Folder names are stable across rebuilds, so overwrite in place
-            # rather than removing directories. OneDrive blocks rmdir here.
-            destination = set_dir / station.label
-            destination.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(tile, destination / f"{orientation}.dxf")
+            if _dxf_nonempty(tile):
+                # Folder names are stable across rebuilds, so overwrite in place
+                # rather than removing directories. OneDrive blocks rmdir here.
+                destination = set_dir / station.label
+                destination.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(tile, destination / f"{label}.dxf")
             tile.unlink()
 
+
+def _copy_masters(masters, set_dir: Path) -> None:
     master_copy = set_dir / "Master"
     master_copy.mkdir(parents=True, exist_ok=True)
-    for name in sorted(p.name for p in masters_dir.iterdir() if p.is_file()):
-        shutil.copyfile(masters_dir / name, master_copy / name)
+    for path in masters:
+        shutil.copyfile(path, master_copy / path.name)
 
+
+def build(masters_dir: Path, set_dir: Path, master_stem: str = MASTER_STEM,
+          splitter_overrides: dict | None = None) -> None:
+    """Tile a directory of masters (any pass angles) into the P1-P4 set.
+
+    Masters are discovered by `*_master.dxf`; each one's pass angle comes from its name
+    (an explicit angle token, or a legacy Horizontal/Vertical stem). Station files are
+    named by the angle.
+    """
+    masters = sorted(masters_dir.glob("*_master.dxf"))
+    if not masters:
+        masters = [masters_dir / f"{master_stem.format(orientation=o)}.dxf"
+                   for o in ORIENTATIONS]
+    for m in masters:
+        if not m.is_file():
+            raise FileNotFoundError(f"Master not found: {m}")
+    master_paths = [(_master_angle_label(m.stem), m) for m in masters]
+    _tile_masters(master_paths, set_dir, splitter_overrides)
+    _copy_masters(masters, set_dir)
     write_position_manifest(set_dir)
 
 
@@ -123,39 +183,48 @@ def build_combined(source: Path, cut_layer: tuple[int, int], set_dir: Path,
     rot_k = int(round(rotation_deg / 90.0)) % 4
     if rot_k:
         region.transform(pya.Trans(rot_k))
-    # Split the pristine cut network FIRST, so the lossless gate validates the H/V
+    # Group the cut network by pass angle FIRST, so the lossless gate validates the
     # decomposition of the actual cuts. The edge-bead clip is applied AFTER: clipping
-    # the streets to the wafer arc leaves sub-micron diagonal slivers that would trip
-    # the exact-zero gate (a ~0.02 um^2 rounding residual) even though the split is sound.
-    horizontal, vertical = sco.split_horizontal_vertical(region)
-    if not sco.lossless(region, horizontal, vertical):
+    # the streets to the wafer arc leaves sub-micron slivers that would trip the
+    # exact-zero gate even though the split is sound. Any cut angle is supported.
+    groups = sco.split_by_angle(region)
+    if not sco.lossless_multi(region, list(groups.values())):
         raise RuntimeError(
-            "H/V split lost geometry: the cut layer is not purely axis-aligned. "
-            "Author the cuts on two layers and use --masters instead."
+            "angle split lost geometry: a cut could not be classified. The cut layer "
+            "should be clean line/rectangle geometry (any angle is fine)."
         )
     if edge_bead_mm and edge_bead_mm > 0:
         safe = sco.safe_wafer_region(layout, edge_bead_mm * 1000.0)
         if rot_k:
             safe.transform(pya.Trans(rot_k))  # keep the wafer arc/flats aligned with the rotated cuts
-        horizontal &= safe
-        vertical &= safe
-        horizontal.merge()
-        vertical.merge()
+        for a in list(groups):
+            clipped = groups[a] & safe
+            clipped.merge()
+            groups[a] = clipped
 
-    # Name the masters after the set (which carries the run date), not the source
-    # GDS -- output files use today's date, not the date the GDS was authored.
+    # Name the masters after the set (which carries the run date), not the source GDS.
+    # One master per pass angle: <base>_<+/-angle>_master.dxf.
     base = set_dir.name
-    master_stem = f"{base}_{{orientation}}_master"
     staging = set_dir / "BuildLogs" / "combined_source_masters"
     staging.mkdir(parents=True, exist_ok=True)
-    sco.write_master_dxf(staging / f"{base}_Horizontal_master.dxf", dbu, horizontal)
-    sco.write_master_dxf(staging / f"{base}_Vertical_master.dxf", dbu, vertical)
+    master_paths = []
+    for a in sorted(groups):
+        if groups[a].is_empty():
+            continue
+        label = angle_label(a)
+        master = staging / f"{base}_{label}_master.dxf"
+        sco.write_master_dxf(master, dbu, groups[a])
+        master_paths.append((label, master))
+    if not master_paths:
+        raise RuntimeError(f"cut layer {cut_layer[0]}/{cut_layer[1]} has no geometry")
 
-    print(f"Combined layer {cut_layer[0]}/{cut_layer[1]}: split into "
-          f"H ({horizontal.count()} polys) + V ({vertical.count()} polys)"
-          + (f", inset {edge_bead_mm:g} mm edge bead" if edge_bead_mm > 0 else ""))
-    build(staging, set_dir, master_stem=master_stem, splitter_overrides=splitter_overrides)
-    return master_stem
+    print(f"Combined layer {cut_layer[0]}/{cut_layer[1]}: {len(master_paths)} pass angle(s): "
+          + ", ".join(lbl for lbl, _ in master_paths)
+          + (f"; inset {edge_bead_mm:g} mm edge bead" if edge_bead_mm > 0 else ""))
+    _tile_masters(master_paths, set_dir, splitter_overrides)
+    _copy_masters([m for _, m in master_paths], set_dir)
+    write_position_manifest(set_dir)
+    return f"{base}_*_master"
 
 
 def write_position_manifest(set_dir: Path) -> Path:
@@ -168,11 +237,12 @@ def write_position_manifest(set_dir: Path) -> Path:
                 "field_center_x_wafer_mm", "field_center_y_wafer_mm",
                 "engraved_outer_front_left_pin",
                 "outer_pin_columns", "outer_pin_rows",
-                "horizontal_file", "vertical_file",
+                "pass_files",
             ]
         )
         for station in STATIONS:
             column, row = station.outer_front_left_pin
+            pass_files = ";".join(sorted(p.name for p in (set_dir / station.label).glob("*.dxf")))
             writer.writerow(
                 [
                     station.label, station.jig_row, station.jig_col,
@@ -182,8 +252,7 @@ def write_position_manifest(set_dir: Path) -> Path:
                     hole_label(column, row),
                     ",".join(str(v + 1) for v in station.outer_columns),
                     ",".join(str(v + 1) for v in station.outer_rows),
-                    f"{station.label}/Horizontal.dxf",
-                    f"{station.label}/Vertical.dxf",
+                    pass_files,
                 ]
             )
     return path

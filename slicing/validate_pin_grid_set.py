@@ -36,6 +36,7 @@ from pathlib import Path
 import klayout.db as pya
 
 from pin_grid_layout import GRID_PITCH, STATIONS, USABLE_FIELD_HALF_MM
+from build_pin_grid_set import _master_angle_label
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPLITTER = Path(__file__).resolve().parent / "split_klayout.py"
@@ -221,19 +222,28 @@ def validate(masters_dir: Path, set_dir: Path,
     normalize = cut_width_um is not None and width_mode == "force"
     set_line_widths = ns["set_line_widths"]
 
-    for orientation in ORIENTATIONS:
-        stem = master_stem.format(orientation=orientation)
-        master, dbu = read_region(masters_dir / f"{stem}.dxf")
+    # One master per pass angle (any angle). Discover by name; a station may not carry
+    # every angle (a pass whose cuts miss that quadrant is skipped at build), so a
+    # missing tile is expected, not an error.
+    masters = sorted(masters_dir.glob("*_master.dxf"))
+    if not masters:
+        masters = [masters_dir / f"{master_stem.format(orientation=o)}.dxf" for o in ORIENTATIONS]
+    for master_path in masters:
+        label = _master_angle_label(master_path.stem)
+        master, dbu = read_region(master_path)
         if master is None:
-            raise RuntimeError(f"No layer 0 in master {stem}.dxf")
+            raise RuntimeError(f"No layer 0 in master {master_path.name}")
 
         rebuilt = pya.Region()
         for station in STATIONS:
-            tile, tile_dbu = read_region(set_dir / station.label / f"{orientation}.dxf")
+            tile_path = set_dir / station.label / f"{label}.dxf"
+            if not tile_path.is_file():
+                continue   # this pass angle does not mark in this quadrant
+            tile, tile_dbu = read_region(tile_path)
             if tile is None:
-                raise RuntimeError(f"No layer 0 in {station.label}/{orientation}.dxf")
+                raise RuntimeError(f"No layer 0 in {station.label}/{label}.dxf")
             if tile_dbu != dbu:
-                raise RuntimeError(f"{station.label}/{orientation}.dxf has dbu {tile_dbu}, not {dbu}")
+                raise RuntimeError(f"{station.label}/{label}.dxf has dbu {tile_dbu}, not {dbu}")
             # Undo the splitter's translation (and its global + per-station
             # calibration offsets) to put the tile back on the wafer.
             nudge_x_mm, nudge_y_mm = window_offsets_mm.get(station.label, (0.0, 0.0))
@@ -251,7 +261,7 @@ def validate(masters_dir: Path, set_dir: Path,
         ok &= xor_area == 0
         note = f", normalized master to {cut_width_um:g} um" if normalize else ""
         lines.append(
-            f"{orientation}.dxf: master_polygons={master_cmp.count()}, "
+            f"{label}.dxf: master_polygons={master_cmp.count()}, "
             f"reconstructed_polygons={rebuilt.count()}, xor_area_dbu2={xor_area}{note}"
         )
 

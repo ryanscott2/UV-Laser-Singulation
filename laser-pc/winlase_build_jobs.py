@@ -189,6 +189,25 @@ def cut_angle_deg(path: Path) -> float | None:
     return a
 
 
+def fill_angle_for(path: Path) -> float:
+    """Pass/fill angle for one DXF, in [-90, +90].
+
+    The prep names each file by its pass angle (e.g. +45.0.dxf, -45.0.dxf, +0.0.dxf),
+    so the filename is authoritative -- one pass angle per file. Falls back to the
+    geometry (longest edge) for a legacy Horizontal/Vertical name, then to 0.
+    """
+    try:
+        a = float(path.stem)
+        if -90.0 <= a <= 90.0:
+            return a
+    except ValueError:
+        pass
+    a = cut_angle_deg(path)
+    if a is not None:
+        return max(-90.0, min(90.0, a))
+    return float(FILL_ANGLE_DEG.get(path.stem, 0))
+
+
 # --- Job discovery ----------------------------------------------------------------
 def read_jig_stations(set_dir: Path) -> dict[str, str]:
     manifest = set_dir / "position_manifest.csv"
@@ -201,15 +220,20 @@ def read_jig_stations(set_dir: Path) -> dict[str, str]:
 
 
 def discover_jobs(set_dir: Path) -> list[dict]:
-    """One entry per station folder that has both orientation DXFs present."""
+    """One entry per station folder, with every pass-angle DXF it holds.
+
+    Each folder carries one file per pass angle (named by the angle, e.g. +45.0.dxf),
+    or the legacy Horizontal.dxf/Vertical.dxf pair. `files` is the sorted list of DXFs.
+    """
     jig = read_jig_stations(set_dir)
     jobs: list[dict] = []
     for folder in STATION_FOLDERS:
-        files = {o: set_dir / folder / f"{o}.dxf" for o in ORIENTATIONS}
-        missing = [str(p) for p in files.values() if not p.is_file()]
-        if missing:
-            if any((set_dir / folder).exists() for _ in [0]):
-                print(f"  ! {folder}: missing {missing}; skipped")
+        fdir = set_dir / folder
+        if not fdir.is_dir():
+            continue
+        files = sorted(fdir.glob("*.dxf"))
+        if not files:
+            print(f"  ! {folder}: no DXF files; skipped")
             continue
         jobs.append({
             "folder": folder,
@@ -262,13 +286,13 @@ class WinLaseSession:
         return int(round(mm * self.bits_per_mm))
 
     def build_job(self, job: dict, save: bool) -> list[str]:
-        """Create one job with the H and V graphics; return warning strings."""
+        """Create one job with one graphic per pass-angle file; return warnings."""
         warnings: list[str] = []
         out_path = job["out_path"]
         job_index = int(self.m.NewJob(0, str(out_path)))  # leading [out] index -> pass 0 placeholder
 
-        for orientation in ORIENTATIONS:
-            dxf = job["files"][orientation]
+        for dxf in job["files"]:
+            orientation = dxf.stem   # pass-angle label (e.g. +45.0) or legacy H/V name
             try:
                 xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
             except ValueError:
@@ -304,13 +328,9 @@ class WinLaseSession:
                     f"{job['folder']}/{orientation}: 0.01 mm rounds below 1 bit at "
                     f"{self.bits_per_mm} bits/mm; fill spacing set to 1 bit"
                 )
-            # Fill angle follows the cut line itself (longest edge), so a diagonal mark
-            # scans along its length for a smooth cut instead of being cross-hatched.
-            # Falls back to the per-master default (H=0, V=90) if geometry is unreadable.
-            angle = cut_angle_deg(dxf)
-            if angle is None:
-                angle = FILL_ANGLE_DEG[orientation]
-            angle = max(-90.0, min(90.0, angle))   # WinLase fill range is [-90, +90]
+            # Pass angle from the filename (authoritative -- one angle per file), else the
+            # cut geometry, so a diagonal mark scans ALONG its length for a smooth cut.
+            angle = fill_angle_for(dxf)   # already clamped to WinLase's [-90, +90]
             self.m.SetObjFill(obj, spacing_bits, angle, angle, FILL_STYLE_PARALLEL)
             self.m.SetObjMarkFillFlag(obj, 1)
             self.m.SetObjMarkOutlineFlag(obj, 0)
@@ -363,11 +383,7 @@ class WinLaseSession:
 
         count = int(self.m.GetObjCount())
         if count == 0:
-            warnings.append(f"{job['folder']}: job holds NO objects (both orientations empty) -- "
-                            "nothing to mark")
-        elif count > len(ORIENTATIONS):
-            warnings.append(f"{job['folder']}: job holds {count} objects, expected at most "
-                            f"{len(ORIENTATIONS)}")
+            warnings.append(f"{job['folder']}: job holds NO objects -- nothing to mark")
 
         if save:
             self.m.SaveJobToFile(str(out_path), APP_VERSION, _today(), APP_NAME, COMPANY)
@@ -392,17 +408,16 @@ def print_plan(set_dir: Path, jobs: list[dict], out_dir: Path) -> None:
     for job in jobs:
         tag = f" (jig {job['jig_station']})" if job["jig_station"] else ""
         print(f"  {job['name']}.wlj{tag}")
-        for orientation in ORIENTATIONS:
-            dxf = job["files"][orientation]
+        for dxf in job["files"]:
+            label = dxf.stem
             try:
                 xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
             except ValueError:
-                print(f"     {orientation:10} (empty, skipped)")
+                print(f"     {label:10} (empty, skipped)")
                 continue
             cx, cy = (xmin + xmax) / 2.0, (ymin + ymax) / 2.0
-            ang = cut_angle_deg(dxf)
-            ang = FILL_ANGLE_DEG[orientation] if ang is None else ang
-            print(f"     {orientation:10} fill {ang:+5.1f} deg @ "
+            ang = fill_angle_for(dxf)
+            print(f"     {label:10} fill {ang:+6.1f} deg @ "
                   f"{FILL_SPACING_MM} mm, {NUM_PASSES} pass  |  bbox "
                   f"[{xmin:.3f},{ymin:.3f}]..[{xmax:.3f},{ymax:.3f}] mm, center "
                   f"({cx:+.3f},{cy:+.3f}) mm")

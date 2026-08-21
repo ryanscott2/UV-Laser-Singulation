@@ -116,6 +116,82 @@ def split_horizontal_vertical(region):
     return horizontal, vertical
 
 
+def _polygon_angle_deg(poly) -> float:
+    """Angle of the polygon's longest edge, folded to (-90, +90]."""
+    best_len2 = -1
+    best = 0.0
+    for edge in poly.each_edge():
+        dx, dy = edge.dx(), edge.dy()
+        length2 = dx * dx + dy * dy
+        if length2 > best_len2:
+            best_len2 = length2
+            best = math.degrees(math.atan2(dy, dx))
+    a = best % 180.0
+    if a > 90.0:
+        a -= 180.0
+    return a
+
+
+def _is_manhattan(poly) -> bool:
+    """True when every edge is axis-aligned (a rectilinear cut / street network)."""
+    return all(edge.dx() == 0 or edge.dy() == 0 for edge in poly.each_edge())
+
+
+def split_by_angle(region, junction_aspect: float = JUNCTION_ASPECT,
+                   quantum_deg: float = 0.5) -> dict:
+    """Group a combined cut region by pass angle in [-90, +90]. Returns {angle: Region}.
+
+    Generalizes split_horizontal_vertical to ANY cut angle. Each connected shape:
+      * rectilinear (Manhattan) -> decomposed into rectangles, classified by long axis
+        into 0 / 90 deg with crossing squares going to BOTH (identical to the H/V split,
+        so street networks are unchanged); contributes to the 0.0 and/or 90.0 groups.
+      * otherwise (a rotated line) -> assigned WHOLE to its longest-edge angle, quantized
+        to `quantum_deg`, so a diagonal cut keeps its true angle.
+    `(union of all groups)` reconstructs the input exactly -- see lossless_multi.
+    """
+    from collections import defaultdict
+    groups = defaultdict(pya.Region)
+    work = region.dup()
+    work.merge()
+    for poly in work.each():
+        if _is_manhattan(poly):
+            piece = pya.Region()
+            piece.insert(poly)
+            for shape in piece.decompose_trapezoids():
+                rect = shape.polygon
+                if rect is None:
+                    rect = pya.Polygon(shape.bbox())
+                box = shape.bbox()
+                w, h = box.width(), box.height()
+                if w == 0 or h == 0:
+                    continue
+                if w >= h * junction_aspect:
+                    groups[0.0].insert(rect)
+                elif h >= w * junction_aspect:
+                    groups[90.0].insert(rect)
+                else:                          # crossing -> both, so no line breaks
+                    groups[0.0].insert(rect)
+                    groups[90.0].insert(rect)
+        else:
+            key = round(_polygon_angle_deg(poly) / quantum_deg) * quantum_deg
+            key = key + 0.0                    # normalize -0.0 -> 0.0
+            if key == -90.0:
+                key = 90.0                     # -90 and +90 are the same line direction
+            groups[key].insert(poly)
+    for reg in groups.values():
+        reg.merge()
+    return dict(groups)
+
+
+def lossless_multi(original, regions) -> bool:
+    """True when the union of `regions` reconstructs `original` with zero XOR area."""
+    combined = pya.Region()
+    for reg in regions:
+        combined += reg
+    combined.merge()
+    return (original.dup().merge() ^ combined).area() == 0
+
+
 def write_master_dxf(path, dbu: float, region, cell_name: str = "MASTER") -> None:
     """Write one region to a layer-0 DXF the four-window splitter can read, the
     same way the 10x30 master generator writes its masters."""
