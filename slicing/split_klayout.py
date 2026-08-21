@@ -84,8 +84,18 @@ OUTPUT_DIR = r""
 # New jig + new alignment method (RIS re-datum + per-jig P1-P4 re-teach) re-establish
 # placement, so the DXF-baked offsets start at ZERO and are re-tuned per jig. History above
 # is kept for reference. Override at build time with --global-x/--global-y if ever needed.
-GLOBAL_X_OFFSET_UM = 0.0
-GLOBAL_Y_OFFSET_UM = 0.0
+# 2026-08-20 NEW-JIG calibration, iteration 1, from the v6 radial seam test (mark-from-flat
+# 10500 um, radius 36.787 mm) on the +X-major / -Y-minor jig. Expected line-to-flat:
+# major(+X) 10.500 mm, minor(-Y) 12.397 mm. Measured: major 15.35 mm, minor 9.19 mm -- the
+# +X mark landed 4.85 mm too far from the +X major flat, and the -Y mark 3.21 mm too close to
+# the -Y minor flat. Physical correction: move the pattern +X (toward the major flat) and +Y
+# (away from the minor flat). This jig's design->stage mapping preserves X but INVERTS Y
+# (user-confirmed on the wafer), so the slicer offsets are:
+#   X = +(15.350 - 10.500) = +4.850 mm ;  Y = -(12.397 - 9.190) = -3.207 mm.
+# Cut v5 next to verify -- nominal v5 (radius 38.287 mm) targets major(+X) 9.000, minor(-Y)
+# 10.897 mm. Re-tune per jig; override with --global-x/--global-y.
+GLOBAL_X_OFFSET_UM = 4850.0
+GLOBAL_Y_OFFSET_UM = -3207.0
 
 # Per-station nudge in microns, added on top of the global offset, keyed by folder
 # label. Corrects one station measured off from its neighbours without disturbing
