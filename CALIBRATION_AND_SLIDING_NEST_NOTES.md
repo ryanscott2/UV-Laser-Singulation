@@ -8,6 +8,11 @@ Calibration is now DEFINITIVE and lives in the taught stage reference
 per-station `WINDOW_OFFSETS_UM` are all `0`. Everything below is kept as the
 measurement history that led there.
 
+The `fusion/FusionPinGridJig*` and single-jig scripts referenced in the history below were
+removed 2026-08-21; the current jig is the edge-datum `fusion/AlignerEdgePLA` /
+`fusion/AlignerEdgeAL`. Old paths are left in the narrative as historical references (see git
+history to recover the scripts).
+
 ## Coordinate convention
 
 P1-P4 name the jig station, numbered clockwise from the table's top-left (P1

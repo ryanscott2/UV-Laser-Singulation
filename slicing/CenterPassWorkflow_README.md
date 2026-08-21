@@ -1,8 +1,10 @@
 # Center-pass KLayout job
 
 This makes one centered laser-field job. The dedicated center-pass Fusion jig was
-retired on 2026-08-11; center the wafer with the four-position pin-grid jig at its
-P0 position instead (see [`../fusion/FusionPinGridJig`](../fusion/FusionPinGridJig)).
+retired on 2026-08-11, and the four-pin-grid jig that replaced it was itself removed
+2026-08-21. Seat the wafer in the current edge-datum jig
+([`../fusion/AlignerEdgePLA`](../fusion/AlignerEdgePLA) / [`../fusion/AlignerEdgeAL`](../fusion/AlignerEdgeAL)),
+whose nest is already centered on the field.
 
 ## Geometry assumption
 
@@ -47,8 +49,8 @@ plus a text log.
 
 ## Physical sequence
 
-1. Mount the pin-grid jig and seat the wafer at its P0 (center) position: primary
-   flat forward, left edge seated against the X-datum pin (see ../fusion/FusionPinGridJig).
+1. Seat the wafer in the current edge-datum jig (primary flat forward, seated against
+   the front/left datums; see ../fusion/AlignerEdgePLA / ../fusion/AlignerEdgeAL).
 2. Confirm the wafer is flat, clean, and fully seated before focusing.
 3. Run a low-power alignment target first; placement calibration lives in the
    pin-grid jig / splitter offset, not here.
