@@ -27,11 +27,12 @@ STOP_FLAG = HERE / ".dice_stop"        # UI writes this on STOP; dice_wafer poll
 ROOT_MEMO = HERE / ".dice_ui_root"     # remembers the last DXF folder
 DEFAULT_PASSES = 175
 CREATE_NEW_CONSOLE = 0x00000010
-# Usable stage window (absolute um) after the 2026-08 re-datum: X[16236,138529] Y[-52210,0]
-# (hard stops X[16236,143529] Y[-57210,0] with 5 mm trimmed on +X and -Y). Dicing has no
-# calibration file, so it's hardcoded here; keep it in sync with the exposure
-# exposure_calibration.json reachable_um. Home -> window center, Extract -> +X/+Y corner.
-REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -52210, "y_max": 0}
+# Usable stage window (absolute um) after the 2026-08 re-datum: X[16236,138529] Y[-38140,0].
+# The -Y floor is -38140 (NOT the -57210 hard stop): the stage hits a PIPE at the back past
+# that, so clamping there protects the hardware and improves alignment. +X hard stop 143529
+# trimmed 5 mm. Dicing has no calibration file, so it's hardcoded here; keep it in sync with the
+# exposure exposure_calibration.json reachable_um. Home -> window center, Extract -> +X/+Y corner.
+REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -38140, "y_max": 0}
 
 
 def is_set_dir(p: Path) -> bool:

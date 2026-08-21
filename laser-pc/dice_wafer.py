@@ -52,7 +52,9 @@ DEFAULT_PASSES = 175
 # dice_ui.REACHABLE_UM and the exposure exposure_calibration.json reachable_um. Used to reject
 # stale / out-of-datum taught stations BEFORE any motion (a stale old-datum P1 has negative X,
 # unreachable on this datum -> the stage silently fails to move X).
-REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -52210, "y_max": 0}
+# -Y floor is -38140 (NOT the -57210 hard stop): the stage hits a PIPE at the back past that,
+# so clamping here protects the hardware and improves alignment. Keep in sync across repos + optiscan.
+REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -38140, "y_max": 0}
 DEFAULT_PASSES_FILE = Path(__file__).resolve().parent / "dice_passes.csv"
 DEFAULT_COUNTDOWN_S = 10
 
@@ -627,25 +629,30 @@ def main() -> int:
             return 1
         eta.start()
         for idx, (label, pos, wlj) in enumerate(plan):
-            # Optional re-datum (RIS) to stop the open-loop stage accumulating drift across
-            # stations: 'move' before every station, 'row' before the first only (the plan is
-            # a flat P1..P4 list -- no row grouping). RIS drives to the hard limits (path must
-            # be clear); a failure is a controlled stop -- never fire on an unverified datum.
-            if args.redatum == "move" or (args.redatum == "row" and idx == 0):
-                print("[redatum] RIS before %s (restoring index at the hard limits) ..." % label)
+            # Re-datum cadence (RIS) to stop the open-loop stage accumulating drift: 'move' at
+            # every station, 'row' at the first only (the plan is a flat P1..P4 list). MOVE
+            # FIRST, then RIS, then re-command the target: RIS drives to the hard limits and
+            # RETURNS to its pre-RIS position (the target we just moved to), re-referencing the
+            # datum there, so the final goto is a short, consistent datum->target correction in
+            # the freshly restored frame. RIS drives full travel (path must be clear); a failure
+            # is a controlled stop -- never fire on an unverified datum.
+            do_ris = (args.redatum == "move" or (args.redatum == "row" and idx == 0))
+            print("\n[%s] move -> X=%d Y=%d" % (label, pos["x"], pos["y"]))
+            move_t0 = time.time()
+            stage.goto(pos["x"], pos["y"])                 # move to the target FIRST
+            if do_ris:
+                print("[redatum] RIS at %s (restoring index at the hard limits) ..." % label)
                 try:
                     rx, ry = stage.redatum()
                 except (RuntimeError, TimeoutError, ValueError) as exc:
-                    print("*** re-datum (RIS) FAILED before %s: %s -- controlled stop, "
+                    print("*** re-datum (RIS) FAILED at %s: %s -- controlled stop, "
                           "not firing. ***" % (label, exc))
                     break
                 print("[redatum] datum restored; stage reads X=%d Y=%d" % (rx, ry))
                 if abort():
-                    print("aborted after re-datum, before moving to %s." % label)
+                    print("aborted after re-datum, before re-seating %s." % label)
                     break
-            print("\n[%s] move -> X=%d Y=%d" % (label, pos["x"], pos["y"]))
-            move_t0 = time.time()
-            stage.goto(pos["x"], pos["y"])
+                stage.goto(pos["x"], pos["y"])             # re-seat in the fresh datum frame
             if args.focus and "z" in pos:
                 stage.goto_z(pos["z"])
             eta.record_move(time.time() - move_t0)
