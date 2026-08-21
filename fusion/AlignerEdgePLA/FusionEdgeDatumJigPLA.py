@@ -14,9 +14,9 @@ grid. It is located by an L against the table's FRONT-LEFT corner:
   * A rear Kapton-tape tab (spider-arm width) off the back of the hub, at the rear tape
     gap, gives a flat pad to anchor the wafer hold-down tape.
 
-Wafer sits on the FIELD center: table (92.45, 110.09), measured from the datum
-corner (confirmed 2026-08-14; supersedes the 101.78/127.80 that was logged in
-laser-pc/optiscan_positions.json -- reconcile that file). Slicer GLOBAL offset stays 0.
+Wafer nest center: table (92.45, 100.33) measured from the datum corner -- the field
+center is (92.45, 110.09), but NEST_CENTER_Y bakes in a 9.76 mm forward shim (see below)
+so the wafer seats where the shimmed jig was calibrated. Slicer GLOBAL offset stays 0.
 
 Nest (hub, 2 mm wall, primary-flat + 9:30 X-pin datum, pickup / rear tape gaps) and the
 bore style are copied verbatim from FusionPinGridJig.py.
@@ -36,9 +36,13 @@ import adsk.fusion
 # USER-EDITABLE DIMENSIONS (millimeters). Origin = table front-left corner.
 # =============================================================================
 
-# Wafer nest center = laser field center in table coords (from the 08-14 stage cal).
+# Wafer nest center in table coords (X from the 08-14 stage cal). NEST_CENTER_Y has the
+# 9.76 mm forward shim BAKED IN 2026-08-21 -- the front / major-flat-side arm is shortened
+# 9.76 mm (the front foot is the Y datum, fixed to the table edge, so the nest moves toward
+# it): 110.090 -> 100.330. The wafer now seats where the shimmed jig was calibrated
+# (definitive reference 84355,-19056; software offsets zero). X unchanged.
 NEST_CENTER_X = 92.450
-NEST_CENTER_Y = 110.090
+NEST_CENTER_Y = 100.330
 
 # Nest + base (copied from FusionPinGridJig.py so the nest is identical).
 BASE_THICKNESS = 8.000
