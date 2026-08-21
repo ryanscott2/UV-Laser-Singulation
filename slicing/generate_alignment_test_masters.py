@@ -20,8 +20,10 @@ grid):
                           the major flat and the other three mirror it at the same
                           radius, an even radial spread about the wafer centre.
 
-Variants used so far (each writes the two production filenames, so build/validate
-work unchanged; then `build_pin_grid_set.py --masters <out-dir> --set <set>`):
+Writes ONE combined cut master (layer 0); build it with
+`build_pin_grid_set.py --combined <out-dir>/100mm_wafer_10x30mm_cuts.dxf --cut-layer 0 --set <set>`,
+which groups the cuts by ACTUAL pass angle into per-angle station files. Variants used so far
+(generator flags unchanged; only the build command moved from --masters to --combined):
 
   v1  --width-um 50 --length-mm 5  --placement symmetric --approach-um 0 --marker
   v2  --width-um 20 --length-mm 10 --placement flat      --approach-um 2000
@@ -31,6 +33,13 @@ work unchanged; then `build_pin_grid_set.py --masters <out-dir> --set <set>`):
   v1  --width-um 50 --length-mm 10 --placement radial --mark-from-flat-um 3000
   v2  --width-um 50 --length-mm 10 --placement radial --mark-from-flat-um 4500
   v3  --width-um 50 --length-mm 10 --placement radial --mark-from-flat-um 6000
+
+  082126 radial-45 center-finding set (all four marks rotated 45 deg onto the ROUND edge,
+  referenced off the edge, stepping 1.5 mm inward). Four round-edge reads -> opposite pairs
+  cancel the wafer-diameter term, so the pattern center solves without the +/-0.1 mm floor:
+  v1  --width-um 50 --length-mm 10 --placement radial --rotate-deg 45 --from-edge-um 5000
+  v2  --width-um 50 --length-mm 10 --placement radial --rotate-deg 45 --from-edge-um 6500
+  v3  --width-um 50 --length-mm 10 --placement radial --rotate-deg 45 --from-edge-um 8000
 
 Defaults reproduce v2.
 """
@@ -63,6 +72,16 @@ MARK_FROM_FLAT_UM = 5_000.0
 EDGE_APPROACH_UM = 2_000.0
 PLACEMENT = "flat"  # "flat" (v2) or "symmetric" (v1/v3); see --placement
 
+# Radial placement can reference its circle off the ROUND edge instead of the major
+# flat: radius = WAFER_RADIUS_UM - FROM_EDGE_UM (None = use MARK_FROM_FLAT_UM off the
+# flat, the original behaviour). ROTATE_DEG spins the whole four-mark pattern about the
+# wafer origin (positions AND the tangential line orientation rotate together, so the
+# marks stay tangent to the circle). ROTATE_DEG=45 with radial placement lands all four
+# marks on the ROUND edge (the flats sit on the -X/-Y axes), giving four round-edge reads
+# whose opposite pairs cancel the wafer-diameter term when solving for the pattern center.
+FROM_EDGE_UM = None
+ROTATE_DEG = 0.0
+
 # The centered plus is dropped for v2; set True to bring it back (a plus at the
 # origin that reads the four-way registration in one place). Kept in the Horizontal
 # master when enabled.
@@ -75,7 +94,11 @@ OUTPUT_LAYER = 0
 OUTPUT_DATATYPE = 0
 OUTPUT_LAYER_NAME = "0"
 DXF_POLYGON_MODE = 1
-MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
+# All marks now go into ONE combined cut master (layer 0); build it with
+# build_pin_grid_set.py --combined, which groups cuts by their ACTUAL pass angle. This
+# replaces the old pre-rotation Horizontal/Vertical master pair, which mislabeled rotated
+# (diagonal) marks under the angle-named pipeline.
+COMBINED_STEM = "100mm_wafer_10x30mm_cuts"
 
 
 def to_dbu(layout, value_um: float) -> int:
@@ -114,7 +137,8 @@ def seam_marks() -> list[tuple[float, float, str]]:
         # MARK_FROM_FLAT_UM inside the major flat and the other three mirror it at the
         # same radius, an even radial spread that crosses both seams twice. best_x /
         # best_y (cell-centre placement) are unused here on purpose.
-        radius = primary_depth - MARK_FROM_FLAT_UM
+        radius = (WAFER_RADIUS_UM - FROM_EDGE_UM if FROM_EDGE_UM is not None
+                  else primary_depth - MARK_FROM_FLAT_UM)
         marks.append((+radius, 0.0, "Vertical"))    # +X on the y = 0 seam
         marks.append((-radius, 0.0, "Vertical"))    # -X on the y = 0 seam
         marks.append((0.0, +radius, "Horizontal"))  # +Y on the x = 0 seam
@@ -207,6 +231,7 @@ def write_dxf(path: Path, layout, region, cell_name: str) -> None:
 def main() -> None:
     global OUTPUT_DIR, CUT_WIDTH_UM, MARK_LENGTH_UM, PLACEMENT
     global EDGE_APPROACH_UM, MARK_FROM_FLAT_UM, INCLUDE_CENTERED_MARKER
+    global FROM_EDGE_UM, ROTATE_DEG
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out-dir", type=Path, default=OUTPUT_DIR,
@@ -224,6 +249,13 @@ def main() -> None:
                         help="signed offset from the cell centre; + outboard, - inboard")
     parser.add_argument("--mark-from-flat-um", type=float, default=MARK_FROM_FLAT_UM,
                         help="distance from the flat for the flat-facing marks (flat placement)")
+    parser.add_argument("--from-edge-um", type=float, default=None,
+                        help="radial placement: reference the circle off the ROUND edge instead of "
+                             "the major flat -- radius = wafer_radius - from_edge_um (overrides "
+                             "--mark-from-flat-um for radial)")
+    parser.add_argument("--rotate-deg", type=float, default=0.0,
+                        help="rotate the whole mark pattern about the wafer origin (deg CCW); 45 with "
+                             "radial placement puts all four marks on the round edge, tangent to the circle")
     parser.add_argument("--marker", action="store_true",
                         help="add the centered plus marker")
     args = parser.parse_args()
@@ -234,6 +266,8 @@ def main() -> None:
     PLACEMENT = args.placement
     EDGE_APPROACH_UM = args.approach_um
     MARK_FROM_FLAT_UM = args.mark_from_flat_um
+    FROM_EDGE_UM = args.from_edge_um
+    ROTATE_DEG = args.rotate_deg
     INCLUDE_CENTERED_MARKER = args.marker
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -244,23 +278,33 @@ def main() -> None:
         seam = "y = 0" if kind == "Vertical" else "x = 0"
         print(f"  ({x/1000:+7.1f},{y/1000:+7.1f}) mm   {kind:10} line across the {seam} seam")
 
+    # One combined cut master (all marks, layer 0). build_pin_grid_set --combined groups
+    # by ACTUAL angle, so rotated/diagonal marks get correctly-named per-angle files.
+    layout = pya.Layout()
+    layout.dbu = 0.001
+    region = pya.Region()
     for orientation in ("Horizontal", "Vertical"):
-        layout = pya.Layout()
-        layout.dbu = 0.001
-        region = pya.Region()
         for box in mark_boxes(layout, orientation):
             region.insert(box)
-        if INCLUDE_CENTERED_MARKER and orientation == MARKER_ORIENTATION:
-            region += centered_marker(layout)
-        region.merge()
-        path = OUTPUT_DIR / f"{MASTER_STEM.format(orientation=orientation)}.dxf"
-        write_dxf(path, layout, region, f"SeamTest_{orientation}")
-        to_mm = layout.dbu / 1000.0
-        print(f"\n{orientation}: {region.count()} marks -> {path}")
-        for poly in sorted(region.each(), key=lambda p: (p.bbox().bottom, p.bbox().left)):
-            b = poly.bbox()
-            print(f"    x {b.left*to_mm:8.3f} ..{b.right*to_mm:8.3f} mm   "
-                  f"y {b.bottom*to_mm:8.3f} ..{b.top*to_mm:8.3f} mm")
+    if INCLUDE_CENTERED_MARKER:
+        region += centered_marker(layout)
+    if ROTATE_DEG:
+        # Rotate the axis-aligned boxes about the wafer origin -> rotated polygons.
+        # Positions and orientations spin together, so radial marks stay tangent.
+        region.transform(pya.ICplxTrans(1.0, float(ROTATE_DEG), False, 0, 0))
+    region.merge()
+    path = OUTPUT_DIR / f"{COMBINED_STEM}.dxf"
+    write_dxf(path, layout, region, "CutLines")
+    to_mm = layout.dbu / 1000.0
+    print(f"\nCombined cut master: {region.count()} marks -> {path}")
+    print(f"  build: python slicing/build_pin_grid_set.py --combined {path} --cut-layer 0 "
+          f"--set output/DXFs/<date>_<name> \\\n"
+          f"         --window-center-x 25400 --window-center-y 18000 --field 66000 "
+          f"--clip-mode full_window --global-x 0 --global-y 0")
+    for poly in sorted(region.each(), key=lambda p: (p.bbox().bottom, p.bbox().left)):
+        b = poly.bbox()
+        print(f"    x {b.left*to_mm:8.3f} ..{b.right*to_mm:8.3f} mm   "
+              f"y {b.bottom*to_mm:8.3f} ..{b.top*to_mm:8.3f} mm")
 
 
 if __name__ == "__main__":

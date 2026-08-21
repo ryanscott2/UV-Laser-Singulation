@@ -149,11 +149,13 @@ dxf/100mm_10x30mm_Masters/          slicing/generate_100mm_10x30mm_masters.py
         |  driven by slicing/build_pin_grid_set.py
         v
 output/DXFs/<set>/P1..P4/           four 51 mm windows in a 54 mm declared field,
-  Horizontal.dxf  Vertical.dxf       each centered on (0,0), 0.2 mm stitch overlap
+  +0.0.dxf +90.0.dxf ...             one DXF per pass angle, named by the angle
+                                     (legacy H/V = +0.0/+90.0), each centered on
+                                     (0,0), 0.2 mm stitch overlap
 ```
 
-Horizontal and vertical cuts are separate files for the same jig position. Run
-both without moving the jig or the wafer between them.
+Each pass angle is a separate file for the same jig position, named by its angle.
+Run them all without moving the jig or the wafer between them.
 
 ### Clip, then translate
 
@@ -256,30 +258,28 @@ per-file centering irrelevant.
 
 | Script | Jig |
 | --- | --- |
-| [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig; P0 also centers the wafer. Current. |
-| [`fusion/FusionSingleJig`](fusion/FusionSingleJig) | Earlier single-position indexer. |
+| [`fusion/AlignerEdgePLA`](fusion/AlignerEdgePLA) / [`fusion/AlignerEdgeAL`](fusion/AlignerEdgeAL) | Current edge-datum wafer jig: PLA print and machined-aluminium spider. |
 
-The pin-grid jig is one physical plate, moved between table-hole positions: the four
-stations `P1`-`P4` and the centered `P0`. It has **four** locating pins on the corners of
-a `101.600 mm` square, and a pickup tab centered on the left and right edges:
-`10 mm` out by `24 mm` long, spanning z `2` to `6 mm` so there is a `2 mm` undercut
-to hook under when lifting the plate off its pins. The base is `3 mm` thick. It carries
-**four** raised `0.500 mm` engravings: the title `ALIGNER` and the centering position
-`P0` at top-left; the `P1`-`P4` station map (one hole per station) at top-right;
-`ALIGNMENT PIN` at front-left, naming the outer pin nearest that corner, which is the
-pin every engraved coordinate refers to; and `C1=LEFT R1=FRONT` at front-right, so the
-counting convention survives at the machine.
+The edge-datum jig is a single plate located by an **L against the table's front-left corner** —
+a left-edge datum bar (X + yaw) and a front-edge datum foot (Y), contacted by set screws
+(aluminium) or small nubs (PLA); a rubber-band anchor on a press-fit rod preloads it up-and-right
+into those datums. Unlike the retired pin-grid jig it does **not** move between table holes — it
+stays pinned and the OptiScan stage indexes the wafer under the fixed field. The wafer nest center
+sits at table `(92.45, 100.33) mm` (the `9.76 mm` forward shim is baked into `NEST_CENTER_Y`). Full
+dimensions, tolerances, and the hole map are on the aluminium drawing,
+[`edge_datum_wafer_jig_al_DRAWING.pdf`](fusion/AlignerEdgeAL/edge_datum_wafer_jig_al_DRAWING.pdf).
+
+The earlier four-pin-grid and single-position jigs (`AlignerPLA` / `AlignerAL` / `AlignerSLA`,
+`single_jig_wafer_indexer.scad`) were removed 2026-08-21 — see git history if you need them.
 
 To regenerate a jig: open Fusion, press **Shift+S**, on the Scripts tab click
 **+** and select the script's folder, then Run. Each script writes its `.f3d` and
 `.step` beside itself and a high-quality binary `.stl` into
 [`fusion/print-files`](fusion/print-files).
 
-Sliceable STLs are already committed. Print the pin-grid jigs with the 2 mm wafer
-platform upward; the downward pins need support blockers everywhere except beneath
-the pins. Verify pin fit on a coupon first: nominal radial clearance is `0.110 mm`
-against a measured `4.870 mm` thread minor diameter, and PLA shrinkage and thread
-crests both matter at that scale.
+Print the PLA jig with the wafer nest upward (supports off the nest floor); machine the aluminium
+spider from the laser/waterjet profile per its drawing. The committed STLs are **stale after the
+9.76 mm shim change** — regenerate from the scripts before printing.
 
 ## Slicing an arbitrary pattern
 
@@ -393,7 +393,7 @@ production set:
 
 | source | area at 2x dose | share of exposed area |
 | --- | ---: | ---: |
-| grid crossings, where `Horizontal.dxf` meets `Vertical.dxf` | `0.0700 mm2` in 28 spots of `50 x 50 um` | `0.14%` |
+| grid crossings, where the `+0.0.dxf` pass meets the `+90.0.dxf` pass | `0.0700 mm2` in 28 spots of `50 x 50 um` | `0.14%` |
 | seam overlap, where two neighbouring jobs both reach past `X=0` / `Y=0` | `0.4225 mm2` | `0.86%` |
 | total | `0.4925 mm2` of `49.1333 mm2` | `1.00%` |
 
@@ -442,14 +442,6 @@ Not everything checked in is reproducible from the current scripts. What is what
   reproduce those files, and their `validation_report.txt` metrics come from a
   checker that no longer exists in this repository. `slicing/validate_pin_grid_set.py`
   is the current one.
-- `fusion/FusionSingleJig` builds against the **corrected** measured zero cross:
-  it computes `EDGE_DERIVED_CENTER_Y` for reference but sets
-  `FIELD_CENTER_Y = MEASURED_ZERO_CROSS_Y = 109.350`. It is superseded by the
-  pin-grid jigs because it indexes off table edges rather than the hole grid, not
-  because its center is wrong.
-- `fusion/single_jig_wafer_indexer.scad` is an early OpenSCAD sketch of that same
-  single-position indexer, kept for reference. It is not generated by anything here
-  and is not the source of any committed STL; the Fusion script is authoritative.
 
 ## Figures
 
@@ -470,4 +462,4 @@ is labelled as such.
 - [Four-window splitter](slicing/KLayoutFourWindowSplitter_README.md) — every setting and the full window mapping
 - [Center-pass workflow](slicing/CenterPassWorkflow_README.md) — the single centered scoring job
 - [Generated job sets](output/README.md) — what each set is and which labeling it uses
-- [Pin-grid jig](fusion/FusionPinGridJig/README.md) — dimensions, tolerances, hole map
+- [Wafer jig](fusion/AlignerEdgeAL/edge_datum_wafer_jig_al_DRAWING.pdf) — the current edge-datum jig: dimensions, tolerances, hole map (aluminium drawing; PLA + AL generator scripts under `fusion/AlignerEdgePLA` / `fusion/AlignerEdgeAL`)

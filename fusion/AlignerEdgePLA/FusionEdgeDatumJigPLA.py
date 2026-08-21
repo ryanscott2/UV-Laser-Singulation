@@ -9,12 +9,14 @@ grid. It is located by an L against the table's FRONT-LEFT corner:
     exact-constraint seat; the rest of each lip is held clear so it cannot rock.
   * THREE arms carry those two datums to the nest hub (two arms to the left bar, one
     to the front foot).
-  * Preload = a rubber band from the anchor bolt on the plate to a pin in a table hole
+  * Preload = a rubber band from the press-fit anchor rod on the plate to a pin in a table hole
     up-and-right of the nest; its tension pulls the plate up/right, seating both edges.
+  * A rear Kapton-tape tab (spider-arm width) off the back of the hub, at the rear tape
+    gap, gives a flat pad to anchor the wafer hold-down tape.
 
-Wafer sits on the FIELD center: table (92.45, 110.09), measured from the datum
-corner (confirmed 2026-08-14; supersedes the 101.78/127.80 that was logged in
-laser-pc/optiscan_positions.json -- reconcile that file). Slicer GLOBAL offset stays 0.
+Wafer nest center: table (92.45, 100.33) measured from the datum corner -- the field
+center is (92.45, 110.09), but NEST_CENTER_Y bakes in a 9.76 mm forward shim (see below)
+so the wafer seats where the shimmed jig was calibrated. Slicer GLOBAL offset stays 0.
 
 Nest (hub, 2 mm wall, primary-flat + 9:30 X-pin datum, pickup / rear tape gaps) and the
 bore style are copied verbatim from FusionPinGridJig.py.
@@ -34,9 +36,13 @@ import adsk.fusion
 # USER-EDITABLE DIMENSIONS (millimeters). Origin = table front-left corner.
 # =============================================================================
 
-# Wafer nest center = laser field center in table coords (from the 08-14 stage cal).
+# Wafer nest center in table coords (X from the 08-14 stage cal). NEST_CENTER_Y has the
+# 9.76 mm forward shim BAKED IN 2026-08-21 -- the front / major-flat-side arm is shortened
+# 9.76 mm (the front foot is the Y datum, fixed to the table edge, so the nest moves toward
+# it): 110.090 -> 100.330. The wafer now seats where the shimmed jig was calibrated
+# (definitive reference 84355,-19056; software offsets zero). X unchanged.
 NEST_CENTER_X = 92.450
-NEST_CENTER_Y = 110.090
+NEST_CENTER_Y = 100.330
 
 # Nest + base (copied from FusionPinGridJig.py so the nest is identical).
 BASE_THICKNESS = 8.000
@@ -52,6 +58,11 @@ X_PIN_ANGLE_DEG = 165.0
 X_PIN_DIAMETER = 8.000
 PICKUP_GAP_WIDTH = 15.000
 REAR_TAPE_GAP_WIDTH = 15.000
+# Kapton-tape landing tab off the REAR of the hub (opposite the primary/major flat, at
+# the rear tape gap). Its width is the spider-arm width (ARM_WIDTH); it sticks this far
+# past the hub edge to give a flat pad at wafer-seat level for anchoring the hold-down
+# tape that reaches through the rear gap onto the wafer.
+REAR_TAB_PROTRUSION = 10.000
 
 # Spider arms + fillets (a touch wider than the pin-grid jig for the longer reach).
 ARM_WIDTH = 18.000
@@ -77,13 +88,18 @@ NUB_LEN = 5.000
 LEFT_NUB_Y = (58.000, 162.000)   # two left-edge nubs, ~104 mm apart for a stiff yaw baseline
 FRONT_NUB_X = 92.000             # one front-edge nub, under the nest
 
-# Rubber-band anchor bolt: a short stub arm + boss + bore, up-and-right of the nest so
-# the band to the table pin pulls the plate up/right into the corner datums.
+# Rubber-band anchor: a short stub arm + boss + bore up-and-right of the nest, holding a
+# PRESS-FIT 3/16 in steel rod that the band loops over; the band to the table pin pulls
+# the plate up/right into the corner datums. Bore matches the pin-grid PLA jig's dowel
+# bore (4.850 mm over the 4.7625 mm rod): FDM prints small holes undersize, so this gives
+# a snug press/slip fit retained with epoxy rather than a hard press that splits the wall.
 ANCHOR_X = 140.000
 ANCHOR_Y = 152.000
 ANCHOR_ARM_WIDTH = 12.000
 ANCHOR_BOSS_DIAMETER = 14.000
-BOLT_BORE_DIAMETER = 4.200     # tap for M4 (same bore approach as the dowel bores)
+ANCHOR_ROD_DIAMETER = 4.7625       # 3/16 in ground steel anchor rod
+ANCHOR_ROD_BORE_DIAMETER = 4.850   # press-fit bore, matches FusionPinGridJig.py DOWEL_HOLE_DIAMETER
+ANCHOR_ROD_PROTRUSION = 15.000     # rod stands 1.5 cm proud; cut it to base thickness + this
 
 # Maker's mark.
 NAME_TEXT = "RYAN SCOTT"
@@ -359,6 +375,10 @@ def build_model(design):
         ("sidewallHeight", SIDEWALL_HEIGHT, "Nest lip height above platform"),
         ("lipOverhang", LIP_OVERHANG, "Base lap past each table edge"),
         ("lipDrop", LIP_DROP, "Datum downstand depth below the base"),
+        ("anchorRodDiameter", ANCHOR_ROD_DIAMETER, "3/16 in steel anchor rod diameter"),
+        ("anchorRodBoreDiameter", ANCHOR_ROD_BORE_DIAMETER, "Press-fit anchor-rod bore"),
+        ("anchorRodProtrusion", ANCHOR_ROD_PROTRUSION, "Anchor rod stand-proud height"),
+        ("rearTabProtrusion", REAR_TAB_PROTRUSION, "Rear Kapton-tape tab reach past hub edge"),
     ):
         add_parameter(design, name, value, comment)
 
@@ -423,6 +443,28 @@ def build_model(design):
         BASE_THICKNESS,
         adsk.fusion.FeatureOperations.JoinFeatureOperation,
         "Rubber-Band Anchor Boss",
+    )
+
+    # --- Rear Kapton-tape tab: a small base-level tongue off the rear of the hub, at the
+    # rear tape gap (opposite the primary/major flat, which is at the front). Same width
+    # as the spider arms (ARM_WIDTH); its top sits at wafer-seat level so hold-down tape
+    # can stick to it and reach through the rear gap onto the wafer. Overlaps the hub so
+    # it joins solidly and sticks REAR_TAB_PROTRUSION past the hub edge. Added before the
+    # corner fillet so its outer corners round like the rest of the outline.
+    rear_tab_inner_y = NEST_CENTER_Y + hub_radius - 6.0
+    rear_tab_outer_y = NEST_CENTER_Y + hub_radius + REAR_TAB_PROTRUSION
+    extrude_polygon(
+        component,
+        xy_plane,
+        rectangle_points(
+            NEST_CENTER_X - ARM_WIDTH / 2.0,
+            rear_tab_inner_y,
+            ARM_WIDTH,
+            rear_tab_outer_y - rear_tab_inner_y,
+        ),
+        BASE_THICKNESS,
+        adsk.fusion.FeatureOperations.JoinFeatureOperation,
+        "Rear Kapton-Tape Tab",
     )
 
     # Round the in-plane outline corners.
@@ -569,14 +611,17 @@ def build_model(design):
         "Front Datum Nub (touches Y 0)",
     )
 
-    # --- Rubber-band bolt bore through the anchor boss (same bore approach as the
-    # dowel bores: circle on the top plane, cut straight down through the base).
+    # --- Rubber-band anchor ROD BORE through the anchor boss: a press-fit bore for a
+    # 3/16 in steel rod (the rod stands ANCHOR_ROD_PROTRUSION proud; not modeled, same as
+    # the dowels in FusionPinGridJig.py). Bore is 4.850 mm over the 4.7625 mm rod so the
+    # FDM print lands on a snug press/slip fit; retain with epoxy. Cut straight down
+    # through the full base from the top plane, same method as the dowel bores.
     extrude_profile(
         component,
-        circle_sketch(component, wall_plane, ANCHOR_X, ANCHOR_Y, BOLT_BORE_DIAMETER, "RB Bolt Bore Sketch"),
+        circle_sketch(component, wall_plane, ANCHOR_X, ANCHOR_Y, ANCHOR_ROD_BORE_DIAMETER, "RB Anchor Rod Bore Sketch"),
         -BASE_THICKNESS,
         adsk.fusion.FeatureOperations.CutFeatureOperation,
-        "Rubber-Band Bolt Bore",
+        "Rubber-Band Anchor Rod Bore (3/16 in press-fit)",
     )
 
     # --- Maker's name along the rear-left arm.

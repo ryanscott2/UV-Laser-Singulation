@@ -13,11 +13,11 @@ fixed and field-centered, so indexing the jig moves the wafer under the beam.
 4. **Mode:** Four windows. **Cut width:** 50 µm. Set a **wafer edge bead** (mm)
    only if the GDS runs cuts to the wafer edge (the standard masters already inset
    2 mm).
-5. **Run.** The UI bakes the current calibration offset automatically (confirm it
-   matches the jig in use — see `CALIBRATION_AND_SLIDING_NEST_NOTES.md`; the
-   tightened-nest recal is pending) and writes four field-centered jobs:
+5. **Run.** The UI writes four field-centered jobs:
    `P1_jig_top_left.dxf`, `P2_jig_top_right.dxf`, `P3_jig_bottom_right.dxf`,
-   `P4_jig_bottom_left.dxf`, plus a manifest and log.
+   `P4_jig_bottom_left.dxf`, plus a manifest and log. The slicer applies no
+   calibration offset (`GLOBAL_*_OFFSET_UM = 0`); calibration lives in the taught
+   stage stations — see `CALIBRATION_AND_SLIDING_NEST_NOTES.md`.
 
 Each station DXF holds both horizontal and vertical cuts. To get them as
 ready-split files, use `python slicing/build_pin_grid_set.py --combined <gds>
@@ -40,15 +40,16 @@ ready-split files, use `python slicing/build_pin_grid_set.py --combined <gds>
 
 For each station, import its DXF and set:
 
-- **Fill:** parallel (hatch), **0.01 mm** spacing — **0°** for horizontal cuts,
-  **90°** for vertical cuts.
+- **Fill:** parallel (hatch), **0.01 mm** spacing — set the fill angle to the pass
+  angle named by the DXF filename (e.g. `+45.0.dxf` → 45°; legacy H/V → 0° / 90°).
 - **Mark speed:** 400 mm/s. **Passes:** 1 (mark once). **Loop the job 175×.**
 - **Z / table height:** **0.463 in + jig base thickness (12.500 mm)** ≈ 24.26 mm.
 - **Auto-centering OFF** — the DXF origin is the field center.
 
-Run **P1 → P2 → P3 → P4 in order.** Do both the horizontal (0°) and vertical (90°)
-fills at each station before moving. Between stations, lift the jig and re-seat all
-four dowels at the next grid position; the taped wafer rides with it — do not
+Run **P1 → P2 → P3 → P4 in order.** Do every pass-angle fill at each station before
+moving. The current flow is stage-indexed: the jig stays pinned in place and
+`dice_wafer.py` steps the OptiScan stage P1 → P4 in one armed run, moving the wafer
+under the fixed field — do not lift or re-seat the jig between stations, and do not
 disturb the tape.
 
 | Pass | Front-left (alignment) pin hole | Table position (from left, front) | Exposes |

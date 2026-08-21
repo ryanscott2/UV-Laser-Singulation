@@ -1,13 +1,28 @@
 {
   "port": "COM5",
   "units": "microns",
-  "reference_center": { "x": 5590, "y": -18450 },
-  "stations": {
-    "P1": { "x": -19810, "y": -43850 },
-    "P2": { "x": 30990, "y": -43850 },
-    "P3": { "x": 30990, "y": 6950 },
-    "P4": { "x": -19810, "y": 6950 }
+  "reference_center": {
+    "x": 84355,
+    "y": -19056
   },
-  "derivation": "2026-08-14: empirical axis directions from the stage itself -- +X_stage = RIGHT (table +X) and +Y_stage = FRONT (table -Y); BOTH inverted from the original '+x left,+y up' assumption, so X and Y are each negated vs the first geometric guess. Jig moved forward 1 pin, bottom-left at C2/R3: wafer center table(96.19,109.35), field center table(101.78,127.80). Verified each station lands on its DXF quadrant: P1=bottom-right, P2=bottom-left, P3=top-left, P4=top-right.",
-  "notes": "Jig at C2/R3. P2/P3 now need X=+30990 (earlier runs only reached +19810); X travel is 126 mm so it should be fine, but if a move trips at an X limit we shift the jig one column. Verify tolerance 3 um. Slicer global offset reset to 0 for the stage method."
+  "stations": {
+    "P1": {
+      "x": 58955,
+      "y": -37056
+    },
+    "P2": {
+      "x": 109755,
+      "y": -37056
+    },
+    "P3": {
+      "x": 109755,
+      "y": -1056
+    },
+    "P4": {
+      "x": 58955,
+      "y": -1056
+    }
+  },
+  "derivation": "2026-08-21 082126 radial-45 center solve. 0 deg nest (front+left; 182 mm on front, 157 mm on left), shimmed ~9.5 mm forward. Calibration lives in the TAUGHT STATIONS (slicer GLOBAL offset = 0). Stations = reference +/- (25400 X, 18000 Y) via stage_X=ref_x-wafer_X (backside X mirror), stage_Y=ref_y+wafer_Y. The four diagonal marks (r=45, on the round edge) read 4.87/4.65/5.08/5.08 mm (TR/TL/BL/BR) to the edge; opposite-pair differences give pattern-center offset cx=-0.078, cy=+0.226 mm (wafer diameter nonuniformity 0.11 mm cancels out). Applied ref_X += cx, ref_Y -= cy = (-78, -226) um to the (84433,-18830) baseline -> (84355,-19056). High confidence (cy ~20 sigma, cx ~7 sigma; +/-~15 um read scatter). This supersedes the deferred v4 (84907,-19254) 2-round-edge estimate. CONFIRMED DEFINITIVE by v2 (r=43.5, 6.47/6.50/6.52/6.50 mm): residual center offset only (+18,-18) um, within read scatter -- no further correction. Definitive for singulation AND exposure. On-wafer placement repeats sub-micron.",
+  "notes": "P1 top_left, P2 top_right, P3 bottom_right, P4 bottom_left (jig label; exposes opposite quadrant). Full-range +/-18 mm Y tiling fits with ~1 mm margin off both the pipe (-38140) and the front (0). DXFs: build with --window-center-y 18000 --field 66000 --clip-mode full_window --global 0."
 }

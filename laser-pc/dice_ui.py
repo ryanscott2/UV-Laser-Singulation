@@ -27,6 +27,12 @@ STOP_FLAG = HERE / ".dice_stop"        # UI writes this on STOP; dice_wafer poll
 ROOT_MEMO = HERE / ".dice_ui_root"     # remembers the last DXF folder
 DEFAULT_PASSES = 175
 CREATE_NEW_CONSOLE = 0x00000010
+# Usable stage window (absolute um) after the 2026-08 re-datum: X[16236,138529] Y[-38140,0].
+# The -Y floor is -38140 (NOT the -57210 hard stop): the stage hits a PIPE at the back past
+# that, so clamping there protects the hardware and improves alignment. +X hard stop 143529
+# trimmed 5 mm. Dicing has no calibration file, so it's hardcoded here; keep it in sync with the
+# exposure exposure_calibration.json reachable_um. Home -> window center, Extract -> +X/+Y corner.
+REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -38140, "y_max": 0}
 
 
 def is_set_dir(p: Path) -> bool:
@@ -86,6 +92,14 @@ class App:
         ttk.Label(top, textvariable=self.eta_var, foreground="#2d7d46",
                   font=("Segoe UI", 9, "bold")).grid(row=4, column=1, sticky="w",
                                                       padx=4, pady=(6, 0))
+        ttk.Label(top, text="Re-datum (RIS):").grid(row=5, column=0, sticky="w", pady=(6, 0))
+        self.redatum_var = tk.StringVar(value="move")   # default ON (per-station) for consistent cuts
+        self.redatum_combo = ttk.Combobox(top, textvariable=self.redatum_var, state="readonly",
+                                          width=7, values=["off", "row", "move"])
+        self.redatum_combo.grid(row=5, column=1, sticky="w", padx=4, pady=(6, 0))
+        ttk.Label(top, text="(RIS before every station to hold alignment on the open-loop stage; "
+                            "keep the travel path clear; qualify switch repeatability first)",
+                  foreground="#666").grid(row=6, column=1, sticky="w", padx=4)
         top.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(root, padding=(8, 4))
@@ -211,6 +225,8 @@ class App:
         for b in self.buttons.values():
             b.config(state="disabled" if busy else "normal")
         self.passes_spin.config(state="disabled" if busy else "normal")
+        # readonly combobox re-enables to "readonly", not "normal" (else it turns editable)
+        self.redatum_combo.config(state="disabled" if busy else "readonly")
 
     def log(self, text):
         self.log_txt.configure(state="normal")
@@ -223,10 +239,18 @@ class App:
         self._run([OPTISCAN, "info"])
 
     def home(self):
-        self._run([OPTISCAN, "home", "--yes"])
+        """Send the stage to the CENTER of the usable window. Raw stage 0,0 is unreachable
+        on the re-datumed rig (left of the +X clamp), so Home parks at the window center."""
+        x = int(round((REACHABLE_UM["x_min"] + REACHABLE_UM["x_max"]) / 2))
+        y = int(round((REACHABLE_UM["y_min"] + REACHABLE_UM["y_max"]) / 2))
+        self.log("[home] -> window center X=%d Y=%d" % (x, y))
+        self._run([OPTISCAN, "goto", "--x", x, "--y", y, "--yes"])
 
     def extract(self):
-        self._run([OPTISCAN, "extract", "--yes"])
+        """Send the stage to the +X/+Y corner of the usable window (for load/unload)."""
+        x, y = REACHABLE_UM["x_max"], REACHABLE_UM["y_max"]
+        self.log("[extract] -> +X/+Y corner X=%d Y=%d" % (x, y))
+        self._run([OPTISCAN, "goto", "--x", x, "--y", y, "--yes"])
 
     def jog(self):
         # Keyboard jog needs a real console window (msvcrt), so open one.
@@ -249,7 +273,8 @@ class App:
         n = self._passes_value()
         if n is None:
             return
-        self._run([DICE, s, "--passes", n, "--yes", "--extract-after", "--stop-flag", STOP_FLAG])
+        self._run([DICE, s, "--passes", n, "--yes", "--extract-after",
+                   "--redatum", (self.redatum_var.get() or "off"), "--stop-flag", STOP_FLAG])
 
     def dice(self):
         s = self.selected_set()
@@ -266,7 +291,7 @@ class App:
             self.log("dice cancelled.")
             return
         self._run([DICE, s, "--arm", "--extract-after", "--yes", "--passes", n,
-                   "--stop-flag", STOP_FLAG])
+                   "--redatum", (self.redatum_var.get() or "off"), "--stop-flag", STOP_FLAG])
 
     def stop(self):
         try:

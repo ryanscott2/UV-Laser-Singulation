@@ -1,0 +1,5 @@
+folder,jig_row,jig_col,jig_station,exposed_wafer_area,field_center_x_wafer_mm,field_center_y_wafer_mm,engraved_outer_front_left_pin,outer_pin_columns,outer_pin_rows,pass_files
+P1,1,1,top_left,bottom_right,+25.400,-25.400,C1 R4,"1,5","4,8",+45.0.dxf
+P2,1,2,top_right,bottom_left,-25.400,-25.400,C3 R4,"3,7","4,8",-45.0.dxf
+P3,2,2,bottom_right,top_left,-25.400,+25.400,C3 R2,"3,7","2,6",+45.0.dxf
+P4,2,1,bottom_left,top_right,+25.400,+25.400,C1 R2,"1,5","2,6",-45.0.dxf

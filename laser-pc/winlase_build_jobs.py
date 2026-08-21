@@ -1,8 +1,10 @@
 """Build WinLase Pro jobs from a built pin-grid set: 4 jobs per wafer.
 
-For each station folder (P1..P4) in a set, this creates ONE WinLase job holding both
-the station's `Horizontal.dxf` (parallel fill @ 0 deg) and `Vertical.dxf` (fill @ 90
-deg), positions each at its true field coordinates (the DXF origin is the field
+For each station folder (P1..P4) in a set, this creates ONE WinLase job holding one
+graphic per pass-angle DXF the folder carries (e.g. `+0.0.dxf`, `+45.0.dxf`), each
+filled parallel to its own pass angle (fill_angle_for reads the angle from the
+filename; legacy Horizontal/Vertical -> 0/90 deg), positions each at its true field
+coordinates (the DXF origin is the field
 center -- auto-centering stays effectively OFF), sets the 0.01 mm fill spacing, one
 pass, mark-fill on / outline off, and saves a `.wlj`. That replaces the per-file drag,
 drop, and settings the operator does 8 times a wafer with a single command.
@@ -21,7 +23,7 @@ signatures:
     NewVectorGraphic(0, objName, fileName) -> objIndex   (imports *.dxf directly)
     GetObjRect(objIndex) -> (Left, Top, Right, Bottom) in field bits
     OffsetObj(objIndex, dxBits, dyBits)
-    SetObjFill(objIndex, spacingBits, slope1Deg, slope2Deg, style)   style 0 = parallel
+    SetObjFill(objIndex, spacingBits, slope1Deg, slope2Deg, style)   style 0 = parallel, 2 = bidirectional
     SetObjMarkFillFlag(objIndex, 1) / SetObjMarkOutlineFlag(objIndex, 0)
     SetObjNumPasses(objIndex, 1)
     IsObjOutOfBounds(objIndex) -> flag
@@ -44,7 +46,7 @@ never downloads or marks.
 NOT automated (do these in the GUI, once per job, per OPERATING_PROCEDURE.md sec 3):
   - Job loop 175x  (a run-time execution setting, not stored geometry)
   - Z / table height, jig re-seat between stations, and the actual mark.
-This script sets the mark speed to 400 mm/s (the WinLase default profile is 1000 mm/s)
+This script sets the mark speed to 100 mm/s (the WinLase default profile is 1000 mm/s)
 by writing ONLY the speed field of Profile 0: it reads the profile, changes the speed,
 writes it back, then reads it again and verifies laser power and frequency are unchanged
 (aborting the build if not). It never sets laser power or frequency itself; those, the
@@ -62,19 +64,26 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 from pathlib import Path
 
 # --- Settings from OPERATING_PROCEDURE.md section 3 -------------------------------
 FILL_SPACING_MM = 0.01
-FILL_STYLE_PARALLEL = 0            # SetObjFill style: 0 = parallel lines
-FILL_ANGLE_DEG = {"Horizontal": 0, "Vertical": 90}   # 0 deg for H cuts, 90 for V
+# SetObjFill style: 0 = parallel/unidirectional, 2 = bidirectional. Dicing uses 0 (parallel):
+# reverted from bidirectional -- at the slow 100 mm/s cut, clean unidirectional lines are
+# preferred over the small bidirectional line-registration error.
+FILL_STYLE_PARALLEL = 0
+# The fill angle now follows each mark's own geometry (see cut_angle_deg): the hatch runs
+# ALONG the cut line, so a diagonal mark cuts smoothly. This per-orientation map is only the
+# fallback when a DXF's geometry can't be read (H cuts -> 0 deg, V -> 90). Range is [-90, +90].
+FILL_ANGLE_DEG = {"Horizontal": 0, "Vertical": 90}
 NUM_PASSES = 1
-MARK_SPEED_MM_S = 400.0            # written onto Profile 0 (WinLase default profile is 1000 mm/s);
+MARK_SPEED_MM_S = 100.0            # written onto Profile 0 (WinLase default is 1000; 100 = slow/deep cut);
 SPEED_TOLERANCE_MM_S = 10.0        # ONLY the speed is written -- power/frequency are verified unchanged
 JOB_LOOP_COUNT = 175               # informational only; the real loop count is per set (dice_passes.csv)
 
 # The laser profile the operator confirmed in WinLase (Vector Graphic -> Properties ->
-# Profile): power 100 %, frequency 30 kHz, mark speed 400 mm/s. The build never WRITES
+# Profile): power 100 %, frequency 30 kHz, mark speed 100 mm/s. The build never WRITES
 # power or frequency; it reads them back and REFUSES to save a job whose profile does
 # not match these -- so a job can never be saved with the wrong laser settings.
 EXPECTED_LASER_POWER_PCT = 100.0
@@ -82,7 +91,6 @@ EXPECTED_FREQ_KHZ = 30.0
 POWER_TOLERANCE_PCT = 0.5
 FREQ_TOLERANCE_KHZ = 0.1
 
-ORIENTATIONS = ("Horizontal", "Vertical")
 STATION_FOLDERS = ("P1", "P2", "P3", "P4")
 FIELD_BIT_LIMIT = 32768            # +/- field half in bits
 
@@ -124,6 +132,83 @@ def dxf_bounds_mm(path: Path) -> tuple[float, float, float, float]:
     return min(xs), min(ys), max(xs), max(ys)
 
 
+def _entity_polylines_mm(path: Path) -> list[list[tuple[float, float]]]:
+    """Vertices grouped per LWPOLYLINE in ENTITIES, so edges never span two marks."""
+    lines = [ln.strip() for ln in path.read_text(errors="strict").splitlines()]
+    pairs = list(zip(lines[0::2], lines[1::2]))
+    polys: list[list[tuple[float, float]]] = []
+    cur: list[tuple[float, float]] | None = None
+    pending_x: float | None = None
+    in_entities = False
+    for code, value in pairs:
+        if value == "ENTITIES":
+            in_entities = True
+            continue
+        if in_entities and value == "ENDSEC":
+            break
+        if not in_entities:
+            continue
+        if code == "0":                       # entity boundary
+            cur = [] if value == "LWPOLYLINE" else None
+            if cur is not None:
+                polys.append(cur)
+            pending_x = None
+        elif cur is not None and code == "10":
+            pending_x = float(value)
+        elif cur is not None and code == "20" and pending_x is not None:
+            cur.append((pending_x, float(value)))
+            pending_x = None
+    return [p for p in polys if p]
+
+
+def cut_angle_deg(path: Path) -> float | None:
+    """Fill/scan angle that runs ALONG the cut, from the longest edge in the file.
+
+    Each mark is a thin rectangle; its longest edge is the cut direction, so the fill
+    hatch should run at that angle (parallel = smooth cut, not cross-hatched). A line's
+    direction is defined mod 180, and WinLase fill angles are [-90, +90], so the result
+    is folded into that range (e.g. a 135 deg line -> -45). Returns None if empty.
+    Works for any orientation: horizontal -> 0, vertical -> 90, diagonal -> +/-45.
+    """
+    best_len = 0.0
+    best_ang = None
+    for verts in _entity_polylines_mm(path):
+        if len(verts) > 1 and verts[0] == verts[-1]:
+            verts = verts[:-1]                # drop a duplicated closing vertex
+        n = len(verts)
+        for i in range(n):
+            (x1, y1), (x2, y2) = verts[i], verts[(i + 1) % n]
+            d = (x2 - x1) ** 2 + (y2 - y1) ** 2
+            if d > best_len:
+                best_len = d
+                best_ang = math.degrees(math.atan2(y2 - y1, x2 - x1))
+    if best_ang is None:
+        return None
+    a = best_ang % 180.0                      # [0, 180)
+    if a > 90.0:
+        a -= 180.0                            # fold to (-90, +90]
+    return a
+
+
+def fill_angle_for(path: Path) -> float:
+    """Pass/fill angle for one DXF, in [-90, +90].
+
+    The prep names each file by its pass angle (e.g. +45.0.dxf, -45.0.dxf, +0.0.dxf),
+    so the filename is authoritative -- one pass angle per file. Falls back to the
+    geometry (longest edge) for a legacy Horizontal/Vertical name, then to 0.
+    """
+    try:
+        a = float(path.stem)
+        if -90.0 <= a <= 90.0:
+            return a
+    except ValueError:
+        pass
+    a = cut_angle_deg(path)
+    if a is not None:
+        return max(-90.0, min(90.0, a))
+    return float(FILL_ANGLE_DEG.get(path.stem, 0))
+
+
 # --- Job discovery ----------------------------------------------------------------
 def read_jig_stations(set_dir: Path) -> dict[str, str]:
     manifest = set_dir / "position_manifest.csv"
@@ -136,15 +221,20 @@ def read_jig_stations(set_dir: Path) -> dict[str, str]:
 
 
 def discover_jobs(set_dir: Path) -> list[dict]:
-    """One entry per station folder that has both orientation DXFs present."""
+    """One entry per station folder, with every pass-angle DXF it holds.
+
+    Each folder carries one file per pass angle (named by the angle, e.g. +45.0.dxf),
+    or the legacy Horizontal.dxf/Vertical.dxf pair. `files` is the sorted list of DXFs.
+    """
     jig = read_jig_stations(set_dir)
     jobs: list[dict] = []
     for folder in STATION_FOLDERS:
-        files = {o: set_dir / folder / f"{o}.dxf" for o in ORIENTATIONS}
-        missing = [str(p) for p in files.values() if not p.is_file()]
-        if missing:
-            if any((set_dir / folder).exists() for _ in [0]):
-                print(f"  ! {folder}: missing {missing}; skipped")
+        fdir = set_dir / folder
+        if not fdir.is_dir():
+            continue
+        files = sorted(fdir.glob("*.dxf"))
+        if not files:
+            print(f"  ! {folder}: no DXF files; skipped")
             continue
         jobs.append({
             "folder": folder,
@@ -197,14 +287,20 @@ class WinLaseSession:
         return int(round(mm * self.bits_per_mm))
 
     def build_job(self, job: dict, save: bool) -> list[str]:
-        """Create one job with the H and V graphics; return warning strings."""
+        """Create one job with one graphic per pass-angle file; return warnings."""
         warnings: list[str] = []
         out_path = job["out_path"]
         job_index = int(self.m.NewJob(0, str(out_path)))  # leading [out] index -> pass 0 placeholder
 
-        for orientation in ORIENTATIONS:
-            dxf = job["files"][orientation]
-            xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+        for dxf in job["files"]:
+            orientation = dxf.stem   # pass-angle label (e.g. +45.0) or legacy H/V name
+            try:
+                xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+            except ValueError:
+                # An orientation with no geometry (e.g. a diagonal mark that lives
+                # entirely in the other master) is expected -- skip it, don't crash.
+                warnings.append(f"{job['folder']}/{orientation}: no geometry, skipped (empty)")
+                continue
             want_cx = self.mm_to_bits((xmin + xmax) / 2.0)
             want_cy = self.mm_to_bits((ymin + ymax) / 2.0)
 
@@ -233,12 +329,14 @@ class WinLaseSession:
                     f"{job['folder']}/{orientation}: 0.01 mm rounds below 1 bit at "
                     f"{self.bits_per_mm} bits/mm; fill spacing set to 1 bit"
                 )
-            angle = FILL_ANGLE_DEG[orientation]
+            # Pass angle from the filename (authoritative -- one angle per file), else the
+            # cut geometry, so a diagonal mark scans ALONG its length for a smooth cut.
+            angle = fill_angle_for(dxf)   # already clamped to WinLase's [-90, +90]
             self.m.SetObjFill(obj, spacing_bits, angle, angle, FILL_STYLE_PARALLEL)
             self.m.SetObjMarkFillFlag(obj, 1)
             self.m.SetObjMarkOutlineFlag(obj, 0)
             self.m.SetObjNumPasses(obj, NUM_PASSES)
-            # Force the mark speed to 400 mm/s (the WinLase default profile is 1000).
+            # Force the mark speed to 100 mm/s (the WinLase default profile is 1000).
             # Write ONLY the speed: read Profile 0, change just the speed field, write
             # it back (laser power, frequency, and delays are echoed unchanged), then
             # read again and VERIFY power (index 5) and frequency/T1 (index 9) did not
@@ -285,8 +383,8 @@ class WinLaseSession:
                 )
 
         count = int(self.m.GetObjCount())
-        if count != len(ORIENTATIONS):
-            warnings.append(f"{job['folder']}: job holds {count} objects, expected {len(ORIENTATIONS)}")
+        if count == 0:
+            warnings.append(f"{job['folder']}: job holds NO objects -- nothing to mark")
 
         if save:
             self.m.SaveJobToFile(str(out_path), APP_VERSION, _today(), APP_NAME, COMPANY)
@@ -311,11 +409,16 @@ def print_plan(set_dir: Path, jobs: list[dict], out_dir: Path) -> None:
     for job in jobs:
         tag = f" (jig {job['jig_station']})" if job["jig_station"] else ""
         print(f"  {job['name']}.wlj{tag}")
-        for orientation in ORIENTATIONS:
-            dxf = job["files"][orientation]
-            xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+        for dxf in job["files"]:
+            label = dxf.stem
+            try:
+                xmin, ymin, xmax, ymax = dxf_bounds_mm(dxf)
+            except ValueError:
+                print(f"     {label:10} (empty, skipped)")
+                continue
             cx, cy = (xmin + xmax) / 2.0, (ymin + ymax) / 2.0
-            print(f"     {orientation:10} fill {FILL_ANGLE_DEG[orientation]:>2} deg @ "
+            ang = fill_angle_for(dxf)
+            print(f"     {label:10} fill {ang:+6.1f} deg @ "
                   f"{FILL_SPACING_MM} mm, {NUM_PASSES} pass  |  bbox "
                   f"[{xmin:.3f},{ymin:.3f}]..[{xmax:.3f},{ymax:.3f}] mm, center "
                   f"({cx:+.3f},{cy:+.3f}) mm")

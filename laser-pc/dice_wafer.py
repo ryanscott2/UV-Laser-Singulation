@@ -15,15 +15,15 @@ SAFETY -- this can fire the laser, so it is gated:
   * Pass --arm to actually load and mark jobs through WinLase.
   * LASER-PROFILE GATE: after arming, before ANY stage motion, every job is read back
     and its profile checked against the confirmed WinLase settings (power 100 %,
-    frequency 30 kHz, mark speed 400 mm/s). Any mismatch aborts the run -- no motion,
+    frequency 30 kHz, mark speed 100 mm/s). Any mismatch aborts the run -- no motion,
     no firing. Each job is re-checked once more at mark time. This script never WRITES
     laser power or frequency; it only reads and verifies them.
   * A countdown precedes the run; pressing a key during the countdown, or between
     stations / between mark passes, aborts (stage controlled-stop `I` + WinLase
     TerminateMark). Mid-pass you cannot interrupt in software -- keep a hand on the
     hardware e-stop. This live-laser path could not be tested off the machine.
-  * After a clean armed run the .wlj job files are deleted (rebuild each run); pass
-    --keep-jobs to keep them.
+  * The built .wlj job files are KEPT after a run, so a set can be re-marked without
+    rebuilding through WinLase; pass --delete-jobs to remove them after a clean armed run.
 
 WinLase note: the WinLase GUI and the COM server can't both hold the marker library,
 so CLOSE the WinLase GUI before an armed run. Python 3.8, no network; serial via
@@ -48,17 +48,24 @@ from optiscan import OptiScan  # same laser-pc/ dir
 
 STATION_ORDER = ("P1", "P2", "P3", "P4")
 DEFAULT_PASSES = 175
+# Usable stage window (absolute um) after the 2026-08 re-datum; keep in sync with
+# dice_ui.REACHABLE_UM and the exposure exposure_calibration.json reachable_um. Used to reject
+# stale / out-of-datum taught stations BEFORE any motion (a stale old-datum P1 has negative X,
+# unreachable on this datum -> the stage silently fails to move X).
+# -Y floor is -38140 (NOT the -57210 hard stop): the stage hits a PIPE at the back past that,
+# so clamping here protects the hardware and improves alignment. Keep in sync across repos + optiscan.
+REACHABLE_UM = {"x_min": 16236, "x_max": 138529, "y_min": -38140, "y_max": 0}
 DEFAULT_PASSES_FILE = Path(__file__).resolve().parent / "dice_passes.csv"
 DEFAULT_COUNTDOWN_S = 10
 
 # Required laser profile -- must match the WinLase "Vector Graphic -> Properties ->
-# Profile" the operator confirmed: power 100 %, frequency 30 kHz, mark speed 400 mm/s.
+# Profile" the operator confirmed: power 100 %, frequency 30 kHz, mark speed 100 mm/s.
 # Before ANY stage motion or firing, every job is read back and checked against these;
 # a mismatch aborts the whole run. GetObjProfile index map (same as winlase_build_jobs):
 # [0] = mark speed (bits/mSec), [5] = laser power %, [9] = T1 frequency (kHz).
 EXPECTED_LASER_POWER_PCT = 100.0
 EXPECTED_FREQ_KHZ = 30.0
-EXPECTED_MARK_SPEED_MM_S = 400.0
+EXPECTED_MARK_SPEED_MM_S = 100.0
 POWER_TOLERANCE_PCT = 0.5
 FREQ_TOLERANCE_KHZ = 0.1
 SPEED_TOLERANCE_MM_S = 10.0
@@ -523,13 +530,21 @@ def main() -> int:
                    help="CSV of 'set,passes' rows (default: dice_passes.csv next to this script)")
     p.add_argument("--arm", action="store_true", help="ACTUALLY fire the laser (default: simulate)")
     p.add_argument("--focus", action="store_true", help="set Z from taught positions (needs motor)")
+    p.add_argument("--redatum", choices=["off", "row", "move"], default="off",
+                   help="re-establish the stage datum with RIS to stop an open-loop run from "
+                        "accumulating drift: 'move'=before every station, 'row'=before the first "
+                        "station only (dicing is a flat P1..P4 list, no rows), 'off'=never "
+                        "(default). RIS drives to the hard limits, so keep the full-travel path "
+                        "clear; only as accurate as the limit-switch repeatability -- qualify "
+                        "that first. Runs in dry-run too (stage-only, no laser).")
     p.add_argument("--countdown", type=int, default=DEFAULT_COUNTDOWN_S)
     p.add_argument("--home-after", action="store_true", help="return stage to 0,0 when done")
     p.add_argument("--extract-after", action="store_true",
                    help="when done, move the stage to the P3 station (front-right) to unload")
-    p.add_argument("--keep-jobs", action="store_true",
-                   help="keep the .wlj files after an armed run (default: delete them, "
-                        "so they regenerate fresh on the next build -- no clutter)")
+    p.add_argument("--delete-jobs", action="store_true",
+                   help="delete the .wlj files after a clean armed run (default: KEEP them, "
+                        "so a set can be re-marked without rebuilding through WinLase)")
+    p.add_argument("--keep-jobs", action="store_true", help=argparse.SUPPRESS)  # deprecated no-op: keeping is the default now
     p.add_argument("--list", action="store_true", help="print the plan and exit (no motion)")
     p.add_argument("--yes", action="store_true",
                    help="skip the 'type DICE' arm prompt (the UI confirms instead)")
@@ -547,6 +562,20 @@ def main() -> int:
     print_plan(args.set_dir, plan, passes, args.focus, args.arm)
     if args.list:
         return 0
+
+    # Pre-flight reachability: refuse if any TAUGHT station is outside the usable stage window.
+    # Catches stale positions from a prior datum (e.g. old P1 with negative X, unreachable on
+    # the re-datumed rig) that otherwise fail silently as "X won't move". Re-teach for this datum.
+    R = REACHABLE_UM
+    oob = [(label, pos["x"], pos["y"]) for label, pos, _w in plan
+           if not (R["x_min"] <= pos["x"] <= R["x_max"] and R["y_min"] <= pos["y"] <= R["y_max"])]
+    if oob:
+        print("\n*** REFUSING TO RUN: taught station(s) outside the usable stage window "
+              "X[%d,%d] Y[%d,%d]. Re-teach P1-P4 for this datum: `python optiscan.py jog`. ***"
+              % (R["x_min"], R["x_max"], R["y_min"], R["y_max"]))
+        for label, x, y in oob:
+            print("    %s taught at X=%d Y=%d (out of window)" % (label, x, y))
+        return 1
 
     marker = None
     if args.arm:
@@ -600,9 +629,30 @@ def main() -> int:
             return 1
         eta.start()
         for idx, (label, pos, wlj) in enumerate(plan):
+            # Re-datum cadence (RIS) to stop the open-loop stage accumulating drift: 'move' at
+            # every station, 'row' at the first only (the plan is a flat P1..P4 list). MOVE
+            # FIRST, then RIS, then re-command the target: RIS drives to the hard limits and
+            # RETURNS to its pre-RIS position (the target we just moved to), re-referencing the
+            # datum there, so the final goto is a short, consistent datum->target correction in
+            # the freshly restored frame. RIS drives full travel (path must be clear); a failure
+            # is a controlled stop -- never fire on an unverified datum.
+            do_ris = (args.redatum == "move" or (args.redatum == "row" and idx == 0))
             print("\n[%s] move -> X=%d Y=%d" % (label, pos["x"], pos["y"]))
             move_t0 = time.time()
-            stage.goto(pos["x"], pos["y"])
+            stage.goto(pos["x"], pos["y"])                 # move to the target FIRST
+            if do_ris:
+                print("[redatum] RIS at %s (restoring index at the hard limits) ..." % label)
+                try:
+                    rx, ry = stage.redatum()
+                except (RuntimeError, TimeoutError, ValueError) as exc:
+                    print("*** re-datum (RIS) FAILED at %s: %s -- controlled stop, "
+                          "not firing. ***" % (label, exc))
+                    break
+                print("[redatum] datum restored; stage reads X=%d Y=%d" % (rx, ry))
+                if abort():
+                    print("aborted after re-datum, before re-seating %s." % label)
+                    break
+                stage.goto(pos["x"], pos["y"])             # re-seat in the fresh datum frame
             if args.focus and "z" in pos:
                 stage.goto_z(pos["z"])
             eta.record_move(time.time() - move_t0)
@@ -655,8 +705,9 @@ def main() -> int:
         if marker is not None:
             marker.stop()
             marker.close()
-    # Ephemeral jobs: after a clean armed run, delete the .wlj so they never clutter.
-    if completed and args.arm and not args.keep_jobs:
+    # Jobs are KEPT by default so a set can be re-marked without a rebuild; only a clean
+    # armed run with an explicit --delete-jobs removes them (--keep-jobs is a legacy no-op).
+    if completed and args.arm and args.delete_jobs:
         delete_jobs(plan)
     # Record this run's measured pace so the next run of this set estimates from t=0.
     if completed and args.arm and eta is not None:

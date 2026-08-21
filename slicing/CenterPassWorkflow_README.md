@@ -1,8 +1,10 @@
 # Center-pass KLayout job
 
 This makes one centered laser-field job. The dedicated center-pass Fusion jig was
-retired on 2026-08-11; center the wafer with the four-position pin-grid jig at its
-P0 position instead (see [`../fusion/FusionPinGridJig`](../fusion/FusionPinGridJig)).
+retired on 2026-08-11, and the four-pin-grid jig that replaced it was itself removed
+2026-08-21. Seat the wafer in the current edge-datum jig
+([`../fusion/AlignerEdgePLA`](../fusion/AlignerEdgePLA) / [`../fusion/AlignerEdgeAL`](../fusion/AlignerEdgeAL)),
+whose nest is already centered on the field.
 
 ## Geometry assumption
 
@@ -14,9 +16,9 @@ exceeds the 60 mm qualified usable field, so it reaches into the weaker edge reg
 ## KLayout center-pass script
 
 The center pass is `mode=center_pass` of `split_klayout.py`, so it
-shares that file's `GLOBAL_X_OFFSET_UM` / `GLOBAL_Y_OFFSET_UM` calibration with the
-four-window split (currently `-3101.7 / +1315.7 um`; reset both to 0 when the
-print-v2 jig's nest calibration is in use). Its center-pass settings there are:
+shares that file's `GLOBAL_X_OFFSET_UM` / `GLOBAL_Y_OFFSET_UM` with the
+four-window split. Both are `0`: calibration lives in the taught stage stations and
+the baked edge-jig forward shim, not in the DXF. Its center-pass settings there are:
 
 ```python
 SCORE_DIAMETER_UM = 75_000.0
@@ -47,8 +49,8 @@ plus a text log.
 
 ## Physical sequence
 
-1. Mount the pin-grid jig and seat the wafer at its P0 (center) position: primary
-   flat forward, left edge seated against the X-datum pin (see ../fusion/FusionPinGridJig).
+1. Seat the wafer in the current edge-datum jig (primary flat forward, seated against
+   the front/left datums; see ../fusion/AlignerEdgePLA / ../fusion/AlignerEdgeAL).
 2. Confirm the wafer is flat, clean, and fully seated before focusing.
 3. Run a low-power alignment target first; placement calibration lives in the
    pin-grid jig / splitter offset, not here.
