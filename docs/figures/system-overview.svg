@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">UV laser singulation workflow</title>
+  <desc id="desc">Wafer geometry is split and validated on the prep computer, transferred as four field-centered jobs, built in WinLase, then executed by an OptiScan stage.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" class="arrow-fill"/></marker>
+    <style>
+      text{font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.bg{fill:#fff}.panel{fill:#f6f8fa;stroke:#d0d7de;stroke-width:2}.accent{fill:#0969da}.accent-soft{fill:#ddf4ff;stroke:#54aeff;stroke-width:2}.ink{fill:#1f2328}.muted{fill:#59636e}.line{stroke:#8c959f;stroke-width:3;fill:none;marker-end:url(#arrow)}.arrow-fill{fill:#8c959f}.wafer{fill:#fff;stroke:#57606a;stroke-width:3}.field{fill:#0969da;fill-opacity:.10;stroke:#0969da;stroke-width:2}.origin{stroke:#cf222e;stroke-width:2}
+      @media(prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#30363d}.accent-soft{fill:#0c2d3d;stroke:#1f6feb}.ink{fill:#e6edf3}.muted{fill:#8b949e}.line{stroke:#6e7681}.arrow-fill{fill:#6e7681}.wafer{fill:#0d1117;stroke:#8b949e}.field{fill:#58a6ff;fill-opacity:.13;stroke:#58a6ff}.accent{fill:#58a6ff}.origin{stroke:#ff7b72}}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="430" rx="24"/>
+  <text x="60" y="65" class="ink" font-size="30" font-weight="700">Four-field singulation, end to end</text>
+  <text x="60" y="96" class="muted" font-size="17">The drawing origin stays locked to the laser-field center; the stage moves the wafer.</text>
+  <rect x="55" y="140" width="250" height="220" rx="18" class="panel"/>
+  <text x="85" y="180" class="accent" font-size="15" font-weight="700" letter-spacing="1.2">PREP COMPUTER</text>
+  <circle cx="180" cy="250" r="64" class="wafer"/>
+  <rect x="127" y="197" width="53" height="53" class="field"/><rect x="180" y="197" width="53" height="53" class="field"/><rect x="127" y="250" width="53" height="53" class="field"/><rect x="180" y="250" width="53" height="53" class="field"/>
+  <text x="180" y="340" class="ink" font-size="18" font-weight="650" text-anchor="middle">Split + validate geometry</text>
+  <path d="M325 250H430" class="line"/><text x="378" y="230" class="muted" font-size="14" text-anchor="middle">P1–P4</text>
+  <rect x="450" y="140" width="300" height="220" rx="18" class="accent-soft"/>
+  <text x="480" y="180" class="accent" font-size="15" font-weight="700" letter-spacing="1.2">SET FOLDER</text>
+  <g transform="translate(480 205)"><rect x="0" y="0" width="48" height="48" rx="8" class="field"/><rect x="58" y="0" width="48" height="48" rx="8" class="field"/><rect x="0" y="58" width="48" height="48" rx="8" class="field"/><rect x="58" y="58" width="48" height="48" rx="8" class="field"/><path d="M24 17V31M17 24H31M82 17V31M75 24H89M24 75V89M17 82H31M82 75V89M75 82H89" class="origin"/></g>
+  <text x="620" y="228" class="ink" font-size="18" font-weight="650">Field-centered DXFs</text><text x="620" y="257" class="muted" font-size="15">manifest + split logs</text><text x="620" y="285" class="muted" font-size="15">reconstruction report</text><text x="480" y="335" class="ink" font-size="16">Every job is centered at (0,0)</text>
+  <path d="M770 250H875" class="line"/><text x="823" y="230" class="muted" font-size="14" text-anchor="middle">transfer</text>
+  <rect x="895" y="140" width="250" height="220" rx="18" class="panel"/>
+  <text x="925" y="180" class="accent" font-size="15" font-weight="700" letter-spacing="1.2">LASER PC</text>
+  <rect x="925" y="205" width="190" height="54" rx="10" class="accent-soft"/><text x="1020" y="238" class="ink" font-size="17" font-weight="650" text-anchor="middle">Build WinLase jobs</text>
+  <path d="M1020 270V300" class="line"/><rect x="925" y="310" width="190" height="54" rx="10" class="accent-soft"/><text x="1020" y="333" class="ink" font-size="16" font-weight="650" text-anchor="middle">Move + mark P1 → P4</text><text x="1020" y="353" class="muted" font-size="13" text-anchor="middle">OptiScan III + fixed galvo</text>
+</svg>
+
