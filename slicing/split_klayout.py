@@ -505,22 +505,19 @@ def score_clip_region(layout, shape: str, diameter_um: float):
     ]))
 
 
-def partition_window_size_um(stitch_um: float) -> float:
-    """How wide a partition window is: its own half of the pitch, plus the overlap.
-
-    A window reaches from `stitch/2` across the seam out to the same distance on
-    the far side of its center, so its span is `2 * WINDOW_CENTER + stitch`. This
-    is deliberately independent of the declared field: the field only has to be
-    large enough to contain it, which lets the stitch be retuned without resizing
-    the exposure window or moving anything off center.
-    """
-    return 2.0 * WINDOW_CENTER_X_UM + stitch_um
+def partition_window_size_um(center_um: float, stitch_um: float) -> float:
+    """How wide a partition window is on ONE axis: twice that axis's window center,
+    plus the overlap. Span is `2 * center + stitch`; deliberately independent of the
+    declared field (the field only has to contain it). Per-axis, so X and Y can differ
+    -- a decoupled/rectangular tiling for an asymmetric stage envelope."""
+    return 2.0 * center_um + stitch_um
 
 
-def clip_bounds_um(x_sign: int, y_sign: int, mode: str, stitch_um: float):
-    half_field = QUALIFIED_FIELD_SIZE_UM / 2.0
-    center_x = x_sign * WINDOW_CENTER_X_UM
-    center_y = y_sign * WINDOW_CENTER_Y_UM
+def clip_bounds_um(x_sign: int, y_sign: int, mode: str, stitch_um: float,
+                   wcx: float, wcy: float, field_um: float):
+    half_field = field_um / 2.0
+    center_x = x_sign * wcx
+    center_y = y_sign * wcy
 
     if mode == "full_window":
         return (center_x - half_field, center_y - half_field,
@@ -528,58 +525,51 @@ def clip_bounds_um(x_sign: int, y_sign: int, mode: str, stitch_um: float):
     if mode != "partition":
         raise ValueError("CLIP_MODE must be 'partition' or 'full_window'")
 
-    # Symmetric about the window center by construction, so the geometry always
-    # lands centered in the field no matter what the stitch is set to.
-    half_window = partition_window_size_um(stitch_um) / 2.0
-    return (center_x - half_window, center_y - half_window,
-            center_x + half_window, center_y + half_window)
+    # Symmetric about each window center by construction, so the geometry always lands
+    # centered in the field no matter the stitch. X and Y half-windows are computed
+    # independently, so the tiling can be RECTANGULAR (decoupled X/Y centers).
+    half_window_x = partition_window_size_um(wcx, stitch_um) / 2.0
+    half_window_y = partition_window_size_um(wcy, stitch_um) / 2.0
+    return (center_x - half_window_x, center_y - half_window_y,
+            center_x + half_window_x, center_y + half_window_y)
 
 
-def validate_field_geometry(mode: str, stitch_um: float) -> None:
-    """Check the window fits the declared field, and that the tiling is symmetric.
+def validate_field_geometry(mode: str, stitch_um: float,
+                            wcx: float, wcy: float, field_um: float) -> None:
+    """Check the tiling fits the declared galvo field.
 
-    The window centers are set by the jig's two-grid-space move, so a partition
-    window spans `2 * WINDOW_CENTER + stitch`. The declared field has to be at
-    least that wide or the geometry would reach outside the window the laser is
-    told to expose - at 54 mm of field the stitch can go up to 3200 um before that
-    happens. Both axes must share a center, otherwise the four windows are not a
-    symmetric 2 x 2 tiling of one square field.
+    X and Y window centers MAY DIFFER (decoupled/rectangular tiling for an asymmetric
+    stage envelope -- e.g. ample X travel but a pipe-limited Y). Each axis's window just
+    has to fit inside the square field. In partition mode an axis window spans
+    `2 * center + stitch`, so both axes must be <= the field.
     """
-    if WINDOW_CENTER_X_UM != WINDOW_CENTER_Y_UM:
-        raise ValueError(
-            "WINDOW_CENTER_X_UM and WINDOW_CENTER_Y_UM differ, so the four windows "
-            "cannot be a symmetric 2 x 2 tiling of one square field"
-        )
     if stitch_um < 0:
         raise ValueError("STITCH_OVERLAP_UM cannot be negative")
-    if mode != "partition":
+    if mode == "full_window":
         return
-    needed = partition_window_size_um(stitch_um)
-    if needed > QUALIFIED_FIELD_SIZE_UM + GEOMETRY_TOLERANCE_UM:
-        raise ValueError(
-            f"a partition window is {needed} um wide "
-            f"(2 * {WINDOW_CENTER_X_UM} + {stitch_um}) but QUALIFIED_FIELD_SIZE_UM is "
-            f"{QUALIFIED_FIELD_SIZE_UM}, so geometry would fall outside the declared "
-            f"exposure window. Raise the field to at least {needed}, or drop the "
-            f"stitch to at most {QUALIFIED_FIELD_SIZE_UM - 2.0 * WINDOW_CENTER_X_UM}."
-        )
+    if mode != "partition":
+        raise ValueError("CLIP_MODE must be 'partition' or 'full_window'")
+    for axis, center in (("X", wcx), ("Y", wcy)):
+        needed = partition_window_size_um(center, stitch_um)
+        if needed > field_um + GEOMETRY_TOLERANCE_UM:
+            raise ValueError(
+                f"the {axis} partition window is {needed} um (2 * {center} + {stitch_um}) "
+                f"but the field is {field_um} um, so geometry would fall outside the declared "
+                f"window. Raise --field to at least {needed}, or drop the stitch."
+            )
 
 
-def assert_window_is_square(name: str, bounds, center_x: float, center_y: float,
-                            expected_size_um: float) -> None:
-    """Every emitted window must be square and centered on its own field center."""
+def assert_window_within_field(name: str, bounds, center_x: float, center_y: float,
+                               field_um: float) -> None:
+    """Every emitted window must FIT inside the square galvo field and be concentric with
+    its own field center. Windows may be RECTANGULAR (X and Y centers can differ) -- only
+    the fit and the concentricity are required, not squareness."""
     left, bottom, right, top = bounds
     width, height = right - left, top - bottom
-    if abs(width - height) > GEOMETRY_TOLERANCE_UM:
-        raise RuntimeError(f"{name}: window {width} x {height} um is not square")
-    if abs(width - expected_size_um) > GEOMETRY_TOLERANCE_UM:
+    if width > field_um + GEOMETRY_TOLERANCE_UM or height > field_um + GEOMETRY_TOLERANCE_UM:
         raise RuntimeError(
-            f"{name}: window is {width} um wide, expected {expected_size_um} um"
-        )
-    if width > QUALIFIED_FIELD_SIZE_UM + GEOMETRY_TOLERANCE_UM:
-        raise RuntimeError(
-            f"{name}: window {width} um exceeds the declared field "
-            f"{QUALIFIED_FIELD_SIZE_UM} um"
+            f"{name}: window {width:.0f} x {height:.0f} um exceeds the declared field "
+            f"{field_um:.0f} um"
         )
     # After translation the window must straddle the laser origin symmetrically.
     local_left, local_right = left - center_x, right - center_x
@@ -592,11 +582,13 @@ def assert_window_is_square(name: str, bounds, center_x: float, center_y: float,
         )
 
 
-def clip_union_region(layout, mode: str, stitch_um: float):
+def clip_union_region(layout, mode: str, stitch_um: float,
+                      wcx: float, wcy: float, field_um: float):
     """The union of all four windows: everything the four jobs can reach."""
     union = pya.Region()
     for _, x_sign, y_sign in WINDOWS:
-        left, bottom, right, top = clip_bounds_um(x_sign, y_sign, mode, stitch_um)
+        left, bottom, right, top = clip_bounds_um(x_sign, y_sign, mode, stitch_um,
+                                                  wcx, wcy, field_um)
         union.insert(
             pya.Box(
                 um_to_dbu(layout, left),
@@ -762,16 +754,23 @@ def main() -> None:
     # ----------------------------------------------------------- four-window mode
     stitch_um = as_float("stitch_overlap_um", STITCH_OVERLAP_UM)
     mode = str(runtime_value("clip_mode", CLIP_MODE)).strip().lower()
+    # Window centers and field are overridable so X and Y can be DECOUPLED: an asymmetric
+    # stage envelope (ample X travel, pipe-limited Y) wants tighter Y rows than X columns,
+    # plus a larger galvo field to still cover the wafer from those tight Y rows. Defaults
+    # stay symmetric (the original square tiling), so existing builds are unchanged.
+    window_center_x = as_float("window_center_x_um", WINDOW_CENTER_X_UM)
+    window_center_y = as_float("window_center_y_um", WINDOW_CENTER_Y_UM)
+    field_um = as_float("qualified_field_size_um", QUALIFIED_FIELD_SIZE_UM)
     window_offsets = parse_window_offsets(runtime_value("window_offsets", WINDOW_OFFSETS_UM))
     allow_outside = as_bool("allow_geometry_outside_fields", ALLOW_GEOMETRY_OUTSIDE_FIELDS)
-    validate_field_geometry(mode, stitch_um)
+    validate_field_geometry(mode, stitch_um, window_center_x, window_center_y, field_um)
     source_bbox = region_bbox_um(layout, source_region)
     manifest_rows = []
 
     # Anything outside every window is silently discarded by the clip below, so
     # measure it first. A pattern larger than the four fields loses geometry with
     # no other symptom: four healthy-looking square files and a zero exit code.
-    windows_union = clip_union_region(layout, mode, stitch_um)
+    windows_union = clip_union_region(layout, mode, stitch_um, window_center_x, window_center_y, field_um)
     dropped = source_region.merged() - windows_union
     dropped_area_dbu = dropped.area()
     dropped_bbox = region_bbox_um(layout, dropped)
@@ -786,21 +785,18 @@ def main() -> None:
             f"  source bounds (um):  {source_bbox}\n"
             f"  window union (um):   {union_bbox}\n"
             f"  dropped bounds (um): {dropped_bbox}\n"
-            "The four windows cannot reach this pattern. Either enlarge "
-            "QUALIFIED_FIELD_SIZE_UM and WINDOW_CENTER_*_UM to cover it, or pass "
+            "The four windows cannot reach this pattern. Either enlarge the field / window "
+            "centers (--field, --window-center-x/y) to cover it, or pass "
             "-rd allow_geometry_outside_fields=1 if clipping it away is intended."
         )
 
     empty_jobs: list[str] = []
     for name, x_sign, y_sign in WINDOWS:
-        field_center_x = x_sign * WINDOW_CENTER_X_UM
-        field_center_y = y_sign * WINDOW_CENTER_Y_UM
-        bounds = clip_bounds_um(x_sign, y_sign, mode, stitch_um)
-        assert_window_is_square(
-            name, bounds, field_center_x, field_center_y,
-            QUALIFIED_FIELD_SIZE_UM if mode == "full_window"
-            else partition_window_size_um(stitch_um),
-        )
+        field_center_x = x_sign * window_center_x
+        field_center_y = y_sign * window_center_y
+        bounds = clip_bounds_um(x_sign, y_sign, mode, stitch_um,
+                                window_center_x, window_center_y, field_um)
+        assert_window_within_field(name, bounds, field_center_x, field_center_y, field_um)
         left, bottom, right, top = bounds
         clip_box = pya.Box(
             um_to_dbu(layout, left),
@@ -833,6 +829,17 @@ def main() -> None:
             name.upper(),
         )
         bbox = region_bbox_um(layout, clipped)
+        # Galvo-reach guard: after centering + global offset + nudge, the job's geometry must
+        # still fall inside the PHYSICAL galvo field (+/- FULL_FIELD/2). A big field plus a
+        # baked global offset can push far-edge content past it, where it silently will NOT
+        # mark. Warn loudly (coverage in the wafer domain does not imply the galvo can reach it).
+        if bbox is not None:
+            reach = max(abs(v) for v in bbox)
+            if reach > FULL_FIELD_SIZE_UM / 2.0 + GEOMETRY_TOLERANCE_UM:
+                print("  WARNING: %s reaches %.1f mm from field center, past the %.1f mm galvo "
+                      "half-field -- that part will NOT mark. Shrink --field, reduce the global "
+                      "offset (calibrate via the taught stations instead), or the pattern sits "
+                      "too far off-center." % (name, reach / 1000.0, FULL_FIELD_SIZE_UM / 2000.0))
         manifest_rows.append(
             {
                 "job": name,
@@ -890,12 +897,13 @@ def main() -> None:
             f"widest_original_um={width_stats['widest_original_um']}\n"
         )
         stream.write(f"Stitch overlap (um): {stitch_um}\n")
-        window_size_um = (QUALIFIED_FIELD_SIZE_UM if mode == "full_window"
-                          else partition_window_size_um(stitch_um))
+        wx_um = field_um if mode == "full_window" else partition_window_size_um(window_center_x, stitch_um)
+        wy_um = field_um if mode == "full_window" else partition_window_size_um(window_center_y, stitch_um)
         stream.write(
-            f"Declared field (mm): {QUALIFIED_FIELD_SIZE_UM / 1000.0:.3f}; "
-            f"window per job (mm): {window_size_um / 1000.0:.3f}; "
-            "verified square and concentric with its field\n"
+            f"Declared field (mm): {field_um / 1000.0:.3f}; window centers (mm): "
+            f"X={window_center_x / 1000.0:.3f} Y={window_center_y / 1000.0:.3f}; "
+            f"window per job (mm): {wx_um / 1000.0:.3f} x {wy_um / 1000.0:.3f}; "
+            "verified within field and concentric\n"
         )
         stream.write(
             f"Jobs with no cut geometry: {', '.join(empty_jobs) if empty_jobs else 'none'}\n"

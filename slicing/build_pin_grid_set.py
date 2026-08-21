@@ -223,6 +223,21 @@ def main() -> int:
     parser.add_argument("--stitch", type=float, default=None, help="seam overlap in um")
     parser.add_argument("--offset", action="append", default=[], metavar="LABEL=X,Y",
                         help="per-station nudge in um on top of the global; repeatable")
+    # Decoupled tiling: independent X/Y window centers + field. For an asymmetric stage
+    # envelope (ample X travel, pipe-limited Y) use tighter Y rows + a bigger field so the
+    # wafer is still covered. Omitted => the splitter's symmetric defaults (25.4/25.4, 54 mm).
+    parser.add_argument("--window-center-x", type=float, default=None,
+                        help="X window-center (half-spacing) in um; default 25400")
+    parser.add_argument("--window-center-y", type=float, default=None,
+                        help="Y window-center (half-spacing) in um; decouple from X for a "
+                             "pipe-limited Y (e.g. 12000)")
+    parser.add_argument("--field", type=float, default=None,
+                        help="declared galvo field in um (default 54000; up to ~78485 full "
+                             "field to cover the wafer from tight Y rows)")
+    parser.add_argument("--clip-mode", choices=("partition", "full_window"), default=None,
+                        help="partition = each station owns its half + stitch; full_window = "
+                             "each station cuts its whole field (needed when the field is much "
+                             "bigger than the spacing, e.g. the decoupled dicing config)")
     args = parser.parse_args()
 
     # Relative paths keep the generated build logs free of local absolute paths.
@@ -245,6 +260,14 @@ def main() -> int:
         overrides["stitch_overlap_um"] = str(args.stitch)
     if args.offset:
         overrides["window_offsets"] = ";".join(s.replace("=", ":") for s in args.offset)
+    if args.window_center_x is not None:
+        overrides["window_center_x_um"] = str(args.window_center_x)
+    if args.window_center_y is not None:
+        overrides["window_center_y_um"] = str(args.window_center_y)
+    if args.field is not None:
+        overrides["qualified_field_size_um"] = str(args.field)
+    if args.clip_mode is not None:
+        overrides["clip_mode"] = args.clip_mode
 
     # A width-forced build narrows filled cuts, so the validator needs the expected
     # width to normalize the master before its XOR. Thread it into the printed hint.
