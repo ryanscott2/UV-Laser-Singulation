@@ -15,7 +15,7 @@ SAFETY -- this can fire the laser, so it is gated:
   * Pass --arm to actually load and mark jobs through WinLase.
   * LASER-PROFILE GATE: after arming, before ANY stage motion, every job is read back
     and its profile checked against the confirmed WinLase settings (power 100 %,
-    frequency 30 kHz, mark speed 400 mm/s). Any mismatch aborts the run -- no motion,
+    frequency 30 kHz, mark speed 1000 mm/s). Any mismatch aborts the run -- no motion,
     no firing. Each job is re-checked once more at mark time. This script never WRITES
     laser power or frequency; it only reads and verifies them.
   * A countdown precedes the run; pressing a key during the countdown, or between
@@ -59,13 +59,13 @@ DEFAULT_PASSES_FILE = Path(__file__).resolve().parent / "dice_passes.csv"
 DEFAULT_COUNTDOWN_S = 10
 
 # Required laser profile -- must match the WinLase "Vector Graphic -> Properties ->
-# Profile" the operator confirmed: power 100 %, frequency 30 kHz, mark speed 400 mm/s.
+# Profile" the operator confirmed: power 100 %, frequency 30 kHz, mark speed 1000 mm/s.
 # Before ANY stage motion or firing, every job is read back and checked against these;
 # a mismatch aborts the whole run. GetObjProfile index map (same as winlase_build_jobs):
 # [0] = mark speed (bits/mSec), [5] = laser power %, [9] = T1 frequency (kHz).
 EXPECTED_LASER_POWER_PCT = 100.0
 EXPECTED_FREQ_KHZ = 30.0
-EXPECTED_MARK_SPEED_MM_S = 400.0
+EXPECTED_MARK_SPEED_MM_S = 1000.0
 POWER_TOLERANCE_PCT = 0.5
 FREQ_TOLERANCE_KHZ = 0.1
 SPEED_TOLERANCE_MM_S = 10.0

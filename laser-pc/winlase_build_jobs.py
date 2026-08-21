@@ -21,7 +21,7 @@ signatures:
     NewVectorGraphic(0, objName, fileName) -> objIndex   (imports *.dxf directly)
     GetObjRect(objIndex) -> (Left, Top, Right, Bottom) in field bits
     OffsetObj(objIndex, dxBits, dyBits)
-    SetObjFill(objIndex, spacingBits, slope1Deg, slope2Deg, style)   style 0 = parallel
+    SetObjFill(objIndex, spacingBits, slope1Deg, slope2Deg, style)   style 0 = parallel, 2 = bidirectional
     SetObjMarkFillFlag(objIndex, 1) / SetObjMarkOutlineFlag(objIndex, 0)
     SetObjNumPasses(objIndex, 1)
     IsObjOutOfBounds(objIndex) -> flag
@@ -44,7 +44,7 @@ never downloads or marks.
 NOT automated (do these in the GUI, once per job, per OPERATING_PROCEDURE.md sec 3):
   - Job loop 175x  (a run-time execution setting, not stored geometry)
   - Z / table height, jig re-seat between stations, and the actual mark.
-This script sets the mark speed to 400 mm/s (the WinLase default profile is 1000 mm/s)
+This script sets the mark speed to 1000 mm/s (the WinLase default profile is 1000 mm/s)
 by writing ONLY the speed field of Profile 0: it reads the profile, changes the speed,
 writes it back, then reads it again and verifies laser power and frequency are unchanged
 (aborting the build if not). It never sets laser power or frequency itself; those, the
@@ -66,15 +66,18 @@ from pathlib import Path
 
 # --- Settings from OPERATING_PROCEDURE.md section 3 -------------------------------
 FILL_SPACING_MM = 0.01
-FILL_STYLE_PARALLEL = 0            # SetObjFill style: 0 = parallel lines
+# SetObjFill style: 0 = parallel/unidirectional, 2 = bidirectional. Dicing uses 2 -- the galvo
+# scans alternate directions with no flyback between fill lines, so each pass is faster; the
+# small direction-to-direction line registration error is fine for kerf depth.
+FILL_STYLE_BIDIRECTIONAL = 2
 FILL_ANGLE_DEG = {"Horizontal": 0, "Vertical": 90}   # 0 deg for H cuts, 90 for V
 NUM_PASSES = 1
-MARK_SPEED_MM_S = 400.0            # written onto Profile 0 (WinLase default profile is 1000 mm/s);
+MARK_SPEED_MM_S = 1000.0           # written onto Profile 0 (matches the WinLase default 1000 mm/s);
 SPEED_TOLERANCE_MM_S = 10.0        # ONLY the speed is written -- power/frequency are verified unchanged
 JOB_LOOP_COUNT = 175               # informational only; the real loop count is per set (dice_passes.csv)
 
 # The laser profile the operator confirmed in WinLase (Vector Graphic -> Properties ->
-# Profile): power 100 %, frequency 30 kHz, mark speed 400 mm/s. The build never WRITES
+# Profile): power 100 %, frequency 30 kHz, mark speed 1000 mm/s. The build never WRITES
 # power or frequency; it reads them back and REFUSES to save a job whose profile does
 # not match these -- so a job can never be saved with the wrong laser settings.
 EXPECTED_LASER_POWER_PCT = 100.0
@@ -234,11 +237,11 @@ class WinLaseSession:
                     f"{self.bits_per_mm} bits/mm; fill spacing set to 1 bit"
                 )
             angle = FILL_ANGLE_DEG[orientation]
-            self.m.SetObjFill(obj, spacing_bits, angle, angle, FILL_STYLE_PARALLEL)
+            self.m.SetObjFill(obj, spacing_bits, angle, angle, FILL_STYLE_BIDIRECTIONAL)
             self.m.SetObjMarkFillFlag(obj, 1)
             self.m.SetObjMarkOutlineFlag(obj, 0)
             self.m.SetObjNumPasses(obj, NUM_PASSES)
-            # Force the mark speed to 400 mm/s (the WinLase default profile is 1000).
+            # Force the mark speed to 1000 mm/s (the WinLase default profile is 1000).
             # Write ONLY the speed: read Profile 0, change just the speed field, write
             # it back (laser power, frequency, and delays are echoed unchanged), then
             # read again and VERIFY power (index 5) and frequency/T1 (index 9) did not
