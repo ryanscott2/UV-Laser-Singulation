@@ -29,7 +29,9 @@ Needs the standalone `klayout` Python wheel.
 from __future__ import annotations
 
 import argparse
+import math
 import os
+import re
 import runpy
 from pathlib import Path
 
@@ -81,6 +83,22 @@ def read_region(path: Path, layer_name: str | None = None):
 
 def mm_to_dbu(value_mm: float, dbu: float) -> int:
     return int(round(value_mm * 1_000.0 / dbu))
+
+
+def read_window_centers_mm(set_dir: Path):
+    """(wcx, wcy) window half-spacing in mm from a split log, or None.
+
+    Tiles reconstruct to the window center they were extracted from. For a symmetric
+    build that equals station.field_center_mm, but a decoupled build (e.g. tight Y rows
+    for the pipe-limited stage) tiles at a different Y, so the real center must come from
+    the log the splitter wrote, not the hardcoded field_center.
+    """
+    for log in sorted(set_dir.glob("BuildLogs/**/*_split_log.txt")):
+        m = re.search(r"window centers \(mm\): X=([-\d.]+) Y=([-\d.]+)",
+                      log.read_text(errors="strict"))
+        if m:
+            return float(m.group(1)), float(m.group(2))
+    return None
 
 
 def check_grid_alignment() -> tuple[list[str], bool]:
@@ -222,6 +240,11 @@ def validate(masters_dir: Path, set_dir: Path,
     normalize = cut_width_um is not None and width_mode == "force"
     set_line_widths = ns["set_line_widths"]
 
+    # Where each tile reconstructs to: the window center it was extracted from. Read the
+    # actual centers from the split log so decoupled builds (window-center != the hardcoded
+    # field_center, e.g. tight Y rows) reconstruct correctly; fall back to field_center.
+    window_centers = read_window_centers_mm(set_dir)
+
     # One master per pass angle (any angle). Discover by name; a station may not carry
     # every angle (a pass whose cuts miss that quadrant is skipped at build), so a
     # missing tile is expected, not an error.
@@ -247,10 +270,17 @@ def validate(masters_dir: Path, set_dir: Path,
             # Undo the splitter's translation (and its global + per-station
             # calibration offsets) to put the tile back on the wafer.
             nudge_x_mm, nudge_y_mm = window_offsets_mm.get(station.label, (0.0, 0.0))
+            fcx, fcy = station.field_center_mm
+            if window_centers is not None:
+                # Same quadrant sign as the field center, but the actual window magnitude.
+                base_x = math.copysign(window_centers[0], fcx)
+                base_y = math.copysign(window_centers[1], fcy)
+            else:
+                base_x, base_y = fcx, fcy
             rebuilt += tile.transformed(
                 pya.Trans(
-                    mm_to_dbu(station.field_center_mm[0] - global_x_mm - nudge_x_mm, dbu),
-                    mm_to_dbu(station.field_center_mm[1] - global_y_mm - nudge_y_mm, dbu),
+                    mm_to_dbu(base_x - global_x_mm - nudge_x_mm, dbu),
+                    mm_to_dbu(base_y - global_y_mm - nudge_y_mm, dbu),
                 )
             )
 
