@@ -3,11 +3,11 @@
 Current production set. Built and validated with:
 
 ```bash
-python tools/build_pin_grid_set.py
+python slicing/build_pin_grid_set.py
 ```
 
 ```bash
-python tools/validate_pin_grid_set.py
+python slicing/validate_pin_grid_set.py
 ```
 
 ## Optical and stitch geometry

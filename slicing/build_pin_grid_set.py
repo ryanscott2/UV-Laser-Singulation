@@ -3,9 +3,9 @@
 Runs `slicing/split_klayout.py` once per orientation, then assembles
 the labeled folder structure the operator uses at the machine:
 
-    <set>/P1/Horizontal.dxf   <set>/P1/Vertical.dxf
+    <set>/P1/+0.0.dxf         <set>/P1/+90.0.dxf
     <set>/P2/...              <set>/P3/...   <set>/P4/...
-    <set>/BuildLogs/<orientation>/*_split_log.txt and *_window_manifest.csv
+    <set>/BuildLogs/<angle>/*_split_log.txt and *_window_manifest.csv
     <set>/Master/  copies of the masters this set was cut from
     <set>/position_manifest.csv
 

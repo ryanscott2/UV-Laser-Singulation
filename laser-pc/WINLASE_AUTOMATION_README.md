@@ -1,10 +1,12 @@
 # Auto-building WinLase jobs (`winlase_build_jobs.py`)
 
 Turns a built pin-grid set into ready WinLase Pro jobs so you stop importing and
-re-entering settings 8 times per wafer. It makes **4 jobs per wafer** — one per
-station (P1–P4), each holding that station's `Horizontal.dxf` (parallel fill @ 0°)
-and `Vertical.dxf` (fill @ 90°), positioned at true field coordinates, with 0.01 mm
-fill spacing, 1 pass, mark-fill on / outline off. Output lands in `<set>/WinLaseJobs/`.
+re-entering settings by hand for every pass. It makes **4 jobs per wafer** — one per
+station (P1–P4), each holding every pass-angle DXF in that station's folder (named by
+angle, e.g. `+45.0.dxf`), with the parallel-fill angle read from the filename; legacy
+`Horizontal.dxf` / `Vertical.dxf` are a fallback mapping to 0° / 90°. Each is positioned
+at true field coordinates, with 0.01 mm fill spacing, 1 pass, mark-fill on / outline
+off. Output lands in `<set>/WinLaseJobs/`.
 
 It drives WinLase Professional's COM automation server (`Winlase.Automate`,
 `IAutomate` interface) per the *WinLase Automation Server Reference Manual* (Lanmark
@@ -19,16 +21,16 @@ Controls). It only **builds and saves** `.wlj` files — it never marks.
 ## Run it
 Off-machine, confirm the plan (no WinLase needed):
 ```bash
-python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --dry-run
+python laser-pc/winlase_build_jobs.py output/DXFs/082126_AlignmentTest_v1 --dry-run
 ```
 On the laser PC, verify placement on one job without saving, then build all four:
 ```bash
-python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2 --verify
-python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest_v2
+python laser-pc/winlase_build_jobs.py output/DXFs/082126_AlignmentTest_v1 --verify
+python laser-pc/winlase_build_jobs.py output/DXFs/082126_AlignmentTest_v1
 ```
 Several wafers at once:
 ```bash
-python laser-pc/winlase_build_jobs.py output/DXFs/081326_AlignmentTest output/DXFs/081326_AlignmentTest_v2 output/DXFs/081326_AlignmentTest_v3
+python laser-pc/winlase_build_jobs.py output/DXFs/082126_AlignmentTest_v1 output/DXFs/082126_AlignmentTest_v2 output/DXFs/082126_AlignmentTest_v3
 ```
 
 `--verify` imports P1 in memory and reports each object's placement delta, a size

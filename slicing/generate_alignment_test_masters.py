@@ -94,7 +94,6 @@ OUTPUT_LAYER = 0
 OUTPUT_DATATYPE = 0
 OUTPUT_LAYER_NAME = "0"
 DXF_POLYGON_MODE = 1
-MASTER_STEM = "100mm_wafer_10x30mm_{orientation}_master"
 # All marks now go into ONE combined cut master (layer 0); build it with
 # build_pin_grid_set.py --combined, which groups cuts by their ACTUAL pass angle. This
 # replaces the old pre-rotation Horizontal/Vertical master pair, which mislabeled rotated

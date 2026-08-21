@@ -1,5 +1,11 @@
 # Fusion four-dowel wafer aligner (pin-grid jig)
 
+> **Superseded — kept for reference.** This documents the pin-grid jig (which bakes a
+> `NEST_CALIBRATION` offset into the nest), no longer the production fixture. The
+> current jig is the edge-datum jig, `fusion/AlignerEdgePLA` (PLA) /
+> `fusion/AlignerEdgeAL` (machined aluminium): it datums on the wafer edge and bakes
+> no calibration offset — calibration now lives in the taught stage stations.
+
 This Fusion script (`FusionPinGridJig.py`, folder `AlignerPLA`) builds one compact
 100 mm wafer nest that locates a wafer by its **primary flat plus one hard arc pin**
 and indexes it on a laser table's 1 inch (25.4 mm) tapped-hole grid. The laser is
@@ -100,7 +106,10 @@ It creates an editable parametric design and exports `pin_grid_wafer_jig.f3d` an
   Rigid but still the most crack-prone of the acceptable options.
 - Verify dowel fit and flatness on the table before seating a real wafer.
 
-## SLA variant
+## SLA variant (CANCELLED)
+
+**The SLA jig project was dropped; this variant is not built or used.** Kept for
+reference only.
 
 `fusion/AlignerSLA/FusionPinGridJigSLA.py` builds the same jig for resin. It is
 identical to the PLA script except:

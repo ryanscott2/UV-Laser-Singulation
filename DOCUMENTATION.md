@@ -149,11 +149,13 @@ dxf/100mm_10x30mm_Masters/          slicing/generate_100mm_10x30mm_masters.py
         |  driven by slicing/build_pin_grid_set.py
         v
 output/DXFs/<set>/P1..P4/           four 51 mm windows in a 54 mm declared field,
-  Horizontal.dxf  Vertical.dxf       each centered on (0,0), 0.2 mm stitch overlap
+  +0.0.dxf +90.0.dxf ...             one DXF per pass angle, named by the angle
+                                     (legacy H/V = +0.0/+90.0), each centered on
+                                     (0,0), 0.2 mm stitch overlap
 ```
 
-Horizontal and vertical cuts are separate files for the same jig position. Run
-both without moving the jig or the wafer between them.
+Each pass angle is a separate file for the same jig position, named by its angle.
+Run them all without moving the jig or the wafer between them.
 
 ### Clip, then translate
 
@@ -256,8 +258,8 @@ per-file centering irrelevant.
 
 | Script | Jig |
 | --- | --- |
-| [`fusion/FusionPinGridJig`](fusion/FusionPinGridJig) | Four-position four-pin grid jig; P0 also centers the wafer. Current. |
-| [`fusion/FusionSingleJig`](fusion/FusionSingleJig) | Earlier single-position indexer. |
+| [`fusion/AlignerEdgePLA`](fusion/AlignerEdgePLA) / [`fusion/AlignerEdgeAL`](fusion/AlignerEdgeAL) | Current edge-datum wafer jig (PLA print and machined aluminium). |
+| [`fusion/AlignerPLA`](fusion/AlignerPLA) | Four-position four-pin grid jig; P0 also centers the wafer. |
 
 The pin-grid jig is one physical plate, moved between table-hole positions: the four
 stations `P1`-`P4` and the centered `P0`. It has **four** locating pins on the corners of
@@ -393,7 +395,7 @@ production set:
 
 | source | area at 2x dose | share of exposed area |
 | --- | ---: | ---: |
-| grid crossings, where `Horizontal.dxf` meets `Vertical.dxf` | `0.0700 mm2` in 28 spots of `50 x 50 um` | `0.14%` |
+| grid crossings, where the `+0.0.dxf` pass meets the `+90.0.dxf` pass | `0.0700 mm2` in 28 spots of `50 x 50 um` | `0.14%` |
 | seam overlap, where two neighbouring jobs both reach past `X=0` / `Y=0` | `0.4225 mm2` | `0.86%` |
 | total | `0.4925 mm2` of `49.1333 mm2` | `1.00%` |
 
@@ -470,4 +472,4 @@ is labelled as such.
 - [Four-window splitter](slicing/KLayoutFourWindowSplitter_README.md) — every setting and the full window mapping
 - [Center-pass workflow](slicing/CenterPassWorkflow_README.md) — the single centered scoring job
 - [Generated job sets](output/README.md) — what each set is and which labeling it uses
-- [Pin-grid jig](fusion/FusionPinGridJig/README.md) — dimensions, tolerances, hole map
+- [Wafer jig](fusion/AlignerPLA/README.md) — dimensions, tolerances, hole map (documents the superseded pin-grid jig; the current jig is the edge-datum `fusion/AlignerEdgePLA` / `fusion/AlignerEdgeAL`)

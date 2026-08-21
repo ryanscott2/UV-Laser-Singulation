@@ -819,8 +819,9 @@ class Bridge(QObject):
                 arguments += ["--offset", spec]
         else:
             # Four-window dice: build the production layout the laser UI reads --
-            # output/DXFs/<set>/P1..P4/{Horizontal,Vertical}.dxf, with the cut layer
-            # auto-split into a horizontal and a vertical pass per station.
+            # output/DXFs/<set>/P1..P4/<angle>.dxf (e.g. +0.0.dxf, +45.0.dxf), with the
+            # cut layer grouped by ACTUAL pass angle into one per-pass file per station
+            # (split_by_angle).
             cut_layer = self._cut_layer_from(params)
             if not cut_layer:
                 self._set_status("Pick the cutline layer first.")

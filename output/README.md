@@ -1,14 +1,18 @@
 # Generated laser job sets
 
-Each folder under `DXFs/` is one complete, validated set of exposure files. Only
-the 54 mm pin-grid set is current. The two old-jig sets are kept because the
-calibration history in
+Each folder under `DXFs/` is one complete, validated set of exposure files. The
+**current** sets are the dated N-angle sets under `DXFs/` — each station folder holds
+one DXF per pass angle (e.g. `+45.0.dxf`), not a fixed Horizontal/Vertical pair —
+including `082126_AlignmentTest_v1` through `_v3`.
+
+The table below is **archived history**: these fixed-orientation sets predate the
+N-angle pipeline. They are kept because the calibration history in
 [CALIBRATION_AND_SLIDING_NEST_NOTES.md](../CALIBRATION_AND_SLIDING_NEST_NOTES.md)
 refers to what they actually produced on the machine.
 
-| Set | Jig | Field | Status |
+| Set (archived) | Jig | Field | Status |
 | --- | --- | --- | --- |
-| [080826_FourPosDicer_PinGrid54mm](DXFs/080826_FourPosDicer_PinGrid54mm) | eight-pin grid | `54 mm` | **current production** |
+| [080826_FourPosDicer_PinGrid54mm](DXFs/080826_FourPosDicer_PinGrid54mm) | eight-pin grid | `54 mm` | superseded by the N-angle sets |
 | [080726_FourPosDicer_PinGrid52mm](DXFs/080726_FourPosDicer_PinGrid52mm) | eight-pin grid | `52 mm` | superseded |
 | [080726_FourPosDicer_OriginLocked](DXFs/080726_FourPosDicer_OriginLocked) | original printed four-position | `60 mm` | superseded |
 | [080726_FourPosDicer](DXFs/080726_FourPosDicer) | original printed four-position | `60 mm` | superseded, failed on the machine |
@@ -48,8 +52,8 @@ validator. Never use fit-to-field scaling.
 Only the current set is reproducible from this repository:
 
 ```bash
-python tools/build_pin_grid_set.py
-python tools/validate_pin_grid_set.py
+python slicing/build_pin_grid_set.py
+python slicing/validate_pin_grid_set.py
 ```
 
 The two old-jig sets came from a `split_klayout_four_windows_old_jig_test.py`

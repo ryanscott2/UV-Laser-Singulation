@@ -93,6 +93,9 @@ def split_horizontal_vertical(region):
 
     Decomposes into rectangles and sorts each by its long axis; junction squares
     (crossings) join both so no line is broken. `(H | V)` equals the input.
+
+    Retained only for the docs-figure generator (make_figures.py); the production
+    pipeline uses split_by_angle.
     """
     horizontal = pya.Region()
     vertical = pya.Region()
@@ -213,10 +216,3 @@ def write_master_dxf(path, dbu: float, region, cell_name: str = "MASTER") -> Non
         text = stream.read()
     with open(path, "w", encoding="utf-8", newline="") as stream:
         stream.write(text.replace(generated, OUTPUT_LAYER_NAME))
-
-
-def lossless(original, horizontal, vertical) -> bool:
-    """True when H | V reconstructs the original region with zero XOR area."""
-    combined = horizontal + vertical
-    combined.merge()
-    return (original.dup().merge() ^ combined).area() == 0

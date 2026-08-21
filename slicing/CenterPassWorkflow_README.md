@@ -14,9 +14,9 @@ exceeds the 60 mm qualified usable field, so it reaches into the weaker edge reg
 ## KLayout center-pass script
 
 The center pass is `mode=center_pass` of `split_klayout.py`, so it
-shares that file's `GLOBAL_X_OFFSET_UM` / `GLOBAL_Y_OFFSET_UM` calibration with the
-four-window split (currently `-3101.7 / +1315.7 um`; reset both to 0 when the
-print-v2 jig's nest calibration is in use). Its center-pass settings there are:
+shares that file's `GLOBAL_X_OFFSET_UM` / `GLOBAL_Y_OFFSET_UM` with the
+four-window split. Both are `0`: calibration lives in the taught stage stations and
+the baked edge-jig forward shim, not in the DXF. Its center-pass settings there are:
 
 ```python
 SCORE_DIAMETER_UM = 75_000.0

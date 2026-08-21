@@ -1,8 +1,10 @@
 """Build WinLase Pro jobs from a built pin-grid set: 4 jobs per wafer.
 
-For each station folder (P1..P4) in a set, this creates ONE WinLase job holding both
-the station's `Horizontal.dxf` (parallel fill @ 0 deg) and `Vertical.dxf` (fill @ 90
-deg), positions each at its true field coordinates (the DXF origin is the field
+For each station folder (P1..P4) in a set, this creates ONE WinLase job holding one
+graphic per pass-angle DXF the folder carries (e.g. `+0.0.dxf`, `+45.0.dxf`), each
+filled parallel to its own pass angle (fill_angle_for reads the angle from the
+filename; legacy Horizontal/Vertical -> 0/90 deg), positions each at its true field
+coordinates (the DXF origin is the field
 center -- auto-centering stays effectively OFF), sets the 0.01 mm fill spacing, one
 pass, mark-fill on / outline off, and saves a `.wlj`. That replaces the per-file drag,
 drop, and settings the operator does 8 times a wafer with a single command.
@@ -89,7 +91,6 @@ EXPECTED_FREQ_KHZ = 30.0
 POWER_TOLERANCE_PCT = 0.5
 FREQ_TOLERANCE_KHZ = 0.1
 
-ORIENTATIONS = ("Horizontal", "Vertical")
 STATION_FOLDERS = ("P1", "P2", "P3", "P4")
 FIELD_BIT_LIMIT = 32768            # +/- field half in bits
 

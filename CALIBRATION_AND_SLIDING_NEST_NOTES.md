@@ -1,6 +1,12 @@
 # UV Laser Singulation calibration and sliding-nest notes
 
-Last updated: 2026-08-13
+Last updated: 2026-08-21
+
+Calibration is now DEFINITIVE and lives in the taught stage reference
+`(84355, -19056)` in `laser-pc/optiscan_positions.json` (with the exposure copy in
+`laser_pc/exposure_calibration.json`); the slicer/DXF `GLOBAL_*_OFFSET_UM` and the
+per-station `WINDOW_OFFSETS_UM` are all `0`. Everything below is kept as the
+measurement history that led there.
 
 ## Coordinate convention
 
@@ -558,3 +564,9 @@ is OD noise). Global converged; only per-tile seam tuning remains.
 
 **Set state:** v4 is built at the converged values above. v5 and v6 are currently at the
 superseded `-3854/+450` -- rebuild them to `-3447/+460` + the per-tile above to match.
+
+**Superseded (2026-08-21).** The `GLOBAL_X/Y_OFFSET_UM = -3447 / 460` and the nonzero
+`WINDOW_OFFSETS_UM` above were RESET TO 0. Calibration no longer lives in the DXF at all:
+it is the taught stage reference `(84355, -19056)` in `laser-pc/optiscan_positions.json`
+(exposure copy in `laser_pc/exposure_calibration.json`), with the edge-datum jig CAD
+baking a `9.76 mm` forward shim. This section is kept as history only.
